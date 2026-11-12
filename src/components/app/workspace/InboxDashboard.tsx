@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { InboxService, InboxAgentView, InboxConversationDTO, InboxMessageDTO } from '@/src/api/InboxService';
 import InboxConnectionsPage, {
   INITIAL_CHANNEL_CONNECTIONS,
@@ -25,14 +26,13 @@ import type { Notification } from '@/src/api/NotificationService';
  * own breakpoint rather than detected locally, for the same reason.
  *
  * Queue filtering, view switching, grouping, the drag-and-drop board (desktop
- * only — HTML5 drag events don't fire on touch), assigning and marking resolved
- * are component state.
+ * only — HTML5 drag events don't fire on touch) and marking resolved are
+ * component state.
  *
  * Conversations, messages and replying are REAL: they come from the Unified
  * Inbox API and a reply goes to Instagram or Facebook. Delivery reflects what
- * the provider actually said and is never advanced on a timer. Queues,
- * assignees, tags, notes, leads and AI suggestions are still local-only and do
- * not persist past a reload.
+ * the provider actually said and is never advanced on a timer. Queues, tags,
+ * notes and leads are still local-only and do not persist past a reload.
  */
 
 // ─── Icon set (same hand-rolled convention as WorkspaceDashboard/EscalationsPage) ──
@@ -280,10 +280,10 @@ interface Conversation {
   time: string;
   queue: QueueKey;
   status: StatusKey;
-  assignee: string | null;
   isComplaint?: boolean;
   sourceLabel?: string;
   leadStage?: string;
+  leadValue?: number | null;
   messages?: ThreadMessage[];
   post?: PostContext;
   comments?: ThreadComment[];
@@ -305,7 +305,7 @@ const CHANNEL_META: Record<ChannelKey, { letter: string; color: string; label: s
 };
 
 const STATUS_META: Record<StatusKey, { label: string; fg: string; bg: string }> = {
-  unassigned: { label: 'Unassigned', fg: '#1565C0', bg: 'rgba(33,150,243,.1)' },
+  unassigned: { label: 'Open', fg: '#1565C0', bg: 'rgba(33,150,243,.1)' },
   pending: { label: 'Pending', fg: '#B26A00', bg: 'rgba(237,108,2,.1)' },
   urgent: { label: 'Urgent', fg: '#C62828', bg: 'rgba(198,40,40,.1)' },
   resolved: { label: 'Resolved', fg: '#2E7D32', bg: 'rgba(46,125,50,.1)' },
@@ -317,7 +317,7 @@ type QueueFilter = 'all' | QueueKey | 'unanswered';
 // A queue claiming 34 next to an empty list is worse than no number at all.
 const QUEUE_DEFS: { id: QueueFilter; label: string }[] = [
   { id: 'all', label: 'All conversations' },
-  { id: 'unassigned', label: 'Unassigned' },
+  { id: 'unassigned', label: 'Open' },
   { id: 'sales', label: 'Sales' },
   { id: 'support', label: 'Support' },
   { id: 'complaints', label: 'Complaints' },
@@ -327,7 +327,7 @@ const QUEUE_DEFS: { id: QueueFilter; label: string }[] = [
 ];
 
 const BOARD_COLUMNS: { id: QueueKey; label: string }[] = [
-  { id: 'unassigned', label: 'Unassigned' },
+  { id: 'unassigned', label: 'Open' },
   { id: 'sales', label: 'Sales' },
   { id: 'support', label: 'Support' },
   { id: 'complaints', label: 'Complaints' },
@@ -335,220 +335,12 @@ const BOARD_COLUMNS: { id: QueueKey; label: string }[] = [
   { id: 'resolved', label: 'Resolved' },
 ];
 
-const ASSIGNEE_OPTIONS = ['You', 'Ngozi U.', 'Tobi D.'];
-
 export interface SavedReply {
   label: string;
   text: string;
 }
 
 const DEFAULT_TAG_PRESETS = ['VIP', 'Repeat customer', 'Refund', 'Spam review', 'Urgent'];
-
-const DEFAULT_SAVED_REPLIES: SavedReply[] = [
-  { label: 'Order status', text: 'Thanks for reaching out! Let me check your order status and get right back to you.' },
-  {
-    label: 'Shipping times',
-    text: 'We ship within 2 business days, and delivery across Nigeria typically takes 3-5 days after that.',
-  },
-  {
-    label: 'Out of stock',
-    text: "That one's currently out of stock, but I can let you know the moment it's back — want me to?",
-  },
-  { label: 'Pickup available', text: 'Yes, pickup is available at our Lekki Phase 1 studio, Mon-Sat, 10am-6pm.' },
-  { label: 'Thank you', text: 'Thank you so much for your kind words — it means a lot to us! 💕' },
-];
-
-// ─── Placeholder sample data — stands in for the real Unified Inbox API ────
-// Demo mode: OFF unless NEXT_PUBLIC_INBOX_DEMO is explicitly "true".
-// The sample conversations below are invented, and while this is on nothing is
-// fetched and nothing sent from here reaches Instagram or Facebook. Set the env
-// var to "true" to show the sample conversations instead.
-const DEMO_INBOX = process.env.NEXT_PUBLIC_INBOX_DEMO === 'true';
-
-const RAW_CONVERSATIONS: Conversation[] = [
-  {
-    id: 'c1',
-    type: 'dm',
-    channel: 'instagram',
-    name: 'Chidinma A.',
-    initials: 'CA',
-    avatarColor: '#AD1457',
-    excerpt: 'Hi! Do you have the tan tote in stock?',
-    time: '8m',
-    queue: 'sales',
-    status: 'unassigned',
-    assignee: null,
-    sourceLabel: 'Reel · "New Arrivals — Tan Collection"',
-    messages: [
-      { from: 'customer', text: 'Hi! Do you have the tan tote in stock?', time: '9:14 AM' },
-      { from: 'customer', text: 'Saw it on your last reel 😍', time: '9:14 AM' },
-    ],
-    aiSuggestion: {
-      text: 'Hi Chidinma! Yes, the Tan Woven Tote is in stock — ₦45,000, ships within 2 business days. Want me to reserve one for you?',
-      confidence: 92,
-      sources: ['Product Catalog', 'Shipping Policy'],
-    },
-  },
-  {
-    id: 'c2',
-    type: 'dm',
-    channel: 'whatsapp',
-    name: 'Tobi O.',
-    initials: 'TO',
-    avatarColor: '#00897B',
-    excerpt: "My order #4482 hasn't arrived yet",
-    time: '2h',
-    queue: 'complaints',
-    status: 'urgent',
-    assignee: 'Ngozi U.',
-    isComplaint: true,
-    messages: [
-      { from: 'customer', text: "My order #4482 hasn't arrived yet — it's been 9 days.", time: '11:02 AM' },
-      { from: 'customer', text: 'Can someone please check on this?', time: '11:03 AM' },
-    ],
-  },
-  {
-    id: 'c3',
-    type: 'comment',
-    channel: 'facebook',
-    name: 'Ifeoma B.',
-    initials: 'IB',
-    avatarColor: '#1565C0',
-    excerpt: 'Is this real leather??',
-    time: '24m',
-    queue: 'ad',
-    status: 'unassigned',
-    assignee: null,
-    post: {
-      label: 'AD',
-      caption: 'Summer Drop is here 🌞 Shop the collection — link in bio',
-      campaign: 'Summer Sale Retargeting',
-      likes: 214,
-      commentsCount: 38,
-    },
-    comments: [{ from: 'Ifeoma B.', text: 'Is this real leather??', time: '24m' }],
-    aiSuggestion: {
-      text: 'Yes! 100% full-grain leather, hand-finished in our Lagos workshop. 🌿',
-      confidence: 87,
-      sources: ['Product Catalog'],
-    },
-  },
-  {
-    id: 'c4',
-    type: 'comment',
-    channel: 'tiktok',
-    name: 'kemi.wears',
-    initials: 'KW',
-    avatarColor: '#333333',
-    excerpt: 'omg need this in black 😍',
-    time: '1h',
-    queue: 'sales',
-    status: 'unassigned',
-    assignee: null,
-    post: {
-      label: 'VID',
-      caption: 'Handstitched totes — behind the scenes',
-      campaign: null,
-      likes: 1204,
-      commentsCount: 96,
-    },
-    comments: [{ from: 'kemi.wears', text: 'omg need this in black 😍', time: '1h' }],
-  },
-  {
-    id: 'c5',
-    type: 'comment',
-    channel: 'instagram',
-    name: 'Segun A.',
-    initials: 'SA',
-    avatarColor: '#AD1457',
-    excerpt: 'Price?',
-    time: '3h',
-    queue: 'resolved',
-    status: 'resolved',
-    assignee: 'Ngozi U.',
-    post: {
-      label: 'IMG',
-      caption: 'The Everyday Crossbody, now in 4 colours',
-      campaign: null,
-      likes: 340,
-      commentsCount: 22,
-    },
-    comments: [
-      { from: 'Segun A.', text: 'Price?', time: '3h' },
-      { from: 'agent', by: 'Ngozi U.', text: '₦32,000 — DM sent with the full colour range! 💛', time: '2h' },
-    ],
-  },
-  {
-    id: 'c6',
-    type: 'dm',
-    channel: 'whatsapp',
-    name: 'Funmi K.',
-    initials: 'FK',
-    avatarColor: '#00897B',
-    excerpt: 'Can I pick up in Lekki instead of delivery?',
-    time: '40m',
-    queue: 'support',
-    status: 'pending',
-    assignee: null,
-    messages: [{ from: 'customer', text: 'Can I pick up in Lekki instead of delivery?', time: '10:31 AM' }],
-    aiSuggestion: {
-      text: 'Yes — pickup is available at our Lekki Phase 1 studio, Mon–Sat, 10am–6pm. Would you like me to hold your order for pickup?',
-      confidence: 89,
-      sources: ['Store Locations', 'Fulfilment Policy'],
-    },
-  },
-  {
-    id: 'c7',
-    type: 'dm',
-    channel: 'facebook',
-    name: 'Uche B.',
-    initials: 'UB',
-    avatarColor: '#1565C0',
-    excerpt: 'Refund please, wrong size sent',
-    time: '12m',
-    queue: 'complaints',
-    status: 'urgent',
-    assignee: null,
-    isComplaint: true,
-    messages: [
-      { from: 'customer', text: 'I ordered a medium and got a small. I need a refund please.', time: '11:48 AM' },
-    ],
-  },
-  {
-    id: 'c8',
-    type: 'dm',
-    channel: 'instagram',
-    name: 'Praise N.',
-    initials: 'PN',
-    avatarColor: '#AD1457',
-    excerpt: 'Thank you so much, love it!! 💕',
-    time: '1d',
-    queue: 'resolved',
-    status: 'resolved',
-    assignee: 'You',
-    messages: [
-      { from: 'agent', by: 'You', text: 'Your order is on its way — tracking attached! 📦', time: 'Yesterday' },
-      { from: 'customer', text: 'Thank you so much, love it!! 💕', time: 'Yesterday' },
-    ],
-  },
-  {
-    id: 'c9',
-    type: 'dm',
-    channel: 'whatsapp',
-    name: 'Chidinma A.',
-    initials: 'CA',
-    avatarColor: '#AD1457',
-    excerpt: 'Loved the last order, ordering again!',
-    time: '6d',
-    queue: 'resolved',
-    status: 'resolved',
-    assignee: 'You',
-    messages: [
-      { from: 'customer', text: 'Loved the last order, ordering again!', time: '6d ago' },
-      { from: 'agent', by: 'You', text: 'So happy to hear that! Sending you the new colours now 💗', time: '6d ago' },
-    ],
-  },
-];
 
 // ─── Grouping ───────────────────────────────────────────────────────────────
 
@@ -624,7 +416,7 @@ function pillStyle(active: boolean): React.CSSProperties {
 
 // ─── API → view model ───────────────────────────────────────────────────────
 // The backend is deliberately narrower than this screen: it knows conversations,
-// messages and delivery, and nothing about queues, assignees, leads or AI
+// messages and delivery, and nothing about queues, leads or AI
 // suggestions. Those stay local UI state, so what a reviewer sees on screen is
 // either real or plainly the agent's own working notes — never invented history
 // dressed up as a customer's.
@@ -767,9 +559,9 @@ function toConversation(dto: InboxConversationDTO): Conversation {
     excerpt: dto.excerpt || '',
     time: relativeTime(dto.last_activity_at),
     status: urgent ? 'urgent' : asStatus(dto.status),
-    assignee: dto.assignee_id || null,
     sourceLabel: dto.source_ad_id ? 'an ad' : dto.source_post_id ? 'a post' : undefined,
     leadStage: dto.lead_stage || '',
+    leadValue: dto.lead_value ?? null,
     tags: dto.tags ?? [],
     messages: dto.kind === 'dm' ? [] : undefined,
     comments: dto.kind === 'comment' ? [] : undefined,
@@ -809,16 +601,8 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [view, setView] = useState<'list' | 'board'>('list');
   const [groupBy, setGroupBy] = useState<GroupMode>('time');
 
-  const [cardQueues, setCardQueues] = useState<Record<string, QueueKey>>(() => {
-    if (!DEMO_INBOX) return {};
-    const map: Record<string, QueueKey> = {};
-    RAW_CONVERSATIONS.forEach((c) => {
-      map[c.id] = c.queue;
-    });
-    return map;
-  });
+  const [cardQueues, setCardQueues] = useState<Record<string, QueueKey>>({});
   const [statusOverrides, setStatusOverrides] = useState<Record<string, StatusKey>>({});
-  const [assigneeOverrides, setAssigneeOverrides] = useState<Record<string, string | null>>({});
   const [messageOverrides, setMessageOverrides] = useState<Record<string, ThreadMessage[]>>({});
   const [commentOverrides, setCommentOverrides] = useState<Record<string, ThreadComment[]>>({});
   const [composerDrafts, setComposerDrafts] = useState<Record<string, string>>({});
@@ -833,7 +617,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<QueueKey | null>(null);
-  const [assignMenuOpen, setAssignMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [moveMenuCardId, setMoveMenuCardId] = useState<string | null>(null);
@@ -842,7 +625,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [typeFilter, setTypeFilter] = useState<'all' | ConversationType>('all');
   const [typeFilterMenuOpen, setTypeFilterMenuOpen] = useState(false);
   const [tagFilter, setTagFilter] = useState<string>('all');
-  const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [threadTab, setThreadTab] = useState<'thread' | 'notes'>('thread');
   const [tagOverrides, setTagOverrides] = useState<Record<string, string[]>>({});
   const [tagMenuOpen, setTagMenuOpen] = useState(false);
@@ -857,18 +639,38 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [leadFormNotes, setLeadFormNotes] = useState('');
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [subView, setSubView] = useState<'inbox' | 'connections' | 'insights' | 'settings' | 'voice' | 'usage'>(
-    'inbox'
-  );
+  // ?view=connections is where a Meta connect started from the inbox lands back.
+  // The sidebar's own Automated Messaging dropdown (Connections/Insights/Brand
+  // Voice/AI Usage/Inbox Settings) links here the same way, so every sub-view
+  // — not just connections — needs to be reachable from this same param.
+  const searchParams = useSearchParams();
+  const VALID_SUBVIEWS = ['inbox', 'connections', 'insights', 'settings', 'voice', 'usage'] as const;
+  const [subView, setSubView] = useState<(typeof VALID_SUBVIEWS)[number]>(() => {
+    const v = searchParams?.get('view');
+    return (VALID_SUBVIEWS as readonly string[]).includes(v ?? '') ? (v as (typeof VALID_SUBVIEWS)[number]) : 'inbox';
+  });
+  // The lazy useState above only runs on first mount — it doesn't help when
+  // the sidebar dropdown is clicked while this page is already open (the
+  // common case: Automated Messaging is already the active tab, so the
+  // param changes but this component never remounts). Re-derive subView
+  // whenever the param itself actually changes, without fighting the
+  // in-page rail buttons, which set subView directly and never touch the URL.
+  useEffect(() => {
+    const v = searchParams?.get('view');
+    if (v && (VALID_SUBVIEWS as readonly string[]).includes(v)) {
+      setSubView(v as (typeof VALID_SUBVIEWS)[number]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams?.get('view')]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { notifications, fetchNotifications, markAsRead } = useNotifications();
   useEffect(() => {
     fetchNotifications(1);
   }, [fetchNotifications]);
   const [channelConnections, setChannelConnections] = useState<ChannelConnection[]>(INITIAL_CHANNEL_CONNECTIONS);
-  const [openedIds, setOpenedIds] = useState<Set<string>>(() => new Set(['c1']));
+  const [openedIds, setOpenedIds] = useState<Set<string>>(() => new Set());
   const [tagPresets, setTagPresets] = useState<string[]>(DEFAULT_TAG_PRESETS);
-  const [savedReplies, setSavedReplies] = useState<SavedReply[]>(DEFAULT_SAVED_REPLIES);
+  const [savedReplies, setSavedReplies] = useState<SavedReply[]>([]);
 
   // Escape closes whatever overlay is currently open — drawers, sheets,
   // menus and modals alike — since none of them trap focus, a keyboard or
@@ -879,7 +681,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
       setLeadModalOpen(false);
       setMoveMenuCardId(null);
       setFilterDrawerOpen(false);
-      setAssignMenuOpen(false);
       setMoreMenuOpen(false);
       setTagMenuOpen(false);
       setSavedRepliesOpen(false);
@@ -898,29 +699,19 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [loadedThreads, setLoadedThreads] = useState<Record<string, boolean>>({});
 
   // Real connections, so the page cannot show a channel nobody connected.
-  useEffect(() => {
-    if (DEMO_INBOX) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const rows = await InboxService.listChannels();
-        if (!cancelled) setChannelConnections(channelsFromApi(rows));
-      } catch {
-        // Leave the shells as they are — all showing "Not connected", which is
-        // the safe thing to say when we could not find out.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const loadChannels = useCallback(async () => {
+    try {
+      setChannelConnections(channelsFromApi(await InboxService.listChannels()));
+    } catch {
+      // Leave the shells as they are — all showing "Not connected", which is
+      // the safe thing to say when we could not find out.
+    }
   }, []);
+  useEffect(() => {
+    loadChannels();
+  }, [loadChannels]);
 
   const refreshConversations = useCallback(async () => {
-    if (DEMO_INBOX) {
-      setBaseConversations(RAW_CONVERSATIONS);
-      setLoadingList(false);
-      return;
-    }
     try {
       const rows = await InboxService.listConversations({ limit: 100 });
       const next = rows.map(toConversation);
@@ -951,7 +742,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
 
   useEffect(() => {
     refreshConversations();
-    if (DEMO_INBOX) return;
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') refreshConversations();
     }, 20000);
@@ -962,7 +752,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   // endpoint returns only an excerpt, and fetching every thread's history up
   // front would be hundreds of requests for threads nobody opens.
   useEffect(() => {
-    if (DEMO_INBOX || !selectedId || loadedThreads[selectedId]) return;
+    if (!selectedId || loadedThreads[selectedId]) return;
     let cancelled = false;
     (async () => {
       try {
@@ -1007,7 +797,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         return {
           ...c,
           status: statusOverrides[c.id] ?? c.status,
-          assignee: c.id in assigneeOverrides ? assigneeOverrides[c.id] : c.assignee,
           messages: c.messages ? [...c.messages, ...(messageOverrides[c.id] || [])] : c.messages,
           comments: c.comments ? [...c.comments, ...(commentOverrides[c.id] || [])] : c.comments,
           tags: tagOverrides[c.id] ?? c.tags ?? [],
@@ -1019,7 +808,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
       baseConversations,
       agentOverrides,
       statusOverrides,
-      assigneeOverrides,
       messageOverrides,
       commentOverrides,
       tagOverrides,
@@ -1051,14 +839,11 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
       }
       if (typeFilter !== 'all' && c.type !== typeFilter) return false;
       if (tagFilter !== 'all' && !(c.tags ?? []).includes(tagFilter)) return false;
-      if (assigneeFilter !== 'all') {
-        if (assigneeFilter === 'unassigned' ? c.assignee : c.assignee !== assigneeFilter) return false;
-      }
       if (q && !(c.name.toLowerCase().includes(q) || c.excerpt.toLowerCase().includes(q))) return false;
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations, selectedQueue, cardQueues, typeFilter, tagFilter, assigneeFilter, searchQuery]);
+  }, [conversations, selectedQueue, cardQueues, typeFilter, tagFilter, searchQuery]);
 
   const groups = useMemo(() => buildGroups(filteredConversations, groupBy), [filteredConversations, groupBy]);
 
@@ -1285,6 +1070,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
               isMobile={isMobile}
               connections={channelConnections}
               onConnected={handleChannelConnected}
+              onChannelsChanged={loadChannels}
             />
           ) : subView === 'insights' ? (
             <InboxInsightsPage isMobile={isMobile} conversations={conversations} />
@@ -1453,12 +1239,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     setSendError('');
     showPending(text, localId);
 
-    if (DEMO_INBOX) {
-      settleDelivery(localId, 'sent');
-      setSending(false);
-      return;
-    }
-
     try {
       const result = await InboxService.sendReply(selectedId, text, idempotencyKey, suggestionId);
       if (result.delivery === 'accepted') {
@@ -1505,7 +1285,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   }
 
   async function draftAgain() {
-    if (DEMO_INBOX || !selectedId || drafting) return;
+    if (!selectedId || drafting) return;
     setDrafting(true);
     setAgentError('');
     try {
@@ -1521,7 +1301,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   }
 
   async function correctIntent(intent: string) {
-    if (DEMO_INBOX || !selectedId) return;
+    if (!selectedId) return;
     setAgentError('');
     try {
       const view = await InboxService.correctClassification(
@@ -1543,11 +1323,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   function insertSavedReply(text: string) {
     setComposerDrafts((prev) => ({ ...prev, [selectedId]: text }));
     setSavedRepliesOpen(false);
-  }
-
-  function setAssignee(name: string | null) {
-    setAssigneeOverrides((prev) => ({ ...prev, [selectedId]: name }));
-    setAssignMenuOpen(false);
   }
 
   function toggleResolved() {
@@ -1634,16 +1409,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     setCardQueues((prev) => {
       const next = { ...prev };
       ids.forEach((id) => (next[id] = 'resolved'));
-      return next;
-    });
-    exitSelectMode();
-  }
-
-  function bulkAssign(name: string) {
-    const ids = Array.from(selectedIds);
-    setAssigneeOverrides((prev) => {
-      const next = { ...prev };
-      ids.forEach((id) => (next[id] = name));
       return next;
     });
     exitSelectMode();
@@ -1908,31 +1673,29 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
               <I n="send" s={13} c="#fff" />
               Use &amp; Send
             </button>
-            {!DEMO_INBOX && (
-              <button
-                type="button"
-                onClick={draftAgain}
-                disabled={drafting}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: 'transparent',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: '#AD1457',
-                  cursor: drafting ? 'default' : 'pointer',
-                  fontFamily: FONT,
-                }}
-              >
-                {drafting ? 'Drafting…' : 'Draft again'}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={draftAgain}
+              disabled={drafting}
+              style={{
+                padding: '7px 14px',
+                borderRadius: 8,
+                border: 'none',
+                background: 'transparent',
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#AD1457',
+                cursor: drafting ? 'default' : 'pointer',
+                fontFamily: FONT,
+              }}
+            >
+              {drafting ? 'Drafting…' : 'Draft again'}
+            </button>
           </div>
         </div>
       )}
 
-      {!DEMO_INBOX && (!selectedConv.aiSuggestion || usedAiSuggestion[selectedId]) && isUnanswered(selectedConv) && (
+      {(!selectedConv.aiSuggestion || usedAiSuggestion[selectedId]) && isUnanswered(selectedConv) && (
         <button
           type="button"
           onClick={draftAgain}
@@ -2193,6 +1956,11 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 >
                   Saved replies
                 </div>
+                {savedReplies.length === 0 && (
+                  <div style={{ padding: '6px 8px 8px', fontSize: 12.5, color: '#888', lineHeight: 1.5 }}>
+                    None yet. Add them under Settings.
+                  </div>
+                )}
                 {savedReplies.map((r) => (
                   <button
                     key={r.label}
@@ -2317,9 +2085,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           Delivery reflects what the channel reports
         </div>
       )}
-      {selectedConv.channel === 'whatsapp' && !DEMO_INBOX && (
-        <WhatsAppTemplatePicker conversationId={selectedConv.id} />
-      )}
+      {selectedConv.channel === 'whatsapp' && <WhatsAppTemplatePicker conversationId={selectedConv.id} />}
     </div>
   );
 
@@ -2404,103 +2170,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
       </span>
     );
 
-    const assignControl = (
-      <div style={{ position: 'relative' }}>
-        <button
-          type="button"
-          onClick={() => {
-            setAssignMenuOpen((o) => !o);
-            setMoreMenuOpen(false);
-          }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            border: '1px solid rgba(0,0,0,.1)',
-            background: '#fff',
-            borderRadius: 8,
-            padding: '6px 10px',
-            fontSize: 12,
-            fontWeight: 600,
-            color: '#444',
-            cursor: 'pointer',
-            fontFamily: FONT,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {isMobile ? selectedConv.assignee || 'Unassigned' : `Assigned: ${selectedConv.assignee || 'Unassigned'}`}
-          <I n="chevronDown" s={12} />
-        </button>
-        {assignMenuOpen && (
-          <>
-            <div onClick={() => setAssignMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-            <div
-              style={{
-                position: 'absolute',
-                top: '110%',
-                left: isMobile ? 0 : 'auto',
-                right: isMobile ? 'auto' : 0,
-                zIndex: 999,
-                background: '#fff',
-                borderRadius: 10,
-                boxShadow: '0 8px 24px rgba(0,0,0,.15)',
-                border: '1px solid rgba(0,0,0,.06)',
-                minWidth: 160,
-                padding: 6,
-              }}
-            >
-              {ASSIGNEE_OPTIONS.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => setAssignee(name)}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '8px 10px',
-                    border: 'none',
-                    background: selectedConv.assignee === name ? 'rgba(194,24,91,.08)' : 'transparent',
-                    borderRadius: 6,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: '#333',
-                    cursor: 'pointer',
-                    fontFamily: FONT,
-                  }}
-                >
-                  {name}
-                  {selectedConv.assignee === name && <I n="check" s={13} c="#AD1457" />}
-                </button>
-              ))}
-              <div style={{ height: 1, background: 'rgba(0,0,0,.06)', margin: '4px 0' }} />
-              <button
-                type="button"
-                onClick={() => setAssignee(null)}
-                style={{
-                  width: '100%',
-                  textAlign: 'left',
-                  padding: '8px 10px',
-                  border: 'none',
-                  background: 'transparent',
-                  borderRadius: 6,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: '#999',
-                  cursor: 'pointer',
-                  fontFamily: FONT,
-                }}
-              >
-                Unassign
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    );
-
     const moreControl = (
       <div style={{ position: 'relative' }}>
         <button
@@ -2508,7 +2177,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           aria-label="More options"
           onClick={() => {
             setMoreMenuOpen((o) => !o);
-            setAssignMenuOpen(false);
           }}
           style={{
             width: 32,
@@ -2597,7 +2265,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
 
     if (isMobile) {
       // Two rows: identity gets its own row so a long name never has to
-      // fight the assign pill and the more button for space.
+      // fight the more button for space.
       return (
         <div style={{ flex: '0 0 auto', borderBottom: '1px solid rgba(0,0,0,.08)', boxSizing: 'border-box' }}>
           <div
@@ -2618,7 +2286,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           <div
             style={{ padding: '0 14px 10px', display: 'flex', alignItems: 'center', gap: 8, boxSizing: 'border-box' }}
           >
-            {assignControl}
             {statusChip}
           </div>
         </div>
@@ -2642,7 +2309,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         {avatar}
         {nameAndChannel}
         {statusChip}
-        {assignControl}
         {moreControl}
       </div>
     );
@@ -2664,7 +2330,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     >
       <I n="paperclip" s={13} />
       Sourced from {selectedConv.sourceLabel}
-      {selectedConv.sourceLabel === 'an ad' && !DEMO_INBOX && (
+      {selectedConv.sourceLabel === 'an ad' && (
         <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
           Lead
           <select
@@ -2693,13 +2359,38 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             <option value="converted">Converted</option>
             <option value="lost">Lost</option>
           </select>
+          {selectedConv.leadStage === 'converted' && (
+            <input
+              key={selectedConv.id}
+              type="number"
+              min={0}
+              placeholder="Order ₦"
+              aria-label="Order value in naira"
+              defaultValue={selectedConv.leadValue ?? ''}
+              onBlur={async (e) => {
+                const value = Number(e.target.value);
+                const id = selectedConv.id;
+                if (!e.target.value || Number.isNaN(value)) return;
+                setBaseConversations((prev) => prev.map((c) => (c.id === id ? { ...c, leadValue: value } : c)));
+                await GrowthService.setLeadStage(id, 'converted', value).catch(() => undefined);
+              }}
+              style={{
+                width: 90,
+                fontSize: 12,
+                fontFamily: FONT,
+                border: '1px solid rgba(194,24,91,.3)',
+                borderRadius: 6,
+                padding: '2px 6px',
+              }}
+            />
+          )}
         </label>
       )}
     </div>
   );
 
   const agentInfo = selectedConv.agent;
-  const agentStrip = !DEMO_INBOX && (
+  const agentStrip = (
     <div
       style={{
         padding: '8px 20px',
@@ -2997,7 +2688,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   }));
 
   const allTagsInUse = Array.from(new Set(conversations.flatMap((c) => c.tags ?? []))).sort();
-  const hasExtraFilters = typeFilter !== 'all' || tagFilter !== 'all' || assigneeFilter !== 'all';
+  const hasExtraFilters = typeFilter !== 'all' || tagFilter !== 'all';
 
   const listEmptyState = (
     <div style={{ padding: '40px 20px', textAlign: 'center', color: '#999' }}>
@@ -3012,7 +2703,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             setSearchQuery('');
             setTypeFilter('all');
             setTagFilter('all');
-            setAssigneeFilter('all');
             setSelectedQueue('all');
           }}
           style={{
@@ -3118,7 +2808,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             <input
               value={leadFormInterest}
               onChange={(e) => setLeadFormInterest(e.target.value)}
-              placeholder="e.g. Tan Woven Tote"
+              placeholder="What they want"
               style={{
                 border: '1px solid rgba(0,0,0,.12)',
                 borderRadius: 8,
@@ -3136,7 +2826,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             <input
               value={leadFormBudget}
               onChange={(e) => setLeadFormBudget(e.target.value)}
-              placeholder="e.g. ₦40,000 - ₦60,000"
+              placeholder="e.g. their budget"
               style={{
                 border: '1px solid rgba(0,0,0,.12)',
                 borderRadius: 8,
@@ -3312,9 +3002,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 >
                   {searchQuery ? `"${searchQuery}"` : activeQueueLabel}
                   {typeFilter !== 'all' ? ` · ${typeFilter === 'dm' ? 'Messages' : 'Comments'}` : ''}
-                  {assigneeFilter !== 'all'
-                    ? ` · ${assigneeFilter === 'unassigned' ? 'Unassigned' : assigneeFilter}`
-                    : ''}
                   {tagFilter !== 'all' ? ` · #${tagFilter}` : ''}
                   {groupBy !== 'time' ? ` · Grouped by ${groupByLabel}` : ''}
                 </span>
@@ -3740,28 +3427,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             >
               Mark resolved
             </button>
-            {ASSIGNEE_OPTIONS.map((name) => (
-              <button
-                key={name}
-                type="button"
-                disabled={selectedIds.size === 0}
-                onClick={() => bulkAssign(name)}
-                style={{
-                  flex: '0 0 auto',
-                  padding: '7px 12px',
-                  borderRadius: 8,
-                  border: '1px solid rgba(0,0,0,.1)',
-                  background: '#fff',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: selectedIds.size === 0 ? '#ccc' : '#444',
-                  cursor: selectedIds.size === 0 ? 'default' : 'pointer',
-                  fontFamily: FONT,
-                }}
-              >
-                Assign {name}
-              </button>
-            ))}
           </div>
         )}
 
@@ -3889,45 +3554,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                       }}
                     >
                       {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ padding: '0 12px 8px' }}>
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 800,
-                    letterSpacing: '.06em',
-                    textTransform: 'uppercase',
-                    color: '#999',
-                    padding: '0 8px 8px',
-                  }}
-                >
-                  Assignee
-                </div>
-                <div style={{ display: 'flex', gap: 6, padding: '0 8px', flexWrap: 'wrap' }}>
-                  {(['all', 'unassigned', ...ASSIGNEE_OPTIONS] as const).map((id) => (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => setAssigneeFilter(id)}
-                      style={{
-                        flex: '0 0 auto',
-                        padding: '8px 12px',
-                        borderRadius: 8,
-                        border: assigneeFilter === id ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
-                        background: assigneeFilter === id ? 'rgba(194,24,91,.1)' : '#fff',
-                        color: assigneeFilter === id ? '#AD1457' : '#444',
-                        fontSize: 12.5,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        fontFamily: FONT,
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {id === 'all' ? 'Anyone' : id === 'unassigned' ? 'Unassigned' : id}
                     </button>
                   ))}
                 </div>
@@ -4775,45 +4401,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                           </button>
                         ))}
 
-                        <div
-                          style={{
-                            fontSize: 10.5,
-                            fontWeight: 800,
-                            letterSpacing: '.04em',
-                            textTransform: 'uppercase',
-                            color: '#999',
-                            padding: '10px 8px 4px',
-                          }}
-                        >
-                          Assignee
-                        </div>
-                        {(['all', 'unassigned', ...ASSIGNEE_OPTIONS] as const).map((id) => (
-                          <button
-                            key={id}
-                            type="button"
-                            onClick={() => setAssigneeFilter(id)}
-                            style={{
-                              width: '100%',
-                              textAlign: 'left',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              padding: '8px 10px',
-                              border: 'none',
-                              background: assigneeFilter === id ? 'rgba(194,24,91,.08)' : 'transparent',
-                              borderRadius: 6,
-                              fontSize: 13,
-                              fontWeight: 600,
-                              color: '#333',
-                              cursor: 'pointer',
-                              fontFamily: FONT,
-                            }}
-                          >
-                            {id === 'all' ? 'Anyone' : id === 'unassigned' ? 'Unassigned' : id}
-                            {assigneeFilter === id && <I n="check" s={13} c="#AD1457" />}
-                          </button>
-                        ))}
-
                         {allTagsInUse.length > 0 && (
                           <>
                             <div
@@ -4865,7 +4452,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                               onClick={() => {
                                 setTypeFilter('all');
                                 setTagFilter('all');
-                                setAssigneeFilter('all');
                               }}
                               style={{
                                 width: '100%',
@@ -4920,27 +4506,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 >
                   Mark resolved
                 </button>
-                {ASSIGNEE_OPTIONS.map((name) => (
-                  <button
-                    key={name}
-                    type="button"
-                    disabled={selectedIds.size === 0}
-                    onClick={() => bulkAssign(name)}
-                    style={{
-                      padding: '5px 10px',
-                      borderRadius: 7,
-                      border: '1px solid rgba(0,0,0,.1)',
-                      background: '#fff',
-                      fontSize: 11.5,
-                      fontWeight: 700,
-                      color: selectedIds.size === 0 ? '#ccc' : '#444',
-                      cursor: selectedIds.size === 0 ? 'default' : 'pointer',
-                      fontFamily: FONT,
-                    }}
-                  >
-                    Assign {name}
-                  </button>
-                ))}
               </div>
             )}
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 12px' }}>

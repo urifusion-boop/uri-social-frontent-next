@@ -1,12 +1,15 @@
 'use client';
 
-import { GenerateContentPayload, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { buildGenerateContentPayload } from './generateContentPayload';
 import { BillingService } from '@/src/api/BillingService';
 import { BrandProfileService } from '@/src/api/BrandProfileService';
+import { getStyle } from '@/src/data/styleLibrary';
 import posthog from 'posthog-js';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
+import { takeContentSeed } from '@/src/utils/contentSeed';
 import {
   Box,
   Button,
@@ -55,6 +58,20 @@ const MAX_REFERENCE_IMAGES = 10;
 interface ReferenceImage {
   dataUrl: string;
   name: string;
+  // Whether this upload is actually sent when generating — lets someone upload
+  // several images but only use a subset (see the "Include" checkbox on each
+  // thumbnail). Defaults true so existing behaviour (every upload gets used
+  // somehow) is unchanged unless the user deliberately unticks one.
+  included: boolean;
+  // Optional role description ("product", "background", "logo", ...), only
+  // shown/used when 2+ images are included for a single (non-carousel) post —
+  // feeds directly into the backend's multi-reference combine prompt so the
+  // model knows what each image is for instead of guessing.
+  label?: string;
+  // undefined = let the backend apply its own mode-based default (strip for a
+  // single image, keep as-is when combining several); true/false is an
+  // explicit per-image override from the "Remove background" toggle.
+  removeBackground?: boolean;
 }
 
 interface ContentGeneratorFormProps {
@@ -63,7 +80,7 @@ interface ContentGeneratorFormProps {
 }
 
 function _friendlyGenerationError(msg?: string): string {
-  if (!msg) return 'Something went wrong. Please try again.';
+  if (!msg) return 'Something went wrong — if the issue persists, contact support.';
   const lower = msg.toLowerCase();
   if (
     lower.includes('rate limit') ||
@@ -71,17 +88,24 @@ function _friendlyGenerationError(msg?: string): string {
     lower.includes('temporarily unavailable') ||
     lower.includes('unavailable')
   )
-    return 'Our AI service is temporarily at capacity. Please wait a moment and try again.';
+    return 'We are experiencing high demand right now, please try again in a few minutes — if the issue persists, contact support.';
   if (lower.includes('failed for all platforms'))
-    return 'Content generation failed. Please try again — if the issue persists, contact support.';
-  if (lower.includes('timeout') || lower.includes('timed out')) return 'The request took too long. Please try again.';
+    return 'We are experiencing high demand right now, please try again in a few minutes — if the issue persists, contact support.';
+  if (lower.includes('timeout') || lower.includes('timed out'))
+    return 'We are experiencing high demand right now, please try again in a few minutes — if the issue persists, contact support.';
   if (lower.includes('authentication') || lower.includes('configuration error'))
-    return 'A service configuration error occurred. Please contact support.';
-  return 'Content generation failed. Please try again.';
+    return 'Something went wrong — if the issue persists, contact support.';
+  return 'Something went wrong — if the issue persists, contact support.';
 }
 
 const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: ContentGeneratorFormProps) => {
   const [seedContent, setSeedContent] = useState('');
+  // "Expand with Jane": the short idea it replaced (for Undo) and what it drew on.
+  const [expanding, setExpanding] = useState(false);
+  const [ideaBeforeExpand, setIdeaBeforeExpand] = useState<string | null>(null);
+  const [expandedFrom, setExpandedFrom] = useState<string[]>([]);
+  // The post settings the brief was written for, to offer Re-expand if they change.
+  const [expandedFor, setExpandedFor] = useState<string | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['facebook']);
   // "Tell Jane": a lasting preference ("always…", "never…") belongs in the
   // Playbook, not in one post's topic — this saves it for every post after.
@@ -94,6 +118,25 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     BrandProfileService.getTargetPlatformKeys().then((keys) => {
       if (keys.length && !platformsTouched.current) setSelectedPlatforms(keys);
     });
+  }, []);
+
+  // A brief handed over from elsewhere (e.g. a Market Intelligence opportunity
+  // card's "Create this"): fill the form so the owner only reviews and generates.
+  useEffect(() => {
+    const handed = takeContentSeed();
+    if (!handed?.seed) return;
+    setSeedContent(handed.seed);
+    const known = handed.platforms?.filter((p) =>
+      ['facebook', 'instagram', 'linkedin', 'twitter', 'tiktok'].includes(p)
+    );
+    if (known?.length) {
+      platformsTouched.current = true;
+      setSelectedPlatforms(known);
+    }
+    ToastService.showToast(
+      'Brief from your market opportunity is ready — review it and generate.',
+      ToastTypeEnum.Success
+    );
   }, []);
   const [includeImages, setIncludeImages] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -117,6 +160,13 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
   const [assignMenu, setAssignMenu] = useState<{ anchorEl: HTMLElement; slideIndex: number } | null>(null);
   const [useCustomCta, setUseCustomCta] = useState(false);
   const [customCta, setCustomCta] = useState('');
+
+  // One-time visual style override, picked from the brand's saved profile
+  // styles. Carousel: cycles per slide in the order selected here. Single
+  // post: uses the first one picked. Not saved back to the brand playbook.
+  const [profileStyles, setProfileStyles] = useState<string[]>([]);
+  const [useStyleOverride, setUseStyleOverride] = useState(false);
+  const [selectedOverrideStyles, setSelectedOverrideStyles] = useState<string[]>([]);
 
   // Billing modals
   const [outOfCreditsOpen, setOutOfCreditsOpen] = useState(false);
@@ -183,7 +233,7 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     }
     const reader = new FileReader();
     reader.onload = () => {
-      setReferenceImages((prev) => [...prev, { dataUrl: reader.result as string, name: file.name }]);
+      setReferenceImages((prev) => [...prev, { dataUrl: reader.result as string, name: file.name, included: true }]);
       if (showSuccessToast) {
         ToastService.showToast('Image uploaded successfully', ToastTypeEnum.Success);
       }
@@ -250,7 +300,22 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     setSlideImageOverrides({});
   };
 
+  const updateReferenceImageAt = (index: number, patch: Partial<ReferenceImage>) => {
+    setReferenceImages((prev) => prev.map((img, i) => (i === index ? { ...img, ...patch } : img)));
+  };
+
+  // How many uploads are actually going out determines the mode — no separate
+  // "single vs combine" toggle to keep in sync, it's just the tick count.
+  const includedCount = referenceImages.filter((img) => img.included).length;
+  const isCombineMode = postType !== 'carousel' && includedCount > 1;
+
   // Add paste event listener
+  useEffect(() => {
+    BrandProfileService.get()
+      .then((res) => setProfileStyles(res.responseData?.style_selections ?? []))
+      .catch(() => setProfileStyles([]));
+  }, []);
+
   useEffect(() => {
     const handleGlobalPaste = (e: ClipboardEvent) => {
       // Only handle paste if focus isn't in a text field, so we don't hijack normal text paste
@@ -281,7 +346,6 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     return () => window.removeEventListener('paste', handleGlobalPaste);
   }, [referenceImages]);
 
-  // Check credits before generation
   const refreshCredits = async () => {
     try {
       const balance = await BillingService.getCreditBalance();
@@ -294,29 +358,86 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
       console.error('Failed to check credits:', error);
     }
   };
+
+  // Check credits before generation
   useEffect(() => {
     refreshCredits();
   }, []);
 
+  // Photos that will actually be sent with the post (carousel: all; single: the included ones).
+  const photosForPost = (postType === 'carousel' ? referenceImages : referenceImages.filter((img) => img.included)).map(
+    (img) => img.label?.trim() ?? ''
+  );
+  const ctaForPost = useCustomCta ? customCta.trim() : '';
+  const stylesForPost = useStyleOverride ? selectedOverrideStyles : [];
+  const settingsKey = JSON.stringify([
+    [...selectedPlatforms].sort(),
+    postType,
+    postType === 'carousel' ? numSlides : null,
+    stylesForPost,
+    photosForPost,
+    ctaForPost,
+  ]);
+  const settingsChangedSinceExpand = ideaBeforeExpand !== null && expandedFor !== null && expandedFor !== settingsKey;
+
+  const handleExpand = async (fromIdea?: string) => {
+    const idea = (fromIdea ?? seedContent).trim();
+    if (idea.length < 3 || expanding) return;
+    setExpanding(true);
+    try {
+      const res = await SocialMediaAgentService.expandPrompt({
+        idea,
+        platforms: selectedPlatforms,
+        post_type: postType,
+        ...(postType === 'carousel' ? { num_slides: numSlides } : {}),
+        include_images: includeImages,
+        ...(stylesForPost.length > 0 ? { style_override: stylesForPost } : {}),
+        ...(ctaForPost ? { override_cta: ctaForPost } : {}),
+        ...(photosForPost.length > 0 ? { reference_image_labels: photosForPost } : {}),
+      });
+      if (res.status && res.responseData?.expanded_prompt) {
+        setIdeaBeforeExpand(idea);
+        setSeedContent(res.responseData.expanded_prompt);
+        setExpandedFrom(res.responseData.used ?? []);
+        setExpandedFor(settingsKey);
+        posthog.capture('prompt_expanded', { platforms: selectedPlatforms, post_type: postType });
+      } else {
+        ToastService.showToast(res.responseMessage || "Jane couldn't expand that — try again.", ToastTypeEnum.Error);
+      }
+    } catch (err) {
+      const detail = (err as { data?: { detail?: string } })?.data?.detail;
+      ToastService.showToast(detail || "Jane couldn't expand that — try again.", ToastTypeEnum.Error);
+    } finally {
+      setExpanding(false);
+    }
+  };
+
+  const undoExpand = () => {
+    if (ideaBeforeExpand === null) return;
+    setSeedContent(ideaBeforeExpand);
+    setIdeaBeforeExpand(null);
+    setExpandedFrom([]);
+    setExpandedFor(null);
+  };
+
   const doGenerate = async (acknowledgedIncomplete = false) => {
     setLoading(true);
     try {
-      const payload: GenerateContentPayload = {
-        seed_content: seedContent.trim(),
-        platforms: selectedPlatforms,
-        include_images: includeImages,
-        ...(includeImages ? { image_model: imageModel } : {}),
-        post_type: postType,
-        ...(postType === 'carousel' ? { num_slides: numSlides } : {}),
-        acknowledged_incomplete_profile: acknowledgedIncomplete,
-        ...(useCustomCta && customCta.trim() ? { override_cta: customCta.trim() } : {}),
-      };
-      if (referenceImages.length > 0) {
-        payload.reference_images = referenceImages.map((img) => img.dataUrl);
-        if (postType === 'carousel') {
-          payload.slide_image_map = Array.from({ length: numSlides }, (_, i) => slideImageIndex(i));
-        }
-      }
+      const payload = buildGenerateContentPayload({
+        seedContent,
+        selectedPlatforms,
+        includeImages,
+        imageModel,
+        postType,
+        numSlides,
+        acknowledgedIncomplete,
+        customCta,
+        useCustomCta,
+        selectedOverrideStyles,
+        useStyleOverride,
+        referenceImages,
+        slideImageIndex,
+      });
       const response = await SocialMediaAgentService.generateContent(payload);
 
       if (response.status) {
@@ -433,6 +554,32 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
             <MdInfoOutline size={15} color="#9CA3AF" />
           </Box>
         </Tooltip>
+        <Tooltip
+          title="Write a short idea (e.g. “Happy Mother’s Day post”) and Jane turns it into a full brief using your Brand Playbook and chosen visual style. You can edit it before generating."
+          arrow
+          enterTouchDelay={0}
+        >
+          <span style={{ marginLeft: 'auto' }}>
+            <Button
+              size="small"
+              onClick={() => handleExpand()}
+              disabled={expanding || seedContent.trim().length < 3}
+              startIcon={expanding ? <CircularProgress size={13} color="inherit" /> : <span aria-hidden>✨</span>}
+              sx={{
+                textTransform: 'none',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                borderRadius: '999px',
+                px: 1.5,
+                color: '#B0185A',
+                background: 'rgba(176,24,90,0.08)',
+                '&:hover': { background: 'rgba(176,24,90,0.14)' },
+              }}
+            >
+              {expanding ? 'Expanding…' : 'Expand with Jane'}
+            </Button>
+          </span>
+        </Tooltip>
       </Box>
       <TextField
         placeholder="Describe the topic, share a link, or paste existing content to repurpose..."
@@ -441,10 +588,66 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
         rows={6}
         value={seedContent}
         onChange={(e) => setSeedContent(e.target.value)}
+        disabled={expanding}
         slotProps={{ htmlInput: { maxLength: 5000 } }}
         helperText={`${charCount}/5000 characters (min 10)`}
         sx={{ mb: showTellJane ? 1.5 : 1 }}
       />
+      {ideaBeforeExpand !== null && (
+        <Box
+          display="flex"
+          alignItems="center"
+          flexWrap="wrap"
+          gap={1}
+          mb={1}
+          sx={{ fontSize: '12px', color: '#6B7280' }}
+        >
+          <span>
+            ✨ Expanded with your Brand Playbook
+            {expandedFrom.length ? ` (${expandedFrom.slice(0, 4).join(', ')})` : ''} — edit anything before generating.
+          </span>
+          <Typography
+            component="button"
+            type="button"
+            onClick={undoExpand}
+            sx={{
+              border: 0,
+              background: 'none',
+              p: 0,
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 600,
+              color: '#B0185A',
+            }}
+          >
+            Undo
+          </Typography>
+          {settingsChangedSinceExpand && (
+            <Box
+              component="span"
+              sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, color: '#92400E', width: '100%' }}
+            >
+              You changed the post settings since Jane expanded this.
+              <Typography
+                component="button"
+                type="button"
+                onClick={() => handleExpand(ideaBeforeExpand ?? undefined)}
+                sx={{
+                  border: 0,
+                  background: 'none',
+                  p: 0,
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: '#B0185A',
+                }}
+              >
+                Re-expand for the new settings
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      )}
       {showTellJane ? (
         <TellJane compact source="create" />
       ) : (
@@ -524,7 +727,35 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
                 >
                   {index + 1}
                 </Box>
+                {!img.included && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'rgba(255,255,255,0.6)',
+                    }}
+                  />
+                )}
               </Box>
+              {postType !== 'carousel' && (
+                <Checkbox
+                  size="small"
+                  checked={img.included}
+                  onChange={(e) => updateReferenceImageAt(index, { included: e.target.checked })}
+                  title={img.included ? 'Included in generation — click to exclude' : 'Excluded — click to include'}
+                  sx={{
+                    position: 'absolute',
+                    bottom: -6,
+                    left: -6,
+                    p: 0.25,
+                    background: '#fff',
+                    borderRadius: '4px',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+                    '& .MuiSvgIcon-root': { fontSize: 16 },
+                    '&.Mui-checked': { color: '#CD1B78' },
+                  }}
+                />
+              )}
               <IconButton
                 size="small"
                 onClick={() => removeReferenceImageAt(index)}
@@ -566,6 +797,70 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
               }}
             >
               <MdAdd size={22} color={isDragging ? '#CD1B78' : '#9CA3AF'} />
+            </Box>
+          )}
+        </Box>
+      )}
+
+      {postType !== 'carousel' && referenceImages.length > 1 && (
+        <Box
+          sx={{
+            background: isCombineMode ? '#FDF2F8' : '#F9FAFB',
+            border: `1px solid ${isCombineMode ? '#F3D9E8' : '#E5E7EB'}`,
+            borderRadius: '8px',
+            px: 1.5,
+            py: 1.25,
+            mb: 1.5,
+          }}
+        >
+          <Typography
+            fontSize="12px"
+            fontWeight={600}
+            color={isCombineMode ? '#9D174D' : '#4B5563'}
+            mb={isCombineMode ? 1 : 0}
+          >
+            {isCombineMode
+              ? `Combining ${includedCount} images into one generation`
+              : includedCount === 1
+                ? '1 image selected — used as the main reference'
+                : 'Tick the images you want used, or leave more than one ticked to combine them'}
+          </Typography>
+          {isCombineMode && (
+            <Box display="flex" flexDirection="column" gap={1}>
+              {referenceImages.map((img, index) =>
+                img.included ? (
+                  <Box key={index} display="flex" alignItems="center" gap={1}>
+                    <Box
+                      component="img"
+                      src={img.dataUrl}
+                      alt={img.name}
+                      sx={{ width: 32, height: 32, borderRadius: '4px', objectFit: 'cover', flexShrink: 0 }}
+                    />
+                    <TextField
+                      size="small"
+                      placeholder={`What is image ${index + 1}? (optional — e.g. product, background, logo)`}
+                      value={img.label ?? ''}
+                      onChange={(e) => updateReferenceImageAt(index, { label: e.target.value })}
+                      sx={{ flex: 1, '& .MuiInputBase-input': { fontSize: '12px', py: 0.75 } }}
+                    />
+                    <Box
+                      component="label"
+                      sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', flexShrink: 0 }}
+                      title="Cuts this image down to just its main subject, dropping its own background — useful for a product shot, not for a background/scene image"
+                    >
+                      <Checkbox
+                        size="small"
+                        checked={img.removeBackground ?? false}
+                        onChange={(e) => updateReferenceImageAt(index, { removeBackground: e.target.checked })}
+                        sx={{ p: 0.25, '& .MuiSvgIcon-root': { fontSize: 16 }, '&.Mui-checked': { color: '#CD1B78' } }}
+                      />
+                      <Typography fontSize="11px" color="#6B7280" sx={{ whiteSpace: 'nowrap' }}>
+                        Remove background
+                      </Typography>
+                    </Box>
+                  </Box>
+                ) : null
+              )}
             </Box>
           )}
         </Box>
@@ -735,11 +1030,8 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
 
           {/* Carousel num_slides selector */}
           {postType === 'carousel' && (
-            <Box mt={1.5} display="flex" alignItems="center" flexWrap="wrap" gap={1}>
+            <Box mt={1.5}>
               <SlideCountPicker value={numSlides} onChange={setNumSlides} />
-              <Typography fontSize="12px" color="#9CA3AF" ml={0.5}>
-                Uses {numSlides} credit{numSlides === 1 ? '' : 's'} (1 per slide)
-              </Typography>
             </Box>
           )}
 
@@ -933,40 +1225,216 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
 
       {/* Custom CTA for this generation only */}
       {includeImages && (
-        <Box sx={{ mt: 2, p: 2, borderRadius: '8px', border: '1px solid #E5E7EB', background: '#F9FAFB' }}>
+        <Box
+          sx={{
+            mt: 2,
+            mb: 2,
+            p: 2.5,
+            borderRadius: '12px',
+            border: '1px solid #E9D5FF',
+            background: 'linear-gradient(135deg, #FEFCFF 0%, #FAF5FF 100%)',
+            boxShadow: '0 1px 3px rgba(124, 58, 237, 0.08)',
+          }}
+        >
           <FormControlLabel
             control={
               <Checkbox
                 checked={useCustomCta}
                 onChange={(e) => setUseCustomCta(e.target.checked)}
-                sx={{ color: '#CD1B78', '&.Mui-checked': { color: '#CD1B78' } }}
+                sx={{
+                  color: '#CD1B78',
+                  '&.Mui-checked': { color: '#CD1B78' },
+                  padding: '4px',
+                }}
               />
             }
             label={
               <Box display="flex" alignItems="center" gap={0.5}>
-                <Typography fontSize="13px" fontWeight={500}>
+                <Typography fontSize="14px" fontWeight={600} color="#4B5563">
                   Use custom CTA for this generation only
                 </Typography>
                 <Tooltip
                   title="This CTA will be used only for this image generation and won't be saved to your brand playbook"
                   arrow
+                  placement="top"
                 >
                   <Box component="span" sx={{ display: 'flex', alignItems: 'center', cursor: 'help' }}>
-                    <MdInfoOutline size={14} color="#6B7280" />
+                    <MdInfoOutline size={16} color="#9CA3AF" />
                   </Box>
                 </Tooltip>
               </Box>
             }
+            sx={{ mb: useCustomCta ? 1.5 : 0 }}
           />
           {useCustomCta && (
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="e.g., Flash Sale - 50% Off Today!"
-              value={customCta}
-              onChange={(e) => setCustomCta(e.target.value)}
-              sx={{ mt: 1 }}
-            />
+            <Box sx={{ pl: 4 }}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="e.g., Flash Sale - 50% Off Today!"
+                value={customCta}
+                onChange={(e) => setCustomCta(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    '& fieldset': {
+                      borderColor: '#E5E7EB',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#CD1B78',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#CD1B78',
+                      borderWidth: '2px',
+                    },
+                  },
+                  '& .MuiInputBase-input': {
+                    padding: '10px 14px',
+                  },
+                }}
+              />
+            </Box>
+          )}
+        </Box>
+      )}
+
+      {/* Visual style override for this generation only */}
+      {includeImages && profileStyles.length > 0 && (
+        <Box
+          sx={{
+            mt: 2,
+            mb: 2,
+            p: 2.5,
+            borderRadius: '12px',
+            border: '1px solid #E9D5FF',
+            background: 'linear-gradient(135deg, #FEFCFF 0%, #FAF5FF 100%)',
+            boxShadow: '0 1px 3px rgba(124, 58, 237, 0.08)',
+          }}
+        >
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={useStyleOverride}
+                onChange={(e) => {
+                  setUseStyleOverride(e.target.checked);
+                  if (!e.target.checked) setSelectedOverrideStyles([]);
+                }}
+                sx={{
+                  color: '#CD1B78',
+                  '&.Mui-checked': { color: '#CD1B78' },
+                  padding: '4px',
+                }}
+              />
+            }
+            label={
+              <Box display="flex" alignItems="center" gap={0.5}>
+                <Typography fontSize="14px" fontWeight={600} color="#4B5563">
+                  Use specific styles for this generation only
+                </Typography>
+                <Tooltip
+                  title={
+                    postType === 'carousel'
+                      ? "Pick which of your brand's visual styles to use. Each slide cycles through your picks in the order selected — this generation only, won't change your brand playbook."
+                      : "Pick which of your brand's visual styles to use for this image — this generation only, won't change your brand playbook."
+                  }
+                  arrow
+                  placement="top"
+                >
+                  <Box component="span" sx={{ display: 'flex', alignItems: 'center', cursor: 'help' }}>
+                    <MdInfoOutline size={16} color="#9CA3AF" />
+                  </Box>
+                </Tooltip>
+              </Box>
+            }
+            sx={{ mb: useStyleOverride ? 1.5 : 0 }}
+          />
+          {useStyleOverride && (
+            <Box sx={{ pl: 4 }}>
+              <Box display="flex" flexWrap="wrap" gap={1.25}>
+                {profileStyles.map((slug) => {
+                  const style = getStyle(slug);
+                  const pickOrder = selectedOverrideStyles.indexOf(slug);
+                  const active = pickOrder !== -1;
+                  return (
+                    <Box
+                      key={slug}
+                      onClick={() =>
+                        setSelectedOverrideStyles((prev) =>
+                          prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
+                        )
+                      }
+                      sx={{
+                        position: 'relative',
+                        width: 84,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 84,
+                          height: 56,
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          border: active ? '2px solid #CD1B78' : '1px solid #E5E7EB',
+                          position: 'relative',
+                          background: style
+                            ? `linear-gradient(135deg, ${style.gradient[0]}, ${style.gradient[1]})`
+                            : '#F3F4F6',
+                        }}
+                      >
+                        {style?.image && (
+                          <Box
+                            component="img"
+                            src={style.image}
+                            alt={style.name}
+                            sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                          />
+                        )}
+                        {active && (
+                          <Box
+                            sx={{
+                              position: 'absolute',
+                              top: 2,
+                              left: 2,
+                              background: 'rgba(205,27,120,0.9)',
+                              color: '#fff',
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              borderRadius: '4px',
+                              px: 0.5,
+                              lineHeight: '16px',
+                            }}
+                          >
+                            {pickOrder + 1}
+                          </Box>
+                        )}
+                      </Box>
+                      <Typography
+                        fontSize="11px"
+                        fontWeight={active ? 700 : 500}
+                        color={active ? '#CD1B78' : '#6B7280'}
+                        sx={{
+                          mt: 0.5,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {style?.name ?? slug}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+              {postType === 'carousel' && selectedOverrideStyles.length > 0 && (
+                <Typography fontSize="11.5px" color="#9CA3AF" sx={{ mt: 1 }}>
+                  Slides will cycle through these {selectedOverrideStyles.length} style
+                  {selectedOverrideStyles.length !== 1 ? 's' : ''} in the order picked (numbered above).
+                </Typography>
+              )}
+            </Box>
           )}
         </Box>
       )}

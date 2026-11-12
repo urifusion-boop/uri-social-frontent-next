@@ -332,7 +332,7 @@ export default function HowSheWorks() {
             READY TO SEE HER IN ACTION?
           </h2>
           <Link
-            href="/#pricing"
+            href="/login?tab=signup"
             className="comic-btn px-8 py-4 rounded-lg text-base inline-block"
             style={{ backgroundColor: 'white', color: 'black' }}
           >

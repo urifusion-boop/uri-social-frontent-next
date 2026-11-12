@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import { Bug } from 'lucide-react';
 import BugReportModal from './BugReportModal';
+import { useIsMobile } from '@/src/hooks/useIsMobile';
 
 export default function BugReportButton() {
   const [open, setOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   return (
     <>
@@ -14,8 +16,9 @@ export default function BugReportButton() {
         title="Report a bug"
         style={{
           position: 'fixed',
-          bottom: 24,
-          right: 24,
+          // Clear the mobile bottom nav (56px + safe area) instead of sitting on top of it.
+          bottom: isMobile ? 'calc(56px + 16px + env(safe-area-inset-bottom, 0px))' : 24,
+          right: isMobile ? 16 : 24,
           zIndex: 9000,
           width: 44,
           height: 44,

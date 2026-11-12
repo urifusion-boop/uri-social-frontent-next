@@ -51,6 +51,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ draftId, onClose, onSave })
   const stageRef = useRef<Konva.Stage | null>(null);
   const transformerRef = useRef<Konva.Transformer | null>(null);
   const [selectedNode, setSelectedNode] = useState<Konva.Node | null>(null);
+  const selectedLayerType = document?.layers.find((l) => l.id === selectedLayerId)?.type;
 
   /**
    * Load images for background and brand assets
@@ -381,10 +382,22 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ draftId, onClose, onSave })
             <KonvaLayer>
               {sortedLayers.map((layer) => renderLayer(layer))}
 
-              {/* Transformer for selected layer */}
+              {/* Transformer for selected layer. A brand_asset (logo) layer
+                  locks aspect ratio and drops the 4 edge handles (which
+                  change only width OR only height) — live-confirmed: with
+                  every handle enabled and no ratio lock, dragging an edge
+                  handle stretched/squashed a logo out of shape. Other layer
+                  types (e.g. backgrounds) keep the original free-resize
+                  behavior. */}
               {selectedNode && (
                 <Transformer
                   ref={transformerRef}
+                  keepRatio={selectedLayerType === 'brand_asset'}
+                  enabledAnchors={
+                    selectedLayerType === 'brand_asset'
+                      ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+                      : undefined
+                  }
                   boundBoxFunc={(oldBox, newBox) => {
                     // Limit resize
                     if (newBox.width < 5 || newBox.height < 5) {

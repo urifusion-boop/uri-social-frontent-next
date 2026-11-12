@@ -29,6 +29,11 @@ export interface GenerateContentPayload {
   /** @deprecated use reference_images */
   reference_image?: string;
   reference_images?: string[];
+  /** Parallel to reference_images (same length/order). More than one entry in
+   * reference_images switches the backend to combining them into one image —
+   * this is where each one's optional role label and background-removal
+   * override live. */
+  reference_image_meta?: Array<{ label?: string; remove_background?: boolean }>;
   /** Carousel only: per-slide index into reference_images (or null for no image). Omit to cycle images across slides (image 1 -> slide 1, image 2 -> slide 2, ...). */
   slide_image_map?: (number | null)[];
   post_type?: 'feed' | 'carousel' | 'story';
@@ -62,6 +67,14 @@ export interface StoryboardScene {
   reference_image_index: number;
   text_overlay: string | null;
   frame_image_url?: string;
+  // How this scene follows directly from the previous one — the model is
+  // instructed to write the whole storyboard as one connected narrative,
+  // not independent moments.
+  continuity_note?: string | null;
+  // Populated only for talking-head/testimonial content: the exact words
+  // spoken on camera this scene, one continuous script split across scenes.
+  // Consumed by the "Talking / Dialogue" outcome's avatar model.
+  dialogue?: string | null;
 }
 
 export interface Storyboard {
@@ -69,6 +82,18 @@ export interface Storyboard {
   target_platform: string;
   aspect_ratio: string;
   scenes: StoryboardScene[];
+  // Only present from the "describe it" flow (generateCreativeStoryboard) —
+  // the overall concept the scenes exist to serve, written before the scenes.
+  creative_direction?: string;
+  // Only present from the "describe it" flow when no style was forced — the
+  // model's own pick from VIDEO_STYLES, echoed back so the choice is visible
+  // rather than a silent internal decision.
+  video_style?: string;
+  // Only present from the "describe it" flow — the video type the script writer judged to fit the creative
+  // direction best (the cheapest that does), and why, in a sentence for the customer. Only a suggestion:
+  // the customer can pick another type before generating.
+  suggested_outcome?: string;
+  outcome_reason?: string;
 }
 
 export interface StoryboardPayload {
@@ -79,6 +104,17 @@ export interface StoryboardPayload {
   video_style?: string;
 }
 
+export interface CreativeStoryboardPayload {
+  brief: string;
+  reference_images?: string[];
+  target_platform: string;
+  target_duration_seconds: number;
+  video_style?: string;
+  // Set when regenerating from a hand-edited creative_direction — the model
+  // uses this text verbatim instead of writing its own from the brief.
+  creative_direction_override?: string;
+}
+
 export interface VideoClip {
   scene_number: number;
   shot_type: string;
@@ -87,23 +123,90 @@ export interface VideoClip {
   text_overlay: string | null;
   video_prompt: string;
   video_url: string | null;
+  // Estimated cost in USD for this clip — duration actually sent to the model
+  // × fal.ai's own published per-second rate, not a real-time billed figure
+  // (fal.ai's response carries no live cost field). null until the clip
+  // finishes (or if generation failed — see `error`).
+  cost_usd: number | null;
+  // Engineering-brief routing (§2/§4): the outcome resolves to a primary
+  // model server-side, with its own paired fallback used automatically if
+  // the primary fails — routed_model is whichever one actually ran this
+  // clip, which can differ from the outcome's usual primary.
+  outcome?: string;
+  routed_model?: string | null;
+  fallback_used?: boolean;
+  // Set only when fallback_used is true: why the primary model failed, even
+  // though the fallback itself succeeded — e.g. talking_dialogue's fallback
+  // (Veo) has no scripted-speech guarantee, so a "Done" clip routed there can
+  // still be materially different from what was asked for.
+  warning?: string | null;
+  // True while fal.ai is still rendering this clip after the usual wait: it will arrive on its own, the customer
+  // is notified, and `late` is set once it has.
+  pending?: boolean;
+  late?: boolean;
+  latency_seconds?: number;
   error?: string;
+}
+
+/** What was charged for a generated video, and what came back. Present only when the job was really charged. */
+export interface VideoJobBilling {
+  mode?: string;
+  status?: string; // charged | settled | refund_failed ...
+  credits_charged: number;
+  credits_refunded: number;
+}
+
+/** The server's price for rendering a storyboard. `billing: 'off'` means video is not charged and nothing is shown. */
+export interface VideoQuote {
+  billing: 'off' | 'shadow' | 'on';
+  video_type?: string;
+  scenes?: number;
+  seconds?: number;
+  credits_required?: number;
+  balance?: number | null; // null = an account with no wallet, which is unmetered
+  balance_after?: number | null;
+  sufficient?: boolean;
+  is_trial?: boolean;
+}
+
+export interface VideoQuotePayload {
+  storyboard: { scenes: { scene_number: number; duration_seconds: number }[] };
+  outcome: string;
+  avatar_voice?: string;
 }
 
 export interface VideoJob {
   job_id: string;
   status: 'queued' | 'generating' | 'complete' | 'failed';
-  model: string;
+  outcome: string;
+  model: string; // the outcome's primary model at job-creation time — see each clip's own routed_model for what actually ran
   total_scenes: number;
   current_scene: number;
   clips: VideoClip[];
   error: string | null;
+  billing?: VideoJobBilling | null;
+  // Live fal.ai queue status for whichever scene is generating right now —
+  // only present while a fal.ai call is actually in flight (unset on
+  // completion/timeout). Lets the UI show real progress (queued/position,
+  // processing, elapsed time) instead of a static spinner for however long
+  // the model actually takes — the talking-avatar model routinely runs
+  // 3-12+ minutes.
+  current_scene_status?: {
+    scene_number: number;
+    model_label: string;
+    state: 'Queued' | 'InProgress';
+    position: number | null;
+    elapsed_seconds: number;
+  };
 }
 
 export interface VideoFromStoryboardPayload {
   storyboard: Storyboard;
   brand_images: string[];
-  model?: string;
+  outcome?: string;
+  // Only used when outcome routes to the talking-avatar model (currently
+  // "talking_dialogue") — one of AVATAR_VOICES in VideoStoryboardGenerator.tsx.
+  avatar_voice?: string;
 }
 
 export interface VideoDraft {
@@ -233,6 +336,42 @@ export interface VideoPublishJob {
   platform_post_id: string | null;
   post_url: string | null;
   error: string | null;
+  // Set when the failure or wait is a rate limit. All optional: older jobs don't carry them.
+  // 'rate_limited' = temporary, will resume; 'daily_cap' / 'app_cap' = retrying won't help.
+  error_code?: 'rate_limited' | 'daily_cap' | 'app_cap' | 'interrupted' | string | null;
+  retryable?: boolean | null;
+  // A queued job waiting its turn (busy account or rate limit): it starts at/after this time.
+  next_attempt_at?: string | null;
+  resume_at?: string | null;
+  wait_reason?: 'rate_limited' | 'account_busy' | string | null;
+  updated_at?: string | null;
+}
+
+// What the TikTok Post screen shows and enforces. Fetched fresh each time that
+// screen opens (TikTok Content Sharing Guidelines).
+export interface TikTokCreatorInfo {
+  // How the account is connected: direct TikTok login, or through Outstand.
+  connection_type?: 'direct' | 'outstand';
+  creator_nickname: string;
+  creator_username: string;
+  creator_avatar_url: string;
+  privacy_level_options: string[];
+  comment_disabled: boolean;
+  duet_disabled: boolean;
+  stitch_disabled: boolean;
+  max_video_post_duration_sec: number | null;
+}
+
+// The user's own choices on the Post to TikTok screen — nothing is defaulted for them.
+export interface TikTokPostSettings {
+  title: string;
+  privacy_level: string;
+  allow_comment: boolean;
+  allow_duet: boolean;
+  allow_stitch: boolean;
+  brand_organic: boolean; // "Your brand" → labelled Promotional content
+  brand_content: boolean; // "Branded content" → labelled Paid partnership
+  description?: string; // photo posts only — the caption under the photo(s)
 }
 
 export interface RefinePayload {
@@ -247,6 +386,8 @@ export interface ApprovePayload {
   draft_ids: string[];
   schedule_option: 'immediate' | 'schedule' | 'save_draft';
   scheduled_datetime?: string;
+  // Required to schedule a TikTok image / carousel post: the Post to TikTok screen's choices.
+  tiktok?: TikTokPostSettings;
 }
 
 export interface ApprovePublishResult {
@@ -255,6 +396,12 @@ export interface ApprovePublishResult {
   post_id?: string;
   // 'confirming': the network accepted it; whether it's live is confirmed shortly after.
   status?: string;
+  // Held back by the platform's rate limit or a post already going out for this account.
+  // Not a failure: the scheduler posts it at resume_at.
+  queued?: boolean;
+  publish_status?: string;
+  resume_at?: string | null;
+  message?: string;
 }
 
 export interface ApprovedDraft {
@@ -321,6 +468,12 @@ export interface CarouselSlide {
   body: string;
   image_url?: string;
   image_specs?: { width: number; height: number };
+  // Set while this slide's image is still generating in the background
+  // (confirmed via the real generate-content response: slides come back
+  // with image_url: null and this false, then fill in moments later) and
+  // flipped true if that generation ultimately fails.
+  image_failed?: boolean;
+  image_retry_count?: number;
   // Set once this slide's image has been edited via the Edit Image panel —
   // mirrors the top-level image_version/content_edit_count a regular
   // single-image draft carries, but scoped to this one slide.
@@ -332,6 +485,29 @@ export interface CarouselSlide {
   // repositioned this way (nothing to re-paste the logo onto).
   background_image_url?: string;
   logo_placement?: LogoPlacement;
+}
+
+export interface ExpandPromptPayload {
+  idea: string;
+  platforms: string[];
+  post_type: string;
+  num_slides?: number;
+  include_images: boolean;
+  style_override?: string[];
+  override_cta?: string;
+  // one entry per uploaded photo that will be used ("" when unlabelled)
+  reference_image_labels?: string[];
+}
+
+export interface ExpandedPrompt {
+  expanded_prompt: string;
+  used: string[];
+}
+
+export interface ExpandVideoPromptPayload {
+  idea: string;
+  platform?: string;
+  duration_seconds?: number;
 }
 
 export interface ContentDraft {
@@ -347,6 +523,12 @@ export interface ContentDraft {
     | 'published'
     | 'denied'
     | 'scheduled'
+    // What "scheduled" is called outside APP_ENV=production, so the
+    // production cron (which only queries status="scheduled") can never
+    // claim and double-publish a staging draft — staging has its own cron
+    // querying this status instead. Same real "scheduled" state everywhere
+    // else in the UI; see approval_workflow_service.py's schedule branch.
+    | 'staging_scheduled'
     | 'ready_to_publish'
     | 'replaced'
     | 'publish_failed'
@@ -364,20 +546,53 @@ export interface ContentDraft {
   image_retry_count?: number; // PRD 4.2: Track image retry count for credit deduction
   video_url?: string;
   created_at?: string;
+  // The field a draft actually carries once scheduled (approval_workflow_service.py
+  // writes scheduled_date, a real datetime with time-of-day — scheduled_datetime below
+  // is only ever a request field sent when scheduling, never present on a GET response).
+  scheduled_date?: string | null;
   scheduled_datetime?: string;
   auto_generated?: boolean;
   post_type?: 'feed' | 'carousel' | 'story' | 'reel';
   slides?: CarouselSlide[];
   image_specs?: { width: number; height: number };
   error_message?: string;
+  // Held back by the platform's rate limit or a post already going out for this account. Still
+  // scheduled, not failed: the backend posts it once resume_at passes.
+  publish_wait?: {
+    reason?: 'rate_limited' | 'account_busy' | string;
+    code?: string | null;
+    resume_at?: string | null;
+    message?: string;
+  } | null;
+  // Set when the last publish failed on a daily / app-wide cap (retrying cannot help).
+  publish_error_kind?: 'daily_cap' | 'app_cap' | string | null;
   content_source?: 'ai_generated' | 'user_uploaded'; // NEW: Distinguish AI vs user content
   uploaded_media_urls?: string[]; // NEW: User-uploaded media URLs (images/videos)
+  // TikTok single-image/carousel only (Music PRD MUS-PRD-01 §2.2/§8) — TikTok's
+  // Content Posting API has no track-selection field for photo posts, just this
+  // boolean, which triggers TikTok's own automatic background-music pick.
+  // Ignored for video/reel drafts (both by TikTok/Outstand and by our own publish code).
+  tiktok_auto_add_music?: boolean;
   // Logo-free background + exactly where the logo landed on it, saved at
   // generation time — present only for content generated after manual
   // logo reposition shipped. Both absent means this draft can't be
   // repositioned this way (nothing to re-paste the logo onto).
   background_image_url?: string;
   logo_placement?: LogoPlacement;
+}
+
+// The real shape of generateContent()'s success responseData — confirmed
+// against a live /social-media/generate-content response. The drafts live
+// under `drafts`, not as the top-level array (nothing read this field until
+// the Create Content wizard's Review & Schedule step did, so this was never
+// exercised/caught before).
+export interface GenerateContentResponseData {
+  request_id?: string;
+  seed_content?: string;
+  seed_type?: string;
+  requested_platforms?: string[];
+  successful_platforms?: string[];
+  drafts: ContentDraft[];
 }
 
 export interface ContentCalendarResponse {
@@ -433,6 +648,21 @@ export class SocialMediaAgentService {
   > {
     const response = await UriHttpClient.getClient().get(socialMediaAgentRoutes.getConnections);
     return response.data;
+  }
+
+  /** A presigned, short-lived URL for `url` that makes the browser save the
+   *  download as `filename` — the S3-native replacement for Cloudinary's
+   *  fl_attachment delivery-URL flag. Falls back to the original url if the
+   *  backend can't sign it (e.g. it isn't one of our own S3 objects). */
+  static async getDownloadUrl(url: string, filename: string): Promise<string> {
+    try {
+      const response = await UriHttpClient.getClient().get(socialMediaAgentRoutes.downloadUrl, {
+        params: { url, filename },
+      });
+      return (response.data as UriResponse<{ url: string }>)?.responseData?.url || url;
+    } catch {
+      return url;
+    }
   }
 
   static async disconnectPlatform(platform: string): Promise<UriResponse<string>> {
@@ -498,21 +728,38 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
-  static async generateContent(payload: GenerateContentPayload): Promise<UriResponse<ContentDraft[]>> {
-    const response: Awaited<AxiosResponse<UriResponse<ContentDraft[]>>> = await UriHttpClient.getClient().post(
-      socialMediaAgentRoutes.generateContent,
+  // Turn a short idea into a fuller, brand-guided brief for the owner to review before generating.
+  static async expandPrompt(payload: ExpandPromptPayload): Promise<UriResponse<ExpandedPrompt>> {
+    const response: Awaited<AxiosResponse<UriResponse<ExpandedPrompt>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.expandPrompt,
       payload,
-      { timeout: 300000 }
+      { timeout: 60000 }
     );
     return response.data;
   }
 
-  static async uploadUserContent(payload: UploadUserContentPayload): Promise<UriResponse<ContentDraft[]>> {
-    const response: Awaited<AxiosResponse<UriResponse<ContentDraft[]>>> = await UriHttpClient.getClient().post(
-      socialMediaAgentRoutes.uploadUserContent,
+  // Same job as expandPrompt above, for the "Describe it" video flow's own brief box.
+  static async expandVideoPrompt(payload: ExpandVideoPromptPayload): Promise<UriResponse<ExpandedPrompt>> {
+    const response: Awaited<AxiosResponse<UriResponse<ExpandedPrompt>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.expandVideoPrompt,
       payload,
-      { timeout: 300000 }
+      { timeout: 60000 }
     );
+    return response.data;
+  }
+
+  static async generateContent(payload: GenerateContentPayload): Promise<UriResponse<GenerateContentResponseData>> {
+    const response: Awaited<AxiosResponse<UriResponse<GenerateContentResponseData>>> =
+      await UriHttpClient.getClient().post(socialMediaAgentRoutes.generateContent, payload, { timeout: 300000 });
+    return response.data;
+  }
+
+  // Returns the same shape as generateContent (responseData.drafts), not a
+  // bare array — the old type annotation here was never exercised because
+  // UploadContentForm only checked response.status and never read the body.
+  static async uploadUserContent(payload: UploadUserContentPayload): Promise<UriResponse<GenerateContentResponseData>> {
+    const response: Awaited<AxiosResponse<UriResponse<GenerateContentResponseData>>> =
+      await UriHttpClient.getClient().post(socialMediaAgentRoutes.uploadUserContent, payload, { timeout: 300000 });
     return response.data;
   }
 
@@ -607,6 +854,18 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  // TikTok single-image/carousel only — see ContentDraft.tiktok_auto_add_music.
+  static async setTiktokAutoAddMusic(
+    draftId: string,
+    enabled: boolean
+  ): Promise<UriResponse<{ tiktok_auto_add_music: boolean }>> {
+    const response = await UriHttpClient.getClient().patch(
+      `${socialMediaAgentRoutes.deleteDraft}/${draftId}/tiktok-auto-add-music`,
+      { enabled }
+    );
+    return response.data;
+  }
+
   static async syncImageAcrossDrafts(
     sourceDraftId: string,
     targetDraftIds: string[]
@@ -638,6 +897,11 @@ export class SocialMediaAgentService {
     const response = await UriHttpClient.getClient().post(
       `${socialMediaAgentRoutes.deleteDraft}/${draftId}/unschedule`
     );
+    return response.data;
+  }
+
+  static async restoreDraft(draftId: string): Promise<UriResponse<{ draft_id: string; status: string }>> {
+    const response = await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.deleteDraft}/${draftId}/restore`);
     return response.data;
   }
 
@@ -728,11 +992,13 @@ export class SocialMediaAgentService {
   static async regenerateCalendarItemV2(
     planId: string,
     itemIndex: number,
-    reason = ''
+    reason = '',
+    scope: 'full' | 'hook' | 'copy' | 'creative' | 'format' = 'full',
+    newFormat?: string
   ): Promise<UriResponse<ContentCalendarV2Plan>> {
     const response: Awaited<AxiosResponse<UriResponse<ContentCalendarV2Plan>>> = await UriHttpClient.getClient().post(
       `${socialMediaAgentRoutes.calendarV2ItemBase}/${planId}/item/${itemIndex}/regenerate`,
-      { reason },
+      { reason, scope, new_format: newFormat },
       { timeout: 60000 }
     );
     return response.data;
@@ -778,20 +1044,46 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
-  static async generateStoryboard(payload: StoryboardPayload): Promise<UriResponse<Storyboard>> {
-    const response: Awaited<AxiosResponse<UriResponse<Storyboard>>> = await UriHttpClient.getClient().post(
-      socialMediaAgentRoutes.generateStoryboard,
+  // Job-based (was a plain blocking call) — returns a job_id immediately,
+  // poll with getStoryboardJob below.
+  static async generateStoryboard(
+    payload: StoryboardPayload
+  ): Promise<UriResponse<{ job_id: string; status: string }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.generateStoryboard, payload);
+    return response.data;
+  }
+
+  static async getStoryboardJob(
+    jobId: string
+  ): Promise<UriResponse<{ job_id: string; status: string; storyboard: Storyboard | null; error: string | null }>> {
+    const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.storyboardJob}/${jobId}`);
+    return response.data;
+  }
+
+  /**
+   * `idempotencyKey` makes a repeated click or retry of the SAME request return the first job instead of
+   * charging again. Send a fresh one for each deliberate new generation.
+   */
+  static async generateVideoFromStoryboard(
+    payload: VideoFromStoryboardPayload,
+    idempotencyKey?: string
+  ): Promise<UriResponse<VideoJob>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoJob>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.generateVideoFromStoryboard,
       payload,
-      { timeout: 60000 }
+      {
+        timeout: 180000,
+        ...(idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : {}),
+      }
     );
     return response.data;
   }
 
-  static async generateVideoFromStoryboard(payload: VideoFromStoryboardPayload): Promise<UriResponse<VideoJob>> {
-    const response: Awaited<AxiosResponse<UriResponse<VideoJob>>> = await UriHttpClient.getClient().post(
-      socialMediaAgentRoutes.generateVideoFromStoryboard,
-      payload,
-      { timeout: 180000 }
+  /** The price of rendering this storyboard, from the same server calculation the charge uses. */
+  static async getVideoQuote(payload: VideoQuotePayload): Promise<UriResponse<VideoQuote>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoQuote>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.videoQuote,
+      payload
     );
     return response.data;
   }
@@ -803,10 +1095,30 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
-  static async mergeVideoJob(jobId: string): Promise<UriResponse<{ merged_video_url: string }>> {
-    const response: Awaited<AxiosResponse<UriResponse<{ merged_video_url: string }>>> =
-      await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.mergeVideoJob}/${jobId}`, {}, { timeout: 180000 });
-    return response.data;
+  static async mergeVideoJob(
+    jobId: string,
+    options: { useLogo?: boolean } = {}
+  ): Promise<UriResponse<{ merged_video_url: string }>> {
+    const send = async () => {
+      const response: Awaited<AxiosResponse<UriResponse<{ merged_video_url: string }>>> =
+        await UriHttpClient.getClient().post(
+          `${socialMediaAgentRoutes.mergeVideoJob}/${jobId}`,
+          { use_logo: options.useLogo ?? true },
+          { timeout: 180000 }
+        );
+      return response.data;
+    };
+    // Merging costs nothing and changes nothing until it succeeds, so one more try is safe. It covers a request that
+    // was cut off (a server restart or a dropped connection shows up here as a network error, with no response) or
+    // a server error; a 4xx means the request itself is wrong and is not repeated.
+    try {
+      return await send();
+    } catch (error) {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status !== undefined && status < 500) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      return send();
+    }
   }
 
   static async saveVideoDraft(payload: {
@@ -1072,6 +1384,58 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async generateVoiceoverScript(payload: {
+    source_url: string;
+    purpose: string;
+    user_note?: string;
+  }): Promise<UriResponse<{ script: string }>> {
+    const fd = new FormData();
+    fd.append('source_url', payload.source_url);
+    fd.append('purpose', payload.purpose);
+    if (payload.user_note) fd.append('user_note', payload.user_note);
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.videoVoiceoverScript, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
+    });
+    return response.data;
+  }
+
+  static async produceVoiceover(formData: FormData): Promise<UriResponse<{ job_id: string }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.videoVoiceoverProduce, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000,
+    });
+    return response.data;
+  }
+
+  static async adjustBrandOverlay(payload: {
+    job_id: string;
+    logo_position: string;
+    logo_timing: string;
+    contact_source: string;
+    custom_contact_text?: string;
+    contact_position: string;
+    contact_timing: string;
+  }): Promise<UriResponse<{ output_url: string }>> {
+    const fd = new FormData();
+    Object.entries(payload).forEach(([k, v]) => {
+      if (v !== undefined) fd.append(k, String(v));
+    });
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.videoBrandOverlayAdjust, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+    });
+    return response.data;
+  }
+
+  static async getVideoFrame(videoUrl: string, seconds: number): Promise<string> {
+    const response = await UriHttpClient.getClient().get(socialMediaAgentRoutes.videoFrame, {
+      params: { video_url: videoUrl, t: seconds },
+      responseType: 'blob',
+    });
+    return URL.createObjectURL(response.data);
+  }
+
   static async rerenderZapCapJob(
     jobId: string,
     payload: { word_edits: { id: string; text: string }[]; template_id?: string; enable_broll?: boolean }
@@ -1120,10 +1484,81 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  // Job-based (was a plain blocking call) — returns a job_id immediately,
+  // poll with getCreativeStoryboardJob below.
+  // Each run costs credits while billing is on. The Idempotency-Key makes a repeated send (a double click, a
+  // retry after a dropped connection) the same run instead of a second charge.
+  static async generateCreativeStoryboard(
+    payload: CreativeStoryboardPayload,
+    idempotencyKey?: string
+  ): Promise<UriResponse<{ job_id: string; status: string; billing?: VideoJobBilling }>> {
+    const response = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.generateCreativeStoryboard,
+      payload,
+      idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : undefined
+    );
+    return response.data;
+  }
+
+  /** What writing a storyboard costs, and whether the customer can afford it. `billing: 'off'` = no price shown. */
+  static async getStoryboardQuote(): Promise<UriResponse<VideoQuote>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoQuote>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.storyboardQuote
+    );
+    return response.data;
+  }
+
+  static async getCreativeStoryboardJob(jobId: string): Promise<
+    UriResponse<{
+      job_id: string;
+      status: string;
+      storyboard: Storyboard | null;
+      error: string | null;
+      billing?: VideoJobBilling;
+    }>
+  > {
+    const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.creativeStoryboardJob}/${jobId}`);
+    return response.data;
+  }
+
+  // Frame job it kicks off is polled with the existing getStoryboardFrameJob
+  // above — generate-creative-frames writes to the same job collection.
+  static async generateCreativeFrames(
+    scenes: StoryboardScene[],
+    referenceImages: string[] = []
+  ): Promise<UriResponse<{ job_id: string; status: string; total_scenes: number }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.generateCreativeFrames, {
+      scenes,
+      reference_images: referenceImages,
+    });
+    return response.data;
+  }
+
+  static async getTikTokCreatorInfo(): Promise<UriResponse<TikTokCreatorInfo>> {
+    const response: Awaited<AxiosResponse<UriResponse<TikTokCreatorInfo>>> = await UriHttpClient.getClient().get(
+      `/social-media/connections/tiktok/creator-info`
+    );
+    return response.data;
+  }
+
+  // Direct-post an image / carousel draft to TikTok. Poll the returned job with
+  // getVideoPublishJob — it's the same job document the video flow uses.
+  static async publishTikTokPhotoDraft(payload: {
+    draft_id: string;
+    tiktok: TikTokPostSettings;
+  }): Promise<UriResponse<{ job_id: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ job_id: string }>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.publishTikTokPhotoDraft,
+      payload
+    );
+    return response.data;
+  }
+
   static async publishVideoDraft(payload: {
     draft_id: string;
     platform: string;
     caption?: string;
+    tiktok?: TikTokPostSettings; // required when platform === 'tiktok'
   }): Promise<UriResponse<{ job_id: string }>> {
     const response: Awaited<AxiosResponse<UriResponse<{ job_id: string }>>> = await UriHttpClient.getClient().post(
       socialMediaAgentRoutes.publishVideoDraft,
@@ -1681,6 +2116,11 @@ export interface CalendarV2Item {
   customer_journey_stage: string;
   promised_business_outcome: string;
   creative_concept_name: string;
+  // Present only when this idea started life as a real Listening
+  // opportunity card (Listening PRD §18) rather than autonomous ideation —
+  // see _listening_candidate_concepts in content_calendar_v2_service.py.
+  source?: 'listening';
+  source_card_id?: string;
   carousel: { slides: CarouselSlideV2[] } | null;
   creative_direction: {
     visual_style?: string;

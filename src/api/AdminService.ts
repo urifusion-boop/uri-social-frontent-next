@@ -22,6 +22,7 @@ export interface AdminUser {
 
 export interface AdminUserDetails extends AdminUser {
   brand_profiles: BrandProfile[];
+  ad_wallets?: AdWallet[];
   content_count: number;
   workspaces: Workspace[];
 }
@@ -31,6 +32,12 @@ export interface BrandProfile {
   brand_name?: string;
   industry?: string;
   created_at?: string;
+}
+
+export interface AdWallet {
+  brand_id: string;
+  name: string;
+  ad_wallet_ngn: number;
 }
 
 export interface Workspace {
@@ -65,6 +72,17 @@ export interface AdminStats {
   total_workspaces: number;
 }
 
+export interface PlatformAlert {
+  kind: string;
+  title: string;
+  detail: string;
+  first_seen: string;
+  last_seen: string;
+  occurrences: number;
+  last_emailed_at?: string | null;
+  dismissed_at?: string | null;
+}
+
 export interface EmailExport {
   email: string;
   name: string;
@@ -76,6 +94,13 @@ export interface CreditAdjustResponse {
   credits_balance: number;
   bonus_credits: number;
   total_credits: number;
+}
+
+export interface SetSubscriptionResponse {
+  user_id: string;
+  subscription_tier: string | null;
+  end_date: string | null;
+  credits_balance: number;
 }
 
 export interface TrialAdjustResponse {
@@ -197,6 +222,23 @@ export class AdminService {
   }
 
   /**
+   * Platform-wide operational alerts (infrastructure/account failures like
+   * the OpenAI account running out of credit) — active (non-dismissed) by
+   * default.
+   */
+  static async getPlatformAlerts(includeDismissed = false): Promise<{ alerts: PlatformAlert[] }> {
+    const response = await UriHttpClient.getClient().get('/api/admin/alerts', {
+      params: includeDismissed ? { include_dismissed: true } : undefined,
+    });
+    return response.data;
+  }
+
+  static async dismissPlatformAlert(kind: string): Promise<{ alert: PlatformAlert }> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/alerts/${encodeURIComponent(kind)}/dismiss`);
+    return response.data;
+  }
+
+  /**
    * Export all user emails
    */
   static async exportEmails(): Promise<EmailExport[]> {
@@ -229,6 +271,20 @@ export class AdminService {
     return response.data;
   }
 
+  /** Add money to one of the user's brand ad wallets (no payment; recorded in the ledger). */
+  static async creditBrandAdWallet(
+    userId: string,
+    brandId: string,
+    amountNgn: number,
+    reason?: string
+  ): Promise<{ brand_id: string; ad_wallet_ngn: number }> {
+    const response = await UriHttpClient.getClient().post(
+      `/api/admin/users/${userId}/brands/${brandId}/ad-wallet/credit`,
+      { amount_ngn: amountNgn, reason }
+    );
+    return response.data;
+  }
+
   /**
    * Adjust a user's remaining trial credits by a signed amount. Floored at 0 server-side.
    */
@@ -245,6 +301,38 @@ export class AdminService {
    */
   static async expireUserTrial(userId: string): Promise<TrialAdjustResponse> {
     const response = await UriHttpClient.getClient().post(`/api/admin/users/${userId}/trial/expire`);
+    return response.data;
+  }
+
+  /**
+   * Directly assign a user a subscription tier — distinct from
+   * adjustUserCredits above, which only ever touches bonus credits and
+   * never changes the subscription badge. Writes the wallet exactly like a
+   * real purchase or an access-code redemption would; it auto-lapses back
+   * to free after durationDays via the existing daily expiry sweep.
+   */
+  static async setUserSubscription(
+    userId: string,
+    planTierId: string,
+    durationDays: number,
+    reason?: string
+  ): Promise<SetSubscriptionResponse> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/users/${userId}/subscription/set`, {
+      plan_tier_id: planTierId,
+      duration_days: durationDays,
+      reason,
+    });
+    return response.data;
+  }
+
+  /**
+   * Revert a user to free — the undo for setUserSubscription (e.g. the
+   * wrong tier was picked). Keeps bonus credits untouched.
+   */
+  static async clearUserSubscription(userId: string, reason?: string): Promise<SetSubscriptionResponse> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/users/${userId}/subscription/clear`, {
+      reason,
+    });
     return response.data;
   }
 

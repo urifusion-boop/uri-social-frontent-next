@@ -23,6 +23,25 @@ export const ACTION_LABELS: Record<string, string> = {
   review_targeting: 'Review targeting',
 };
 
+export const VERDICT_TONE: Record<string, 'green' | 'amber' | 'grey'> = {
+  strong: 'green',
+  promising: 'green',
+  underperforming: 'amber',
+  inconclusive: 'grey',
+};
+
+export const STAGES = [
+  ['explore', 'Explore', 'Find which reasons to buy show promise'],
+  ['validate', 'Validate', 'Check the promising one holds up'],
+  ['scale', 'Scale', 'Put more money behind what works'],
+] as const;
+
+export const STRUCTURE_LABELS: Record<string, string> = {
+  single: 'One ad set',
+  abo: 'One ad set per concept, equal budgets',
+  cbo: 'One campaign budget across proven ads',
+};
+
 export const CONFIDENCE_TONE: Record<string, 'green' | 'amber' | 'grey'> = {
   high: 'green',
   medium: 'amber',

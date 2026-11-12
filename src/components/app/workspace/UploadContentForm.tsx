@@ -22,7 +22,7 @@ import {
 } from '@mui/material';
 import { useRef, useState, useEffect } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
-import { MdClose, MdImage, MdInfoOutline, MdUpload, MdVideocam } from 'react-icons/md';
+import { MdChevronLeft, MdChevronRight, MdClose, MdImage, MdInfoOutline, MdUpload, MdVideocam } from 'react-icons/md';
 import OutOfCreditsModal from '../atoms/OutOfCreditsModal';
 import SlideCountPicker from '../atoms/SlideCountPicker';
 import LowCreditWarning from '../atoms/LowCreditWarning';
@@ -309,7 +309,19 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
     });
   };
 
-  // Check credits before generation
+  // Carousel slide order = upload order, sent to the backend 1:1 (each image
+  // becomes exactly one slide). This lets the user fix that order directly
+  // instead of having to remove and re-add images to resequence them.
+  const moveFile = (index: number, direction: -1 | 1) => {
+    setUploadedFiles((prev) => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
   const refreshCredits = async () => {
     try {
       const balance = await BillingService.getCreditBalance();
@@ -321,6 +333,8 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
       console.error('Failed to check credits:', error);
     }
   };
+
+  // Check credits before generation
   useEffect(() => {
     refreshCredits();
   }, []);
@@ -476,58 +490,135 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
 
       {/* Uploaded Files Preview */}
       {uploadedFiles.length > 0 && (
-        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', marginBottom: 2 }}>
-          {uploadedFiles.map((uf, idx) => (
+        <Box sx={{ marginBottom: 2 }}>
+          {postType === 'carousel' && uploadedFiles.length > 1 && (
             <Box
-              key={idx}
               sx={{
-                position: 'relative',
-                width: 100,
-                height: 100,
-                borderRadius: 2,
-                overflow: 'hidden',
-                border: '2px solid #E5E7EB',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.75,
+                marginBottom: 1.5,
+                padding: '8px 12px',
+                borderRadius: 1.5,
+                backgroundColor: 'rgba(205, 27, 120, 0.06)',
+                border: '1px solid rgba(205, 27, 120, 0.2)',
               }}
             >
-              {uf.file.type.startsWith('video/') ? (
-                <video src={uf.preview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <img
-                  src={uf.preview}
-                  alt={`Upload ${idx + 1}`}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              )}
-              <IconButton
-                onClick={() => removeFile(idx)}
-                sx={{
-                  position: 'absolute',
-                  top: 4,
-                  right: 4,
-                  backgroundColor: 'rgba(0,0,0,0.6)',
-                  color: '#fff',
-                  padding: '4px',
-                  '&:hover': { backgroundColor: 'rgba(0,0,0,0.8)' },
-                }}
-              >
-                <MdClose size={16} />
-              </IconButton>
-              <Typography
-                sx={{
-                  position: 'absolute',
-                  bottom: 4,
-                  left: 4,
-                  backgroundColor: 'rgba(0,0,0,0.6)',
-                  color: '#fff',
-                  fontSize: 10,
-                  padding: '2px 6px',
-                  borderRadius: 1,
-                }}
-              >
-                {idx + 1} of {uploadedFiles.length}
+              <MdInfoOutline size={16} color="#CD1B78" />
+              <Typography sx={{ fontSize: 12.5, color: '#111', fontWeight: 500 }}>
+                Photos are used in this order — use the ‹ › buttons below each photo to rearrange them. Choose the
+                number of slides and which photo goes on each slide under Post Type.
               </Typography>
             </Box>
-          ))}
+          )}
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            {uploadedFiles.map((uf, idx) => {
+              const isVideo = uf.file.type.startsWith('video/');
+              const canReorder = !isVideo && uploadedFiles.length > 1;
+              return (
+                <Box key={idx} sx={{ width: 110 }}>
+                  <Box
+                    sx={{
+                      position: 'relative',
+                      width: 110,
+                      height: 110,
+                      borderRadius: canReorder ? '10px 10px 0 0' : '10px',
+                      overflow: 'hidden',
+                      border: '1.5px solid #E5E7EB',
+                      borderBottom: canReorder ? 'none' : '1.5px solid #E5E7EB',
+                    }}
+                  >
+                    {isVideo ? (
+                      <video src={uf.preview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <img
+                        src={uf.preview}
+                        alt={`Upload ${idx + 1}`}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    )}
+                    <Typography
+                      sx={{
+                        position: 'absolute',
+                        top: 6,
+                        left: 6,
+                        backgroundColor: '#CD1B78',
+                        color: '#fff',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: 1,
+                      }}
+                    >
+                      {postType === 'carousel' ? `Photo ${idx + 1}` : `${idx + 1} of ${uploadedFiles.length}`}
+                    </Typography>
+                    <IconButton
+                      onClick={() => removeFile(idx)}
+                      sx={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        backgroundColor: 'rgba(0,0,0,0.6)',
+                        color: '#fff',
+                        padding: '4px',
+                        '&:hover': { backgroundColor: 'rgba(0,0,0,0.8)' },
+                      }}
+                    >
+                      <MdClose size={16} />
+                    </IconButton>
+                  </Box>
+                  {/* Reorder controls live BELOW the thumbnail, not on top of it — always
+                      legible regardless of what's in the photo. Fused to the thumbnail
+                      as one card, styled with the brand colour instead of neutral grey. */}
+                  {canReorder && (
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'stretch',
+                        backgroundColor: '#FDF2F8',
+                        border: '1.5px solid #E5E7EB',
+                        borderTop: '1px solid #F3D4E4',
+                        borderRadius: '0 0 10px 10px',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <IconButton
+                        onClick={() => moveFile(idx, -1)}
+                        disabled={idx === 0}
+                        size="small"
+                        sx={{
+                          flex: 1,
+                          borderRadius: 0,
+                          color: '#CD1B78',
+                          padding: '3px 0',
+                          '&:hover': { backgroundColor: 'rgba(205, 27, 120, 0.12)' },
+                          '&.Mui-disabled': { color: '#D8B4C8' },
+                        }}
+                      >
+                        <MdChevronLeft size={18} />
+                      </IconButton>
+                      <Box sx={{ width: '1px', my: 0.5, backgroundColor: '#F3D4E4' }} />
+                      <IconButton
+                        onClick={() => moveFile(idx, 1)}
+                        disabled={idx === uploadedFiles.length - 1}
+                        size="small"
+                        sx={{
+                          flex: 1,
+                          borderRadius: 0,
+                          color: '#CD1B78',
+                          padding: '3px 0',
+                          '&:hover': { backgroundColor: 'rgba(205, 27, 120, 0.12)' },
+                          '&.Mui-disabled': { color: '#D8B4C8' },
+                        }}
+                      >
+                        <MdChevronRight size={18} />
+                      </IconButton>
+                    </Box>
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
         </Box>
       )}
 

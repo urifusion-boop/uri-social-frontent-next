@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState, useCallback, useRef, Fragment } from 'react';
+import GoogleUriAccountsPanel from './GoogleUriAccountsPanel';
 import { useAuth } from '@/src/providers/AuthProvider';
 import {
   AdminService,
@@ -15,6 +16,7 @@ import {
   AdminStats,
   AccessCode,
   AccessCodeRedemption,
+  PlatformAlert,
 } from '@/src/api/AdminService';
 import { useRouter } from 'next/navigation';
 import ConfirmDialog from './ConfirmDialog';
@@ -76,6 +78,13 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       <>
         <line x1="18" y1="6" x2="6" y2="18" />
         <line x1="6" y1="6" x2="18" y2="18" />
+      </>
+    ),
+    alert: (
+      <>
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
       </>
     ),
     loader: (
@@ -182,8 +191,10 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
   const { isAdminUser, isAdminStatusPending } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<'stats' | 'all-users' | 'recent' | 'access-codes'>('stats');
+  const [activeTab, setActiveTab] = useState<'stats' | 'all-users' | 'recent' | 'access-codes' | 'google-ads'>('stats');
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [platformAlerts, setPlatformAlerts] = useState<PlatformAlert[]>([]);
+  const [dismissingAlert, setDismissingAlert] = useState<string | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [recentUsers, setRecentUsers] = useState<AdminUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<AdminUserDetails | null>(null);
@@ -232,6 +243,7 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
   // Load stats on mount
   useEffect(() => {
     loadStats();
+    loadPlatformAlerts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -254,6 +266,27 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
       console.error('Failed to load stats:', error);
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const loadPlatformAlerts = useCallback(async () => {
+    try {
+      const data = await AdminService.getPlatformAlerts();
+      setPlatformAlerts(data.alerts);
+    } catch (error) {
+      console.error('Failed to load platform alerts:', error);
+    }
+  }, []);
+
+  const dismissAlert = useCallback(async (kind: string) => {
+    setDismissingAlert(kind);
+    try {
+      await AdminService.dismissPlatformAlert(kind);
+      setPlatformAlerts((prev) => prev.filter((a) => a.kind !== kind));
+    } catch (error) {
+      console.error('Failed to dismiss alert:', error);
+    } finally {
+      setDismissingAlert(null);
     }
   }, []);
 
@@ -433,12 +466,13 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
           flexShrink: 0,
         }}
       >
-        {(['stats', 'all-users', 'recent', 'access-codes'] as const).map((tab) => {
+        {(['stats', 'all-users', 'recent', 'access-codes', 'google-ads'] as const).map((tab) => {
           const labels = {
             stats: 'Overview',
             'all-users': 'All Users',
             recent: 'Recent Signups',
             'access-codes': 'Access Codes',
+            'google-ads': 'Google Ads accounts',
           };
           const active = activeTab === tab;
           return (
@@ -478,6 +512,57 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: 32 }}>
+        {platformAlerts.length > 0 && (
+          <div style={{ maxWidth: 1200, margin: '0 auto 24px' }}>
+            {platformAlerts.map((alert) => (
+              <div
+                key={alert.kind}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 14,
+                  background: 'rgba(220,38,38,.06)',
+                  border: '1px solid rgba(220,38,38,.2)',
+                  borderRadius: 12,
+                  padding: '16px 20px',
+                  marginBottom: 12,
+                }}
+              >
+                <div style={{ flexShrink: 0, marginTop: 2 }}>
+                  <I n="alert" s={20} c="#dc2626" />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#dc2626' }}>{alert.title}</span>
+                    <Bd v="danger">
+                      Seen {alert.occurrences}× &middot; since {new Date(alert.first_seen).toLocaleString()}
+                    </Bd>
+                  </div>
+                  <div style={{ fontSize: 13, color: '#555', lineHeight: 1.5 }}>{alert.detail}</div>
+                </div>
+                <button
+                  onClick={() => dismissAlert(alert.kind)}
+                  disabled={dismissingAlert === alert.kind}
+                  style={{
+                    flexShrink: 0,
+                    background: 'white',
+                    color: '#dc2626',
+                    border: '1px solid rgba(220,38,38,.3)',
+                    borderRadius: 8,
+                    padding: '7px 14px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: dismissingAlert === alert.kind ? 'default' : 'pointer',
+                    opacity: dismissingAlert === alert.kind ? 0.6 : 1,
+                  }}
+                >
+                  {dismissingAlert === alert.kind ? 'Dismissing…' : 'Mark fixed'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {loading && activeTab === 'stats' ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300 }}>
             <I n="loader" s={24} c="#AD1457" />
@@ -821,6 +906,13 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
             <AccessCodesPanel />
           </div>
         )}
+
+        {/* URI's own Google Ads accounts for "Run by URI" */}
+        {activeTab === 'google-ads' && (
+          <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+            <GoogleUriAccountsPanel />
+          </div>
+        )}
       </div>
 
       {/* User Details Modal */}
@@ -895,11 +987,18 @@ function AccessCodesPanel() {
   const [reassigning, setReassigning] = useState(false);
   const [revokingUserId, setRevokingUserId] = useState<string | null>(null);
 
+  const codesLoadedRef = useRef(false);
   const loadCodes = async () => {
-    setLoading(true);
+    // Spinner on the first load only; after creating or revoking a code the
+    // table updates in place.
+    if (!codesLoadedRef.current) setLoading(true);
     try {
       const res = await AdminService.listAccessCodes();
-      setCodes(res.codes);
+      // Some older codes in the DB predate the single-email -> roster
+      // migration and come back without assigned_emails at all — never
+      // trust it's present, or a legacy row crashes the whole tab.
+      setCodes(res.codes.map((c) => ({ ...c, assigned_emails: c.assigned_emails ?? [] })));
+      codesLoadedRef.current = true;
     } catch (error) {
       console.error('Failed to load access codes:', error);
       setMessage({ type: 'err', text: 'Failed to load access codes.' });
@@ -2394,8 +2493,13 @@ function UserDetailsModal({
           {/* Admin Access */}
           <AdminAccessManagement user={user} onUserUpdated={onUserUpdated} />
 
+          {/* Subscription Plan */}
+          <SubscriptionManagement user={user} onUserUpdated={onUserUpdated} />
+
           {/* Credit & Trial Management */}
           <CreditTrialManagement user={user} onUserUpdated={onUserUpdated} />
+
+          <AdWalletManagement user={user} onUserUpdated={onUserUpdated} />
 
           {/* Trial Info */}
           {user.trial_end && (
@@ -2613,6 +2717,290 @@ function AdminAccessManagement({
         confirmColor="#B71C1C"
         onConfirm={performToggle}
         onCancel={() => setConfirmRevokeOpen(false)}
+      />
+    </div>
+  );
+}
+
+// Ad Wallet — add money to one of the user's brand ad wallets (what campaigns are paid
+// from), instead of crediting it by hand on the backend.
+function AdWalletManagement({
+  user,
+  onUserUpdated,
+}: {
+  user: AdminUserDetails;
+  onUserUpdated: (userId: string, updates: Partial<AdminUser>) => void;
+}) {
+  const brands = user.ad_wallets ?? [];
+  const [brandId, setBrandId] = useState(brands[0]?.brand_id ?? '');
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  if (!brands.length) return null;
+  const selected = brands.find((b) => b.brand_id === brandId) ?? brands[0];
+
+  const inputStyle: React.CSSProperties = {
+    padding: '8px 10px',
+    fontSize: 13,
+    border: '1px solid rgba(0,0,0,.12)',
+    borderRadius: 8,
+    outline: 'none',
+  };
+
+  const handleAdd = async () => {
+    const value = Number(amount);
+    if (!value || value <= 0) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await AdminService.creditBrandAdWallet(user.id, selected.brand_id, value, reason || undefined);
+      const details = await AdminService.getUserDetails(user.id);
+      onUserUpdated(user.id, details);
+      setMessage({
+        type: 'ok',
+        text: `Added ₦${value.toLocaleString()} to ${selected.name}. Balance: ₦${res.ad_wallet_ngn.toLocaleString()}.`,
+      });
+      setAmount('');
+      setReason('');
+    } catch (error) {
+      console.error('Failed to credit ad wallet:', error);
+      setMessage({ type: 'err', text: 'Failed to add to the ad wallet.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px', color: '#1a1a1a' }}>Ad Wallet</h3>
+      <div
+        style={{
+          padding: 16,
+          background: 'rgba(0,0,0,.02)',
+          border: '1px solid rgba(0,0,0,.06)',
+          borderRadius: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#666', minWidth: 100 }}>Brand</span>
+          <select
+            value={selected.brand_id}
+            onChange={(e) => setBrandId(e.target.value)}
+            style={{ ...inputStyle, minWidth: 160 }}
+          >
+            {brands.map((b) => (
+              <option key={b.brand_id} value={b.brand_id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+          <span style={{ fontSize: 13, color: '#1a1a1a' }}>
+            Balance: <strong>₦{(selected.ad_wallet_ngn ?? 0).toLocaleString()}</strong>
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#666', minWidth: 100 }}>Add money</span>
+          <input
+            type="number"
+            min={1}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="Amount (₦)"
+            style={{ ...inputStyle, width: 130 }}
+          />
+          <input
+            type="text"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason (optional)"
+            style={{ ...inputStyle, flex: 1, minWidth: 140 }}
+          />
+          <button
+            onClick={handleAdd}
+            disabled={busy || !(Number(amount) > 0)}
+            style={{
+              padding: '8px 14px',
+              fontSize: 12,
+              fontWeight: 700,
+              color: 'white',
+              background: '#AD1457',
+              border: 'none',
+              borderRadius: 8,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              opacity: busy || !(Number(amount) > 0) ? 0.6 : 1,
+            }}
+          >
+            {busy ? 'Adding…' : 'Add'}
+          </button>
+        </div>
+        {message && (
+          <div style={{ fontSize: 12, color: message.type === 'ok' ? '#2E7D32' : '#C62828' }}>{message.text}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Subscription Plan — the actual "change this user's plan" action.
+// CreditTrialManagement's "Adjust credits" control below only ever touches
+// bonus_credits (a top-up on top of whatever plan they're on), which is why
+// topping a user up to 20 credits there never made the "Subscription" badge
+// above stop reading "free" — a bonus grant and a plan change are genuinely
+// different things. This is the control that actually sets subscription_tier.
+function SubscriptionManagement({
+  user,
+  onUserUpdated,
+}: {
+  user: AdminUserDetails;
+  onUserUpdated: (userId: string, updates: Partial<AdminUser>) => void;
+}) {
+  const [planTierId, setPlanTierId] = useState(PLAN_TIER_OPTIONS[0].id);
+  const [durationDays, setDurationDays] = useState('30');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState<'set' | 'clear' | null>(null);
+  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+
+  const refreshUser = async () => {
+    const details = await AdminService.getUserDetails(user.id);
+    onUserUpdated(user.id, details);
+  };
+
+  const inputStyle: React.CSSProperties = {
+    padding: '8px 10px',
+    fontSize: 13,
+    border: '1px solid rgba(0,0,0,.12)',
+    borderRadius: 8,
+    outline: 'none',
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    padding: '8px 14px',
+    fontSize: 12,
+    fontWeight: 700,
+    color: 'white',
+    background: '#AD1457',
+    border: 'none',
+    borderRadius: 8,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  };
+
+  const handleSetPlan = async () => {
+    const days = parseInt(durationDays, 10);
+    if (!days || days <= 0) return;
+    setBusy('set');
+    setMessage(null);
+    try {
+      await AdminService.setUserSubscription(user.id, planTierId, days, reason || undefined);
+      await refreshUser();
+      setMessage({ type: 'ok', text: `Assigned '${planTierId}' for ${days} days.` });
+      setReason('');
+    } catch (error) {
+      console.error('Failed to set subscription:', error);
+      setMessage({ type: 'err', text: 'Failed to assign plan.' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleClearPlan = () => {
+    setConfirmClearOpen(true);
+  };
+
+  const performClearPlan = async () => {
+    setBusy('clear');
+    setMessage(null);
+    try {
+      await AdminService.clearUserSubscription(user.id, reason || undefined);
+      await refreshUser();
+      setMessage({ type: 'ok', text: 'Reverted to free.' });
+    } catch (error) {
+      console.error('Failed to clear subscription:', error);
+      setMessage({ type: 'err', text: 'Failed to revert to free.' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px', color: '#1a1a1a' }}>Subscription Plan</h3>
+      <div
+        style={{
+          padding: 16,
+          background: 'rgba(0,0,0,.02)',
+          border: '1px solid rgba(0,0,0,.06)',
+          borderRadius: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#666', minWidth: 100 }}>Assign plan</span>
+          <select
+            value={planTierId}
+            onChange={(e) => setPlanTierId(e.target.value)}
+            style={{ ...inputStyle, width: 130 }}
+          >
+            {PLAN_TIER_OPTIONS.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            value={durationDays}
+            onChange={(e) => setDurationDays(e.target.value)}
+            placeholder="Days"
+            style={{ ...inputStyle, width: 80 }}
+          />
+          <input
+            type="text"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason (optional)"
+            style={{ ...inputStyle, flex: 1, minWidth: 140 }}
+          />
+          <button onClick={handleSetPlan} disabled={busy === 'set' || !durationDays} style={buttonStyle}>
+            {busy === 'set' ? 'Assigning…' : 'Assign'}
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#666', minWidth: 100 }}>Revert to free</span>
+          <button
+            onClick={handleClearPlan}
+            disabled={busy === 'clear' || !user.subscription_tier || user.subscription_tier === 'free'}
+            style={{ ...buttonStyle, background: '#B71C1C' }}
+          >
+            {busy === 'clear' ? 'Reverting…' : 'Revert to Free'}
+          </button>
+        </div>
+
+        {message && (
+          <div style={{ fontSize: 12, fontWeight: 600, color: message.type === 'ok' ? '#2E7D32' : '#C62828' }}>
+            {message.text}
+          </div>
+        )}
+      </div>
+      <ConfirmDialog
+        isOpen={confirmClearOpen}
+        title="Revert to free?"
+        message={`Revert ${user.email} to the free plan? Their subscription credits are cleared immediately; any bonus credits are kept.`}
+        confirmText="Revert to Free"
+        cancelText="Cancel"
+        confirmColor="#B71C1C"
+        onConfirm={performClearPlan}
+        onCancel={() => setConfirmClearOpen(false)}
       />
     </div>
   );

@@ -1,31 +1,48 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* --background etc. below are stored as BARE "H S% L%" triplets (no
+     hsl() wrapper) in :root, and dozens of existing pages (privacy, terms,
+     cookies, api-docs, not-found, the landing hero) already do
+     `hsl(var(--background))` themselves expecting exactly that bare form —
+     do not "fix" it at the :root level or every one of those breaks via
+     double-wrapping. Tailwind's own generated utilities (bg-background,
+     text-foreground, border-border, …) instead consume --color-background
+     etc. DIRECTLY as a color value with no wrapper of their own, so THIS
+     mapping is the one place that must add hsl(...) — omitting it left
+     every shadcn-based utility class silently inert in light mode (an
+     invalid color value is a no-op, not a crash, which is why layout/
+     spacing always looked fine while every color was missing).
+     .dark's own values are full oklch(...) colors already (not bare
+     triplets), so this same hsl(...) wrap does not apply cleanly to dark
+     mode — a real but currently inert gap, since nothing in the app
+     toggles a .dark class today; reconcile the two conventions when dark
+     mode is actually wired up. */
   --font-sans: var(--font-urbanist), system-ui, sans-serif;
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary-light: var(--uri-primary-light);
-  --color-primary-dark: var(--uri-primary-dark);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-light: hsl(var(--uri-primary-light));
+  --color-primary-dark: hsl(var(--uri-primary-dark));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -153,7 +170,7 @@
 
   /* Halftone patterns */
   .halftone-bg {
-    background-image: radial-gradient(circle, rgba(0,0,0,0.06) 1px, transparent 1px);
+    background-image: radial-gradient(circle, rgba(0, 0, 0, 0.06) 1px, transparent 1px);
     background-size: 16px 16px;
   }
 
@@ -163,7 +180,7 @@
   }
 
   .halftone-bg-dark {
-    background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px);
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
     background-size: 16px 16px;
   }
 
@@ -302,30 +319,53 @@
 
 /* Float keyframes */
 @keyframes float-slow {
-  0%, 100% { transform: translateY(0px) rotate(0deg); }
-  50% { transform: translateY(-20px) rotate(5deg); }
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-20px) rotate(5deg);
+  }
 }
 @keyframes float-medium {
-  0%, 100% { transform: translateY(0px) rotate(0deg); }
-  50% { transform: translateY(-15px) rotate(-3deg); }
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-15px) rotate(-3deg);
+  }
 }
 @keyframes float-fast {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
 /* Marquee animations */
 @keyframes marquee {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
 }
 .animate-marquee {
   animation: marquee 30s linear infinite;
 }
 
 @keyframes marquee-slow {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
 }
 .animate-marquee-slow {
   animation: marquee-slow 45s linear infinite;
@@ -335,8 +375,12 @@
 }
 
 @keyframes marquee-reverse {
-  0% { transform: translateX(-50%); }
-  100% { transform: translateX(0); }
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(0);
+  }
 }
 .animate-marquee-reverse {
   animation: marquee-reverse 45s linear infinite;
@@ -347,10 +391,36 @@
 
 /* Scroll reveal animation */
 @keyframes fade-in-up {
-  from { opacity: 0; transform: translateY(30px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .animate-fade-in-up {
   animation: fade-in-up 0.6s ease-out forwards;
   opacity: 0;
+}
+
+/* Horizontally-scrollable tab strips (workspace tab bars) — hides the
+   scrollbar on WebKit; scrollbarWidth/msOverflowStyle inline styles cover
+   Firefox/IE, this covers Chrome/Safari which need an actual CSS rule. */
+.tab-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Campaigns: phone gutters ──────────────────────────────────────────────
+   CampaignsPage styles its panes with inline style objects, which can't carry
+   media queries — these rules need !important to win against them. Keyed to
+   the same 768px breakpoint as useIsMobile so JS and CSS agree. */
+@media (max-width: 767px) {
+  .camp-pane {
+    padding: 14px 12px !important;
+  }
+  .camp-indent {
+    margin-left: 0 !important;
+  }
 }

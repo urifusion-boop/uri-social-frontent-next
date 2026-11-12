@@ -8,6 +8,7 @@ import { FiBook, FiDownload, FiCopy, FiCheck, FiLoader, FiThumbsUp, FiThumbsDown
 import WritingDNAQuiz from './WritingDNAQuiz';
 import BlogDraftsTab from './BlogDraftsTab';
 import { markdownToHtml } from '@/src/utils/markdown.util';
+import { useIsMobile } from '@/src/hooks/useIsMobile';
 
 const URI_PINK = '#CD1B78';
 
@@ -52,22 +53,16 @@ export default function BlogGeneratorTab() {
   // Copy state
   const [copied, setCopied] = useState<string | null>(null);
 
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useIsMobile(1024);
   const resultRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 1024);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
 
   useEffect(() => {
     fetchDNA();
   }, []);
 
   const fetchDNA = async () => {
-    setDnaLoading(true);
+    // Only the first load hides the card; a refresh after the quiz updates it in place.
+    if (dna === null) setDnaLoading(true);
     try {
       const res = await SocialMediaAgentService.getWritingDNA();
       if (res.status && res.responseData) {

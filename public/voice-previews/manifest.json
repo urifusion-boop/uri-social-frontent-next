@@ -1,0 +1,6 @@
+{
+  "voices": [
+    { "label": "Idera (Nigerian)", "speaker": "idera", "file": "idera.mp3" },
+    { "label": "Femi (Nigerian)", "speaker": "femi", "file": "femi.mp3" }
+  ]
+}

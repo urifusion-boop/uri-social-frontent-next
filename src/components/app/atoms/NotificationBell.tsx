@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNotifications } from '@/src/providers/NotificationProvider';
 import { Notification } from '@/src/api/NotificationService';
 import { useRouter } from 'next/navigation';
+import { IS_PRODUCTION } from '@/src/configs/env.config';
 
 /* ── Helpers ──────────────────────────────────────────────────────── */
 
@@ -86,10 +87,13 @@ export default function NotificationBell({
       setOpen(false);
       // An expired login is fixed in Connected Accounts; anything else, on the post itself.
       router.push(n.metadata?.reconnect ? '/workspace/?tab=connections' : '/workspace/?tab=content');
+    } else if (n.type === 'video_clip_ready') {
+      setOpen(false);
+      router.push('/workspace/?tab=schedule'); // the Video page: the clip is ready to merge
     } else if (n.type === 'inbox_needs_reply') {
       setOpen(false);
-      // Customer Messages is hidden on prod — don't send anyone to it.
-      router.push('/workspace/?tab=workspace');
+      // Customer Messages is hidden on prod — don't send anyone to it there.
+      router.push(IS_PRODUCTION ? '/workspace/?tab=workspace' : '/workspace/?tab=messages');
     } else if (n.type === 'content_posted') {
       setOpen(false);
       router.push('/workspace/?tab=content');

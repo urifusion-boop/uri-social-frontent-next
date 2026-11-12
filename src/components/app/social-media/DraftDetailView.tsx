@@ -1,0 +1,730 @@
+'use client';
+
+import { useState } from 'react';
+import { Box, Button, Dialog, IconButton, TextField, Typography } from '@mui/material';
+import { MdChevronLeft, MdChevronRight, MdClose, MdEdit } from 'react-icons/md';
+import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { ToastService } from '@/src/utils/toast.util';
+import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
+import { queuedNotice, queuedPublish } from '@/src/utils/publishJobMessage.util';
+import { parseApiDate } from '@/src/utils/apiDate.util';
+import { PLATFORM_META, firstSlideImage, mediaMeta, isImagePending } from './GeneratedContentCard';
+import CanvasEditor from './canvas-editor/CanvasEditor';
+import { UriHttpClient } from '@/src/configs/http.config';
+
+const PINK = '#CD1B78';
+
+// Live-reported: "Needs Review" removed entirely, same reasoning as
+// ContentLibraryPage.tsx's own categorize() — no deliberate review step
+// ever moved a draft into pending_approval, every draft just started
+// there. No entry here for it at all: the lookup below already falls back
+// to STATUS_BADGE.draft on a miss, so a draft with that old status now
+// reads as Draft with no other change needed.
+const STATUS_BADGE: Record<string, { bg: string; color: string; label: string }> = {
+  draft: { bg: '#F3F4F6', color: '#374151', label: 'Draft' },
+  scheduled: { bg: '#DBEAFE', color: '#1E40AF', label: 'Scheduled' },
+  // What "scheduled" is called outside production — see the type's own comment.
+  staging_scheduled: { bg: '#DBEAFE', color: '#1E40AF', label: 'Scheduled' },
+  ready_to_publish: { bg: '#DBEAFE', color: '#1E40AF', label: 'Scheduled' },
+  confirming: { bg: '#DBEAFE', color: '#1E40AF', label: 'Scheduled' },
+  published: { bg: '#D1FAE5', color: '#065F46', label: 'Published' },
+  denied: { bg: '#FEE2E2', color: '#991B1B', label: 'Archived' },
+  replaced: { bg: '#FEE2E2', color: '#991B1B', label: 'Archived' },
+  publish_failed: { bg: '#FEE2E2', color: '#991B1B', label: 'Archived' },
+};
+
+interface DraftDetailViewProps {
+  draft: ContentDraft;
+  connectedPlatforms: string[] | null;
+  onClose: () => void;
+  onEdit: (draft: ContentDraft) => void;
+  onRefresh: () => void;
+  /** Fired once this draft is actually scheduled or posted — see
+   * GeneratedContentCard's identical prop for why. */
+  onApproved?: (id: string) => void;
+}
+
+// The read-only counterpart to GeneratedDraftEditor — opened by clicking a
+// card/row/calendar item, so "see everything about this post" and "edit
+// this post" are two distinct, deliberate actions instead of one dialog
+// doing both. A split layout (image left, full text + per-slide detail
+// right) rather than the card's cramped single column, since this is where
+// someone actually reads the whole thing, not just scans it.
+export default function DraftDetailView({
+  draft: initialDraft,
+  connectedPlatforms,
+  onClose,
+  onEdit,
+  onRefresh,
+  onApproved,
+}: DraftDetailViewProps) {
+  // Local, mutable copy — a Canvas/Move Logo save below updates this
+  // directly, same as DraftCard, since the parent's viewingDraft is a
+  // detached snapshot that onRefresh() alone won't flow back down to here.
+  const [draft, setDraft] = useState(initialDraft);
+  const platformKey = (draft.platform || '').toLowerCase();
+  const meta = PLATFORM_META[platformKey];
+  const { label } = mediaMeta(draft);
+  const isCarousel = draft.post_type === 'carousel';
+  const slides = draft.slides ?? [];
+  const totalSlides = slides.length;
+  const [slideIndex, setSlideIndex] = useState(0);
+  const safeSlideIndex = Math.min(slideIndex, Math.max(totalSlides - 1, 0));
+  const currentSlide = isCarousel ? slides[safeSlideIndex] : undefined;
+  const previewImage = isCarousel ? currentSlide?.image_url : (draft.image_url ?? firstSlideImage(draft));
+  const pending = isCarousel ? !currentSlide?.image_url && !currentSlide?.image_failed : isImagePending(draft);
+  const failed = isCarousel
+    ? !!currentSlide?.image_failed && !currentSlide?.image_url
+    : !previewImage && draft.image_failed;
+  const statusKey = draft.status ?? (draft.approval_status === 'pending' ? 'pending_approval' : draft.approval_status);
+  const badge = (statusKey && STATUS_BADGE[statusKey]) || STATUS_BADGE.draft;
+  const id = draft.draft_id ?? draft.id ?? '';
+  const isConnected =
+    connectedPlatforms === null || connectedPlatforms.map((p) => p.toLowerCase()).includes(platformKey);
+  const tiktokNeedsFullFlow = platformKey === 'tiktok' && !draft.video_url;
+
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleAt, setScheduleAt] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [canvasEditorOpen, setCanvasEditorOpen] = useState(false);
+  const [confirmUnschedule, setConfirmUnschedule] = useState(false);
+
+  // scheduled_date (see the type's own comment) is what a scheduled draft
+  // actually carries once the backend has it — scheduled_datetime is a
+  // request-only field, never present on what this view reads.
+  const scheduledAt = draft.scheduled_date ?? draft.scheduled_datetime ?? null;
+  // Live-reported: this view used to offer neither "move the scheduled time"
+  // nor "take it back off the schedule" once a post was scheduled — both
+  // existed before (ScheduledCard.tsx still has Unschedule; the backend's
+  // own POST /drafts/{id}/unschedule was never wired in here at all).
+  const isScheduledLike = ['scheduled', 'staging_scheduled', 'ready_to_publish', 'confirming'].includes(
+    draft.status ?? ''
+  );
+  const handleUnschedule = async () => {
+    if (!confirmUnschedule) {
+      setConfirmUnschedule(true);
+      return;
+    }
+    setBusy(true);
+    try {
+      const response = await SocialMediaAgentService.unscheduleDraft(id);
+      if (response.status) {
+        ToastService.showToast('Post moved back to Drafts', ToastTypeEnum.Success);
+        onRefresh();
+        onClose();
+      } else {
+        ToastService.showToast(response.responseMessage || 'Failed to unschedule', ToastTypeEnum.Error);
+        setConfirmUnschedule(false);
+      }
+    } catch {
+      ToastService.showToast('Failed to unschedule', ToastTypeEnum.Error);
+      setConfirmUnschedule(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+  // datetime-local wants the viewer's own wall-clock reading of the moment,
+  // not its UTC one — parseApiDate already resolves the backend's
+  // no-zone-means-UTC value to the right real moment; this just reads that
+  // moment back out in local Y-M-DTH:m, the same thing the native picker
+  // itself produces when a person picks a time by hand.
+  const toLocalInputValue = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  // Compact on purpose — this sits in a header row that's already tight on a
+  // phone, next to a status pill and a close button; "Scheduled for Nov 10,
+  // 2026, 3:30 PM" left almost nothing for noWrap to work with and ellipsized
+  // down to a couple of characters.
+  const scheduledLabel = scheduledAt
+    ? parseApiDate(scheduledAt).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    : null;
+  const doApprove = async (option: 'immediate' | 'schedule', datetime?: string) => {
+    if (!isConnected) {
+      ToastService.showToast(
+        `${meta?.label ?? draft.platform} isn't connected — connect it first.`,
+        ToastTypeEnum.Error
+      );
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await SocialMediaAgentService.approveContent({
+        draft_ids: [id],
+        schedule_option: option,
+        ...(datetime ? { scheduled_datetime: new Date(datetime).toISOString() } : {}),
+      });
+      const queued = option === 'immediate' ? queuedPublish(res.responseData, id) : null;
+      if (res.status) {
+        if (queued) ToastService.showToast(queuedNotice(queued), ToastTypeEnum.Warning);
+        else ToastService.showToast(option === 'immediate' ? 'Published!' : 'Scheduled!', ToastTypeEnum.Success);
+        onRefresh();
+        onApproved?.(id);
+        onClose();
+      } else {
+        ToastService.showToast(res.responseMessage || 'Action failed', ToastTypeEnum.Error);
+      }
+    } catch {
+      ToastService.showToast('Action failed — try again', ToastTypeEnum.Error);
+    } finally {
+      setBusy(false);
+      setScheduleOpen(false);
+    }
+  };
+
+  const handlePost = () => {
+    if (tiktokNeedsFullFlow) {
+      onEdit(draft);
+      onClose();
+      return;
+    }
+    doApprove('immediate');
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    setBusy(true);
+    try {
+      await SocialMediaAgentService.deleteDraft(id);
+      ToastService.showToast('Deleted.', ToastTypeEnum.Success);
+      onRefresh();
+      onClose();
+    } catch {
+      ToastService.showToast('Could not delete — try again.', ToastTypeEnum.Error);
+      setBusy(false);
+      setConfirmDelete(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      maxWidth="lg"
+      fullWidth
+      PaperProps={{ sx: { borderRadius: '18px', overflow: 'hidden', height: { xs: '92vh', sm: '82vh' } } }}
+    >
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, height: '100%', minHeight: 0 }}>
+        {/* Image side */}
+        <Box
+          sx={{
+            width: { xs: '100%', sm: '46%' },
+            flexShrink: 0,
+            background: '#111827',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'relative',
+            // Previously minHeight-only with no cap: a tall aspect ratio (a
+            // story/reel's 9:16, say) grew this box to fill nearly the whole
+            // dialog on a phone, pushing caption + the action buttons below
+            // it off the bottom of the screen entirely. Capped so the detail
+            // side always keeps real, visible room under it.
+            minHeight: { xs: 200, sm: 'auto' },
+            maxHeight: { xs: '36vh', sm: 'none' },
+          }}
+        >
+          <Box
+            onClick={() => previewImage && setLightboxOpen(true)}
+            sx={{
+              width: '100%',
+              height: '100%',
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: previewImage ? 'zoom-in' : 'default',
+            }}
+          >
+            {draft.video_url ? (
+              <Box
+                component="video"
+                src={draft.video_url}
+                controls
+                sx={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+            ) : previewImage ? (
+              <Box
+                component="img"
+                src={previewImage}
+                alt={label}
+                sx={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+            ) : pending ? (
+              <Box
+                sx={{
+                  width: '100%',
+                  height: '100%',
+                  background: 'linear-gradient(90deg, #1F2937 25%, #374151 50%, #1F2937 75%)',
+                  backgroundSize: '200% 100%',
+                  animation: 'shimmer 1.6s infinite',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  '@keyframes shimmer': {
+                    '0%': { backgroundPosition: '200% 0' },
+                    '100%': { backgroundPosition: '-200% 0' },
+                  },
+                }}
+              >
+                <Typography fontSize="13px" color="#D1D5DB">
+                  🎨 Generating image…
+                </Typography>
+              </Box>
+            ) : (
+              <Typography fontSize="13px" color={failed ? '#F87171' : '#9CA3AF'}>
+                {failed ? '⚠️ Image generation failed' : 'No image'}
+              </Typography>
+            )}
+
+            {isCarousel && totalSlides > 1 && (
+              <>
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    bottom: 12,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    background: 'rgba(0,0,0,.6)',
+                    color: '#fff',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    borderRadius: '999px',
+                    px: 1.25,
+                    py: 0.35,
+                  }}
+                >
+                  {safeSlideIndex + 1} / {totalSlides}
+                </Box>
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSlideIndex((i) => Math.max(0, i - 1));
+                  }}
+                  disabled={safeSlideIndex === 0}
+                  sx={{
+                    position: 'absolute',
+                    left: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'rgba(255,255,255,.9)',
+                    '&:hover': { background: '#fff' },
+                    '&.Mui-disabled': { opacity: 0.3 },
+                  }}
+                >
+                  <MdChevronLeft size={20} />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSlideIndex((i) => Math.min(totalSlides - 1, i + 1));
+                  }}
+                  disabled={safeSlideIndex === totalSlides - 1}
+                  sx={{
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'rgba(255,255,255,.9)',
+                    '&:hover': { background: '#fff' },
+                    '&.Mui-disabled': { opacity: 0.3 },
+                  }}
+                >
+                  <MdChevronRight size={20} />
+                </IconButton>
+              </>
+            )}
+          </Box>
+        </Box>
+
+        {/* Detail side */}
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 1,
+              px: { xs: 1.5, sm: 2.5 },
+              py: { xs: 1.25, sm: 2 },
+              borderBottom: '1px solid #E5E7EB',
+              flexShrink: 0,
+            }}
+          >
+            {/* flex: 1 so this gets priority for whatever width is actually
+                available — previously it shared an unweighted flex group with
+                the badge below, whose fixed-content width always won first,
+                leaving almost nothing for this noWrap text on a phone. */}
+            <Box display="flex" alignItems="center" gap={1.25} sx={{ minWidth: 0, flex: 1 }}>
+              <Box
+                sx={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: '8px',
+                  background: meta?.color ?? '#9CA3AF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                {meta?.icon}
+              </Box>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography fontSize="14px" fontWeight={700} color="#111827" noWrap>
+                  {meta?.label ?? draft.platform}
+                </Typography>
+                <Typography fontSize="11.5px" color="#9CA3AF" noWrap>
+                  {scheduledLabel ?? label}
+                </Typography>
+              </Box>
+            </Box>
+            <Box display="flex" alignItems="center" gap={1} sx={{ flexShrink: 0 }}>
+              <Box
+                component="span"
+                sx={{
+                  background: badge.bg,
+                  color: badge.color,
+                  borderRadius: '999px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  px: 1,
+                  py: 0.35,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {badge.label}
+              </Box>
+              <IconButton size="small" onClick={onClose} sx={{ color: '#6B7280', flexShrink: 0 }}>
+                <MdClose size={18} />
+              </IconButton>
+            </Box>
+          </Box>
+
+          <Box sx={{ flex: 1, overflowY: 'auto', px: { xs: 1.5, sm: 2.5 }, py: { xs: 1.25, sm: 2 } }}>
+            <Typography fontSize="12.5px" fontWeight={700} color="#111827" mb={0.75}>
+              Caption
+            </Typography>
+            <Typography fontSize="13px" color="#374151" sx={{ whiteSpace: 'pre-wrap', mb: 2 }}>
+              {draft.content}
+            </Typography>
+
+            {!!draft.hashtags?.length && (
+              <>
+                <Typography fontSize="12.5px" fontWeight={700} color="#111827" mb={0.75}>
+                  Hashtags
+                </Typography>
+                <Typography fontSize="12.5px" color={PINK} sx={{ mb: 2 }}>
+                  {draft.hashtags.map((h) => `#${h.replace(/^#+/, '')}`).join(' ')}
+                </Typography>
+              </>
+            )}
+
+            {isCarousel && totalSlides > 0 && (
+              <>
+                <Typography fontSize="12.5px" fontWeight={700} color="#111827" mb={0.75}>
+                  Slides ({totalSlides})
+                </Typography>
+                <Box display="flex" flexDirection="column" gap={1}>
+                  {slides.map((s, i) => (
+                    <Box
+                      key={i}
+                      onClick={() => setSlideIndex(i)}
+                      sx={{
+                        display: 'flex',
+                        gap: 1.25,
+                        p: 1,
+                        borderRadius: '8px',
+                        border: '1px solid',
+                        borderColor: i === safeSlideIndex ? PINK : '#E5E7EB',
+                        background: i === safeSlideIndex ? '#FDF2F8' : '#fff',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: '6px',
+                          flexShrink: 0,
+                          background: s.image_url ? `url(${s.image_url}) center/cover` : '#F3F4F6',
+                        }}
+                      />
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography fontSize="11.5px" fontWeight={700} color="#111827" noWrap>
+                          Slide {i + 1}
+                          {s.headline ? ` — ${s.headline}` : ''}
+                        </Typography>
+                        {s.body && (
+                          <Typography
+                            fontSize="11.5px"
+                            color="#6B7280"
+                            sx={{
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            {s.body}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+              </>
+            )}
+          </Box>
+
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 1,
+              px: { xs: 1.5, sm: 2.5 },
+              py: { xs: 1.25, sm: 2 },
+              borderTop: '1px solid #E5E7EB',
+              flexShrink: 0,
+            }}
+          >
+            <Button
+              size="small"
+              disabled={busy}
+              onClick={handleDelete}
+              onBlur={() => setConfirmDelete(false)}
+              sx={{
+                textTransform: 'none',
+                fontWeight: 700,
+                fontSize: '12.5px',
+                color: confirmDelete ? '#fff' : '#DC2626',
+                background: confirmDelete ? '#DC2626' : 'transparent',
+                border: '1px solid',
+                borderColor: '#FCA5A5',
+                borderRadius: '8px',
+                '&:hover': { background: confirmDelete ? '#B91C1C' : 'rgba(220,38,38,.06)' },
+              }}
+            >
+              {confirmDelete ? 'Confirm delete?' : 'Delete'}
+            </Button>
+
+            <Box display="flex" gap={1} flexWrap="wrap" justifyContent="flex-end">
+              {/* Canvas Editor — only for a draft with a layered document, same gate DraftCard uses.
+               * Live-reported (Gloria, staging): this panel used to ALSO carry its own Edit
+               * Text/Describe Edit/Move Logo (DescribeImageEditControls) — exact duplicates of
+               * what "Edit" below already opens (GeneratedDraftEditor wires in the same
+               * controls), since this view's whole point is "see everything, Edit is the one
+               * door into actually changing anything" (see this file's own top comment).
+               * Removed rather than kept as a second, redundant door to the same place. */}
+              {'document' in draft && draft.document ? (
+                <Button
+                  size="small"
+                  startIcon={<MdEdit size={14} />}
+                  onClick={() => setCanvasEditorOpen(true)}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    fontSize: '12.5px',
+                    color: '#EA580C',
+                    border: '1px solid #FED7AA',
+                    borderRadius: '8px',
+                  }}
+                >
+                  Canvas ✨
+                </Button>
+              ) : null}
+              <Button
+                size="small"
+                onClick={() => {
+                  onEdit(draft);
+                  onClose();
+                }}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  fontSize: '12.5px',
+                  color: '#374151',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: '8px',
+                }}
+              >
+                Edit
+              </Button>
+              {isScheduledLike && (
+                <Button
+                  size="small"
+                  disabled={busy}
+                  onClick={handleUnschedule}
+                  onBlur={() => setConfirmUnschedule(false)}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    fontSize: '12.5px',
+                    color: confirmUnschedule ? '#fff' : '#DC2626',
+                    background: confirmUnschedule ? '#DC2626' : 'transparent',
+                    border: '1px solid',
+                    borderColor: '#FCA5A5',
+                    borderRadius: '8px',
+                    '&:hover': { background: confirmUnschedule ? '#B91C1C' : 'rgba(220,38,38,.06)' },
+                  }}
+                >
+                  {confirmUnschedule ? 'Confirm unschedule?' : 'Unschedule'}
+                </Button>
+              )}
+              <Button
+                size="small"
+                disabled={busy}
+                onClick={() => {
+                  // Pre-fill with the current scheduled time so this reads as
+                  // "change the time", not "pick one from scratch" with no
+                  // visibility into what it's currently set to.
+                  setScheduleAt(scheduledAt ? toLocalInputValue(parseApiDate(scheduledAt)) : '');
+                  setScheduleOpen(true);
+                }}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  fontSize: '12.5px',
+                  color: '#374151',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: '8px',
+                }}
+              >
+                {isScheduledLike ? 'Change time' : 'Schedule'}
+              </Button>
+              <Button
+                size="small"
+                disabled={busy}
+                onClick={handlePost}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  fontSize: '12.5px',
+                  color: '#fff',
+                  background: `linear-gradient(135deg, ${PINK} 0%, #A01560 100%)`,
+                  borderRadius: '8px',
+                  px: 1.75,
+                  '&:hover': { background: `linear-gradient(135deg, #A01560 0%, ${PINK} 100%)` },
+                }}
+              >
+                Post
+              </Button>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+
+      <Dialog open={scheduleOpen} onClose={() => setScheduleOpen(false)} maxWidth="xs" fullWidth>
+        <Box sx={{ p: 2.5 }}>
+          <Typography fontSize="15px" fontWeight={700} mb={1.5}>
+            {isScheduledLike ? 'Change scheduled time' : 'Schedule this post'}
+          </Typography>
+          <TextField
+            type="datetime-local"
+            fullWidth
+            size="small"
+            value={scheduleAt}
+            onChange={(e) => {
+              setScheduleAt(e.target.value);
+              // See GeneratedContentCard's identical fix: the native picker doesn't
+              // close itself once a full date+time is set, so it sat visually on top
+              // of the Confirm button below until blurred.
+              if (e.target.value) e.target.blur();
+            }}
+            sx={{ mb: 2 }}
+          />
+          <Box display="flex" justifyContent="flex-end" gap={1}>
+            <Button onClick={() => setScheduleOpen(false)} sx={{ textTransform: 'none', color: '#6B7280' }}>
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              disabled={!scheduleAt || busy}
+              onClick={() => {
+                // A TikTok photo is scheduled from the editor, which has the Post to TikTok screen.
+                if (tiktokNeedsFullFlow) {
+                  setScheduleOpen(false);
+                  ToastService.showToast(
+                    'Choose your TikTok post settings in the editor, then schedule.',
+                    ToastTypeEnum.Warning
+                  );
+                  onEdit(draft);
+                  onClose();
+                  return;
+                }
+                doApprove('schedule', scheduleAt);
+              }}
+              sx={{ textTransform: 'none', background: PINK, '&:hover': { background: '#A01560' } }}
+            >
+              {isScheduledLike ? 'Update' : 'Confirm'}
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
+
+      {previewImage && (
+        <Dialog
+          open={lightboxOpen}
+          onClose={() => setLightboxOpen(false)}
+          maxWidth="lg"
+          PaperProps={{ sx: { background: 'transparent', boxShadow: 'none', overflow: 'visible' } }}
+        >
+          <Box sx={{ position: 'relative' }}>
+            <IconButton
+              onClick={() => setLightboxOpen(false)}
+              aria-label="Close"
+              sx={{
+                position: 'absolute',
+                top: -16,
+                right: -16,
+                background: '#fff',
+                boxShadow: '0 1px 4px rgba(0,0,0,.3)',
+                '&:hover': { background: '#F3F4F6' },
+              }}
+            >
+              <MdClose size={18} />
+            </IconButton>
+            <Box
+              component="img"
+              src={previewImage}
+              alt={label}
+              sx={{ display: 'block', maxWidth: '90vw', maxHeight: '85vh', borderRadius: '8px' }}
+            />
+          </Box>
+        </Dialog>
+      )}
+
+      {canvasEditorOpen && 'document' in draft && draft.document ? (
+        <CanvasEditor
+          draftId={id}
+          onClose={() => setCanvasEditorOpen(false)}
+          onSave={async (imageUrl: string) => {
+            try {
+              await UriHttpClient.getClient().patch(`/social-media/drafts/${id}`, { image_url: imageUrl });
+              setDraft((prev) => ({ ...prev, image_url: imageUrl }));
+              ToastService.showToast('✅ Canvas edits saved to draft!', ToastTypeEnum.Success);
+              setCanvasEditorOpen(false);
+              onRefresh();
+            } catch {
+              ToastService.showToast('Failed to save image', ToastTypeEnum.Error);
+            }
+          }}
+        />
+      ) : null}
+    </Dialog>
+  );
+}

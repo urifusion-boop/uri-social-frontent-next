@@ -23,7 +23,7 @@ import { BrandProfileService } from '@/src/api/BrandProfileService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import SlideCountPicker from '../../atoms/SlideCountPicker';
 
 // ── Constants (deliberately a standalone copy, not shared with v1 — same
@@ -135,6 +135,28 @@ const VideoBadge = () => (
   </span>
 );
 
+// This idea started from a real Listening opportunity card — real customer
+// signal measured in this business's own market, not autonomous ideation
+// (Listening PRD §18, §15's "why am I seeing this" explainability principle).
+const ListeningBadge = () => (
+  <span
+    title="Grounded in a real Listening opportunity from this business's own market"
+    style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 3,
+      padding: '2px 7px',
+      borderRadius: 20,
+      fontSize: 10.5,
+      fontWeight: 700,
+      background: 'rgba(16,185,129,.1)',
+      color: '#047857',
+    }}
+  >
+    📡 From Listening
+  </span>
+);
+
 const TerritoryBadge = ({ territory }: { territory: string }) => {
   if (!territory) return null;
   return (
@@ -187,16 +209,18 @@ const ItemCard = ({ item, onClick }: { item: CalendarV2Item; onClick: () => void
     <div
       onClick={onClick}
       style={{
-        border: `1.5px solid ${today ? PINK : BORDER}`,
-        borderRadius: 10,
-        padding: 10,
+        border: `1.5px solid ${today ? PINK : 'transparent'}`,
+        borderRadius: 12,
+        padding: 12,
         cursor: 'pointer',
         background: '#fff',
+        boxShadow: today ? '0 2px 10px rgba(205,27,120,.15)' : '0 1px 3px rgba(20,16,14,.06)',
         display: 'flex',
         flexDirection: 'column',
         gap: 6,
-        minHeight: 110,
+        minHeight: 112,
         position: 'relative',
+        transition: 'box-shadow .15s, transform .15s',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -219,6 +243,7 @@ const ItemCard = ({ item, onClick }: { item: CalendarV2Item; onClick: () => void
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 'auto' }}>
         <TypeBadge type={item.content_type} />
         <TerritoryBadge territory={item.territory} />
+        {item.source === 'listening' && <ListeningBadge />}
         {item.series_name && <SeriesBadge name={item.series_name} />}
         {item.ad_opportunity?.is_ad_candidate && <AdBadge score={item.ad_opportunity.score} />}
         {!item.diversity_check.passed && (
@@ -305,37 +330,77 @@ const ItemDetailModal = ({
   item,
   planId,
   plan,
+  selectedPlatforms,
   onClose,
   onPlanUpdated,
   onGenerated,
+  onRegeneratePlan,
+  regeneratingPlan,
 }: {
   item: CalendarV2Item;
   planId: string;
   plan: ContentCalendarV2Plan;
+  /** The platform pills currently checked above the grid — distinct from
+   * plan.platforms, which is whatever the plan was last generated/
+   * regenerated for. The two can drift (toggle a pill without hitting
+   * "Regenerate"), and Create Draft always drafts for plan.platforms. */
+  selectedPlatforms: string[];
   onClose: () => void;
   onPlanUpdated: (p: ContentCalendarV2Plan) => void;
   onGenerated: () => void;
+  /** Kicks off the same background 30-day-plan regeneration the main tab's
+   * own "↻ Regenerate 30-day plan" button runs — given to this modal so a
+   * platform mismatch can be fixed right where it's flagged, instead of
+   * just being told to go find that button elsewhere on the page. */
+  onRegeneratePlan: () => void;
+  regeneratingPlan: boolean;
 }) => {
   const [regenerating, setRegenerating] = useState(false);
   const [approving, setApproving] = useState(false);
   const [creating, setCreating] = useState(false);
   const [includeImages, setIncludeImages] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
+  // What "↻ New idea" actually touches — default 'full' matches the old,
+  // only-ever-existed behavior exactly; the others are PRD-specified
+  // regeneration levels (hook only / copy only / creative only / convert
+  // format) that previously had no way to trigger at all.
+  const [regenScope, setRegenScope] = useState<'full' | 'hook' | 'copy' | 'creative' | 'format'>('full');
+  const [regenNewFormat, setRegenNewFormat] = useState<string>(item.format === 'carousel' ? 'image' : 'carousel');
 
   // Same cost math create_draft_from_item_v2 actually charges — a V2-only
   // rule, deliberately diverging from v1 (which charges 1 credit per
   // PLATFORM draft for a carousel): here it's 1 credit per SLIDE, flat
   // across every platform selected.
-  // Carousels default to the plan's slide count (2-5), but the user can pick
-  // their own (2-10) before drafting — the backend charges for what's picked.
+  // Carousels default to the plan's slide count, but the user can pick their
+  // own before drafting — the backend charges for what's picked. Clamped to
+  // 2-3: the business rule is "carousels never exceed 3 slides" (the plan's
+  // own cap too), and the backend now enforces this at creation regardless
+  // of what's sent, so offering up to 10 here just invited a 402-style
+  // mismatch between what looked selectable and what would actually ship.
   const plannedSlides = Math.max(item.carousel?.slides.length || 3, 1);
-  const [numSlides, setNumSlides] = useState(Math.min(10, Math.max(2, plannedSlides)));
+  const [numSlides, setNumSlides] = useState(Math.min(3, Math.max(2, plannedSlides)));
   const draftCreditCost = item.format === 'carousel' ? numSlides : 1;
+
+  // Same comparison the PLATFORMS banner above the grid already uses — kept
+  // in sync deliberately, since this is the same drift it's warning about.
+  // Create Draft always drafts for plan.platforms (the plan was written for
+  // those), so if the checked pills have moved on without a regenerate, the
+  // draft silently comes out for the wrong platform with no indication at
+  // the moment of creating. Block it here instead, matching what the
+  // banner already tells the user to do.
+  const platformsMismatch =
+    JSON.stringify([...selectedPlatforms].sort()) !== JSON.stringify([...plan.platforms].sort());
 
   const handleRegenerate = async () => {
     setRegenerating(true);
     try {
-      const res = await SocialMediaAgentService.regenerateCalendarItemV2(planId, item.day_index, 'manual regenerate');
+      const res = await SocialMediaAgentService.regenerateCalendarItemV2(
+        planId,
+        item.day_index,
+        'manual regenerate',
+        regenScope,
+        regenScope === 'format' ? regenNewFormat : undefined
+      );
       if (res.status && res.responseData) {
         onPlanUpdated(res.responseData);
         onClose();
@@ -366,6 +431,13 @@ const ItemDetailModal = ({
   };
 
   const handleCreateDraft = async () => {
+    if (platformsMismatch) {
+      ToastService.showToast(
+        `This plan was written for ${plan.platforms.join(', ')}, not ${selectedPlatforms.join(', ') || 'your current selection'}. Regenerate the 30-day plan first.`,
+        ToastTypeEnum.Error
+      );
+      return;
+    }
     setCreating(true);
     try {
       const res = await SocialMediaAgentService.createDraftFromCalendarItemV2(
@@ -416,23 +488,25 @@ const ItemDetailModal = ({
         onClick={(e) => e.stopPropagation()}
         style={{
           background: '#fff',
-          borderRadius: 14,
-          maxWidth: 560,
+          borderRadius: 16,
+          maxWidth: 620,
           width: '100%',
           maxHeight: '88vh',
           overflowY: 'auto',
-          padding: 24,
+          padding: 26,
+          boxShadow: '0 20px 60px rgba(0,0,0,.25)',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
           <div>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               <TypeBadge type={item.content_type} />
               <TerritoryBadge territory={item.territory} />
+              {item.source === 'listening' && <ListeningBadge />}
               {item.series_name && <SeriesBadge name={item.series_name} />}
               {isVideoFormat(item.format) && <VideoBadge />}
             </div>
-            <h3 style={{ fontSize: 17, fontWeight: 700, color: '#111827', margin: '8px 0 2px' }}>{item.title}</h3>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: '#111827', margin: '10px 0 2px' }}>{item.title}</h3>
             <div style={{ fontSize: 12, color: GRAY }}>
               {new Date(item.date + 'T00:00:00').toLocaleDateString(undefined, {
                 weekday: 'long',
@@ -443,7 +517,22 @@ const ItemDetailModal = ({
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: GRAY }}
+            aria-label="Close"
+            style={{
+              background: '#F3F4F6',
+              border: 'none',
+              borderRadius: '50%',
+              width: 30,
+              height: 30,
+              flexShrink: 0,
+              fontSize: 17,
+              lineHeight: 1,
+              cursor: 'pointer',
+              color: '#6B7280',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
             ×
           </button>
@@ -780,6 +869,53 @@ const ItemDetailModal = ({
           )}
         </div>
 
+        {!isVideoFormat(item.format) && platformsMismatch && (
+          <div
+            style={{
+              marginTop: 16,
+              padding: 12,
+              borderRadius: 8,
+              background: '#FFFBEB',
+              border: '1px solid #FDE68A',
+              fontSize: 12,
+              color: '#92400E',
+            }}
+          >
+            ⚠️ This plan was written for <strong>{plan.platforms.join(', ')}</strong>, but you now have{' '}
+            <strong>{selectedPlatforms.join(', ') || 'nothing'}</strong> selected above. Creating a draft here would
+            still target {plan.platforms.join(', ')} — regenerate the 30-day plan to get ideas written for your current
+            platforms.
+            <div style={{ marginTop: 10 }}>
+              <button
+                onClick={() => {
+                  onRegeneratePlan();
+                  onClose();
+                  ToastService.showToast(
+                    'Regenerating your 30-day plan for the new platforms — this takes a few minutes, reopen this day once it’s ready.',
+                    ToastTypeEnum.Success
+                  );
+                }}
+                disabled={regeneratingPlan}
+                style={{
+                  background: '#92400E',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 7,
+                  padding: '7px 14px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: regeneratingPlan ? 'not-allowed' : 'pointer',
+                  opacity: regeneratingPlan ? 0.6 : 1,
+                }}
+              >
+                {regeneratingPlan
+                  ? 'Regenerating…'
+                  : `↻ Regenerate 30-day plan for ${selectedPlatforms.join(', ') || 'current platforms'}`}
+              </button>
+            </div>
+          </div>
+        )}
+
         {!isVideoFormat(item.format) && (
           <>
             {/* Mirrors create_draft_from_item_v2's own cost math exactly: 1 credit flat
@@ -789,7 +925,7 @@ const ItemDetailModal = ({
                 the eventual 402. */}
             {item.format === 'carousel' && (
               <div style={{ marginTop: 16 }}>
-                <SlideCountPicker value={numSlides} onChange={setNumSlides} />
+                <SlideCountPicker value={numSlides} onChange={setNumSlides} options={[2, 3]} />
                 {numSlides !== plannedSlides && (
                   <div style={{ fontSize: 11.5, color: GRAY, marginTop: 6 }}>
                     The plan suggested {plannedSlides} slides — Jane will write {numSlides} instead.
@@ -818,39 +954,88 @@ const ItemDetailModal = ({
           {!isVideoFormat(item.format) && (
             <button
               onClick={handleCreateDraft}
-              disabled={creating}
+              disabled={creating || platformsMismatch}
+              title={platformsMismatch ? 'Regenerate the 30-day plan to apply your platform change first' : undefined}
               style={{
-                background: PINK,
+                background: `linear-gradient(135deg, ${PINK} 0%, #A01560 100%)`,
                 color: '#fff',
                 border: 'none',
+                borderRadius: 9,
+                padding: '10px 18px',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: creating || platformsMismatch ? 'not-allowed' : 'pointer',
+                opacity: creating || platformsMismatch ? 0.5 : 1,
+                boxShadow: creating || platformsMismatch ? 'none' : '0 4px 12px rgba(205,27,120,.25)',
+              }}
+            >
+              {creating ? 'Creating…' : platformsMismatch ? 'Regenerate plan first' : 'Create Draft'}
+            </button>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <select
+              value={regenScope}
+              onChange={(e) => setRegenScope(e.target.value as typeof regenScope)}
+              disabled={regenerating}
+              title="What should regenerating actually change?"
+              style={{
+                border: `1.5px solid ${BORDER}`,
+                borderRadius: 8,
+                padding: '10px 8px',
+                fontSize: 12.5,
+                color: '#374151',
+                background: '#fff',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="full">Everything</option>
+              <option value="hook">Hook only</option>
+              <option value="copy">Copy only (keep visuals)</option>
+              <option value="creative">Visuals only (keep copy)</option>
+              <option value="format">Convert format…</option>
+            </select>
+            {regenScope === 'format' && (
+              <select
+                value={regenNewFormat}
+                onChange={(e) => setRegenNewFormat(e.target.value)}
+                disabled={regenerating}
+                style={{
+                  border: `1.5px solid ${BORDER}`,
+                  borderRadius: 8,
+                  padding: '10px 8px',
+                  fontSize: 12.5,
+                  color: '#374151',
+                  background: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                {['image', 'carousel', 'video', 'product_video', 'ai_video']
+                  .filter((f) => f !== item.format)
+                  .map((f) => (
+                    <option key={f} value={f}>
+                      → {f.replace('_', ' ')}
+                    </option>
+                  ))}
+              </select>
+            )}
+            <button
+              onClick={handleRegenerate}
+              disabled={regenerating}
+              style={{
+                background: '#fff',
+                color: '#374151',
+                border: `1.5px solid ${BORDER}`,
                 borderRadius: 8,
                 padding: '10px 16px',
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: 'pointer',
-                opacity: creating ? 0.6 : 1,
+                opacity: regenerating ? 0.6 : 1,
               }}
             >
-              {creating ? 'Creating…' : 'Create Draft'}
+              {regenerating ? 'Regenerating…' : '↻ New idea'}
             </button>
-          )}
-          <button
-            onClick={handleRegenerate}
-            disabled={regenerating}
-            style={{
-              background: '#fff',
-              color: '#374151',
-              border: `1.5px solid ${BORDER}`,
-              borderRadius: 8,
-              padding: '10px 16px',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              opacity: regenerating ? 0.6 : 1,
-            }}
-          >
-            {regenerating ? 'Regenerating…' : '↻ New idea'}
-          </button>
+          </div>
           <button
             onClick={handleApprove}
             disabled={approving || item.status === 'approved'}
@@ -886,6 +1071,13 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
   const [generating, setGenerating] = useState(false);
   const [platforms, setPlatforms] = useState<string[]>(['facebook', 'instagram']);
   const [selectedItem, setSelectedItem] = useState<CalendarV2Item | null>(null);
+  // When the generate/regenerate REQUEST itself fails (not a pipeline failure
+  // reported later via status='failed', but the initial call throwing or
+  // coming back with status: false), the old plan was never replaced, so the
+  // page kept looking exactly like nothing had happened — a toast alone is
+  // easy to miss. This renders a real, dismiss-to-clear banner right by the
+  // button that was just clicked.
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -904,7 +1096,18 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
         const res = await SocialMediaAgentService.getCalendarPlanV2();
         if (res.status && res.responseData) {
           setPlan(res.responseData);
-          setPlatforms(playbookPlatforms.length ? playbookPlatforms : res.responseData.platforms);
+          // Live-reported (Gloria, staging): this used to always prefer the
+          // brand's Playbook target_platforms here, even once a real plan
+          // already existed — so every remount (e.g. navigating away mid
+          // "Regenerate 30-day plan" and coming back) silently reset the
+          // pills back to the Playbook's set, regardless of what was just
+          // selected and regenerated for. That made an already-correct plan
+          // look like it had "lost" the selection and needed regenerating
+          // again (the "— changed from X; regenerate to apply" banner below
+          // is driven by this same `platforms` state). An existing plan's
+          // own platforms are the ground truth for what it actually covers;
+          // the Playbook default only makes sense before any plan exists.
+          setPlatforms(res.responseData.platforms.length ? res.responseData.platforms : playbookPlatforms);
         } else if (playbookPlatforms.length) {
           setPlatforms(playbookPlatforms);
         }
@@ -916,21 +1119,6 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
       }
     })();
   }, []);
-
-  // onGenerated comes from the parent as a plain (unmemoized) function, so
-  // it gets a new identity on every WorkspaceDashboard re-render. Confirmed
-  // live: with it in this effect's deps, ANY parent re-render during the
-  // real ~8min generation tears down and restarts the interval below — in
-  // a dashboard with its own notification/credit polling, that happens far
-  // more often than every 15s, so the interval's first tick() never fires
-  // and a left-open tab shows "Generating…" forever even after the plan
-  // finishes server-side (a hard reload picks it up fine, since that does
-  // its own independent initial fetch). Routing the callback through a ref
-  // keeps the poll interval keyed ONLY on plan?.status actually changing.
-  const onGeneratedRef = useRef(onGenerated);
-  useEffect(() => {
-    onGeneratedRef.current = onGenerated;
-  }, [onGenerated]);
 
   // The pipeline runs 4-6 min as a background job; while the newest plan is
   // still 'generating', poll GET /plan until it flips to 'active' or 'failed'.
@@ -956,9 +1144,6 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
             // jumping users to Drafts minutes after clicking "Regenerate
             // 30-day plan," with nothing there to show for it. A toast is
             // enough — the plan itself re-renders in place via setPlan above.
-            // The ref itself stays (see its own comment above) — it still
-            // keeps this effect's deps stable against onGenerated's identity
-            // changing on every parent re-render, just no longer calls it here.
             ToastService.showToast('Plan ready', ToastTypeEnum.Success);
           } else if (res.responseData.status === 'failed') {
             ToastService.showToast(res.responseData.error || 'Generation failed — try again', ToastTypeEnum.Error);
@@ -984,6 +1169,7 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
       return;
     }
     setGenerating(true);
+    setGenerateError(null);
     try {
       const res = await SocialMediaAgentService.generateCalendarPlanV2(platforms, force);
       if (res.status && res.responseData) {
@@ -997,11 +1183,20 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
           setGenerating(false);
         }
       } else {
-        ToastService.showToast(res.responseMessage || 'Generation failed', ToastTypeEnum.Error);
+        const msg = res.responseMessage || 'Generation failed';
+        ToastService.showToast(msg, ToastTypeEnum.Error);
+        setGenerateError(msg);
         setGenerating(false);
       }
-    } catch {
-      ToastService.showToast('Could not start generation — try again', ToastTypeEnum.Error);
+    } catch (err) {
+      // The old plan is still sitting in state at this point, unchanged — if
+      // this error goes unnoticed, the page looks identical to before the
+      // click, which is exactly what read as "it loads but returns to the
+      // initial one."
+      const detail = (err as { data?: { detail?: string } })?.data?.detail;
+      const msg = detail || 'Could not start generation — try again';
+      ToastService.showToast(msg, ToastTypeEnum.Error);
+      setGenerateError(msg);
       setGenerating(false);
     }
   };
@@ -1011,28 +1206,42 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
   }
 
   return (
-    <div style={{ maxWidth: 900 }}>
+    <div>
       {!plan || plan.status === 'generating' || plan.status === 'failed' ? (
         <div
           style={{
             background: '#fff',
-            border: `1px solid ${BORDER}`,
-            borderRadius: 12,
-            padding: 24,
+            borderRadius: 16,
+            padding: '40px 32px',
             textAlign: 'center',
+            boxShadow: '0 1px 3px rgba(20,16,14,.06)',
+            maxWidth: 520,
+            margin: '24px auto 0',
           }}
         >
-          <div style={{ fontSize: 32, marginBottom: 8 }}>
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: '50%',
+              background: plan?.status === 'failed' ? '#FEF2F2' : '#FDF2F8',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              fontSize: 26,
+            }}
+          >
             {plan?.status === 'generating' ? '⏳' : plan?.status === 'failed' ? '⚠️' : '🗓️'}
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: '#111827', marginBottom: 6 }}>
             {plan?.status === 'generating'
               ? 'Building your 30-day plan…'
               : plan?.status === 'failed'
                 ? 'Generation didn’t finish'
                 : 'No 30-day plan yet'}
           </div>
-          <div style={{ fontSize: 12.5, color: GRAY, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: GRAY, marginBottom: 20, lineHeight: 1.5 }}>
             {plan?.status === 'generating' ? (
               'The engine is drafting a candidate pool, scoring it, then writing copy for the 30 selected ideas. This runs in the background and takes about 4-6 minutes — you can leave this tab and come back.'
             ) : plan?.status === 'failed' ? (
@@ -1043,8 +1252,10 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
               'Generate a 30-day content plan tailored to your brand — including ad-ready posts and exact copy.'
             )}
           </div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 6 }}>PLATFORMS</div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: GRAY, marginBottom: 8, letterSpacing: 0.5 }}>
+            PLATFORMS
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 22, flexWrap: 'wrap' }}>
             {PLATFORMS.map((p) => (
               <button
                 key={p.key}
@@ -1054,12 +1265,13 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
                   padding: '8px 14px',
                   borderRadius: 20,
                   border: `1.5px solid ${platforms.includes(p.key) ? PINK : BORDER}`,
-                  background: platforms.includes(p.key) ? '#FCE7F3' : '#fff',
+                  background: platforms.includes(p.key) ? '#FDF2F8' : '#fff',
                   color: platforms.includes(p.key) ? PINK : '#374151',
                   fontSize: 12.5,
                   fontWeight: 600,
                   cursor: generating ? 'default' : 'pointer',
                   opacity: generating ? 0.6 : 1,
+                  transition: 'all .15s',
                 }}
               >
                 {p.label}
@@ -1070,15 +1282,16 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
             onClick={() => handleGenerate(false)}
             disabled={generating}
             style={{
-              background: PINK,
+              background: `linear-gradient(135deg, ${PINK} 0%, #A01560 100%)`,
               color: '#fff',
               border: 'none',
               borderRadius: 10,
-              padding: '12px 24px',
+              padding: '13px 28px',
               fontSize: 14,
               fontWeight: 700,
               cursor: 'pointer',
               opacity: generating ? 0.6 : 1,
+              boxShadow: `0 4px 12px rgba(205,27,120,.3)`,
             }}
           >
             {generating
@@ -1092,89 +1305,146 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
         <>
           <div
             style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 8,
-              flexWrap: 'wrap',
-              gap: 8,
+              background: '#fff',
+              borderRadius: 16,
+              padding: 18,
+              marginBottom: 16,
+              boxShadow: '0 1px 3px rgba(20,16,14,.06)',
             }}
           >
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
-                {formatPeriodLabel(plan.period_start, plan.period_end)}
-              </div>
-              <div style={{ fontSize: 11.5, color: GRAY, marginTop: 2 }}>
-                {plan.items.filter((i) => i.ad_opportunity?.is_ad_candidate).length} ad candidates
-                {' · '}
-                {plan.items.filter((i) => !i.diversity_check.passed).length} similar to another idea
-              </div>
-            </div>
-            <button
-              onClick={() => handleGenerate(true)}
-              disabled={generating}
+            <div
               style={{
-                background: '#fff',
-                border: `1.5px solid ${BORDER}`,
-                borderRadius: 8,
-                padding: '8px 14px',
-                fontSize: 12.5,
-                fontWeight: 600,
-                color: '#374151',
-                cursor: 'pointer',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 14,
+                flexWrap: 'wrap',
+                gap: 10,
               }}
             >
-              {generating ? 'Regenerating…' : '↻ Regenerate 30-day plan'}
-            </button>
-          </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#111827' }}>
+                  {formatPeriodLabel(plan.period_start, plan.period_end)}
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#059669',
+                      background: 'rgba(5,150,105,.1)',
+                      borderRadius: 20,
+                      padding: '2px 9px',
+                    }}
+                  >
+                    💰 {plan.items.filter((i) => i.ad_opportunity?.is_ad_candidate).length} ad candidates
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#4338CA',
+                      background: '#EEF2FF',
+                      borderRadius: 20,
+                      padding: '2px 9px',
+                    }}
+                  >
+                    ↻ {plan.items.filter((i) => !i.diversity_check.passed).length} similar to another idea
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => handleGenerate(true)}
+                disabled={generating}
+                style={{
+                  background: '#fff',
+                  border: `1.5px solid ${BORDER}`,
+                  borderRadius: 9,
+                  padding: '9px 16px',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  color: '#374151',
+                  cursor: 'pointer',
+                  opacity: generating ? 0.6 : 1,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {generating ? 'Regenerating…' : '↻ Regenerate 30-day plan'}
+              </button>
+            </div>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              flexWrap: 'wrap',
-              marginBottom: 14,
-              padding: '8px 12px',
-              background: '#F9FAFB',
-              border: `1px solid ${BORDER}`,
-              borderRadius: 8,
-            }}
-          >
-            <span style={{ fontSize: 11, fontWeight: 700, color: GRAY }}>PLATFORMS</span>
-            {PLATFORMS.map((p) => {
-              const on = platforms.includes(p.key);
-              return (
+            <div>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: GRAY, letterSpacing: 0.5, marginBottom: 8 }}>
+                PLATFORMS
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {PLATFORMS.map((p) => {
+                  const on = platforms.includes(p.key);
+                  return (
+                    <button
+                      key={p.key}
+                      onClick={() => togglePlatform(p.key)}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: 20,
+                        border: `1.5px solid ${on ? PINK : BORDER}`,
+                        background: on ? '#FDF2F8' : '#fff',
+                        color: on ? PINK : '#9CA3AF',
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all .15s',
+                      }}
+                    >
+                      {on ? '✓ ' : ''}
+                      {p.label}
+                    </button>
+                  );
+                })}
+                {JSON.stringify([...platforms].sort()) !== JSON.stringify([...plan.platforms].sort()) && (
+                  <span style={{ fontSize: 11, color: '#B45309', fontWeight: 600 }}>
+                    — changed from {plan.platforms.join(', ')}; regenerate to apply
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {generateError && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  padding: '10px 14px',
+                  borderRadius: 9,
+                  background: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                }}
+              >
+                <span style={{ fontSize: 12.5, color: '#991B1B', fontWeight: 600 }}>⚠️ {generateError}</span>
                 <button
-                  key={p.key}
-                  onClick={() => togglePlatform(p.key)}
+                  onClick={() => setGenerateError(null)}
                   style={{
-                    padding: '4px 10px',
-                    borderRadius: 20,
-                    border: `1.5px solid ${on ? PINK : BORDER}`,
-                    background: on ? '#FCE7F3' : '#fff',
-                    color: on ? PINK : '#9CA3AF',
-                    fontSize: 11.5,
-                    fontWeight: 600,
+                    border: 'none',
+                    background: 'none',
+                    color: '#991B1B',
+                    fontSize: 12,
+                    fontWeight: 700,
                     cursor: 'pointer',
+                    flexShrink: 0,
                   }}
                 >
-                  {on ? '✓ ' : ''}
-                  {p.label}
+                  Dismiss
                 </button>
-              );
-            })}
-            {JSON.stringify([...platforms].sort()) !== JSON.stringify([...plan.platforms].sort()) && (
-              <span style={{ fontSize: 11, color: '#B45309' }}>
-                — changed from {plan.platforms.join(', ')}; regenerate to apply
-              </span>
+              </div>
             )}
           </div>
 
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
               gap: 10,
             }}
           >
@@ -1191,6 +1461,7 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
           item={selectedItem}
           planId={plan.plan_id}
           plan={plan}
+          selectedPlatforms={platforms}
           onClose={() => setSelectedItem(null)}
           onPlanUpdated={(p) => {
             setPlan(p);
@@ -1198,6 +1469,8 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
             if (refreshed) setSelectedItem(refreshed);
           }}
           onGenerated={onGenerated}
+          onRegeneratePlan={() => handleGenerate(true)}
+          regeneratingPlan={generating}
         />
       )}
     </div>

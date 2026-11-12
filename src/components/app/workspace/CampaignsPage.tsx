@@ -1,7 +1,6 @@
 'use client';
 
-import { GrowthPanel } from '@/src/components/app/workspace/growth/GrowthPanel';
-import { CalendarPlus, Check, Loader2, MapPin, Music2, Pause, Pencil, Play, RotateCw } from 'lucide-react';
+import { CalendarPlus, Check, Copy, Loader2, MapPin, Music2, Pause, Pencil, Play, RotateCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AdFormat,
@@ -18,15 +17,34 @@ import {
   BillingSummary,
   CampaignSummary,
   ThreadSummary,
+  AssetAttestation,
+  CreativePathsInfo,
+  CreativeProvenanceInput,
 } from '@/src/api/CampaignService';
 import { AdFormatSuggestionCard, UsedStyleTag } from '@/src/components/app/workspace/AdFormatGallery';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import HomePanel from '@/src/components/app/workspace/HomePanel';
 import PlanReviewPanel from '@/src/components/app/workspace/PlanReviewPanel';
-import KeepRunningPanel from '@/src/components/app/workspace/KeepRunningPanel';
-import ConfirmDialog from '@/src/components/app/workspace/ConfirmDialog';
-import ObjectivePicker from '@/src/components/app/workspace/ObjectivePicker';
+import { AdTestBuilder } from '@/src/components/app/workspace/AdTestBuilder';
+import { PlanChecksPanel, PlanChecksState } from '@/src/components/app/workspace/PlanChecksPanel';
+import {
+  AiVideoChoices,
+  VideoBriefInline,
+  VideoWhoPrompt,
+  useCreativePaths,
+} from '@/src/components/app/workspace/CreativePathControls';
 import LiveTargetingEditor from '@/src/components/app/workspace/LiveTargetingEditor';
+import KeepRunningPanel from '@/src/components/app/workspace/KeepRunningPanel';
+import { GrowthPanel } from '@/src/components/app/workspace/growth/GrowthPanel';
+import ConfirmDialog from '@/src/components/app/workspace/ConfirmDialog';
+import {
+  GooglePlacement,
+  GooglePlacementPicker,
+  GooglePlacementPreview,
+  GOOGLE_PLACEMENTS,
+  placementLabel,
+} from '@/src/components/app/workspace/GooglePlacementPreview';
+import ObjectivePicker from '@/src/components/app/workspace/ObjectivePicker';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -100,21 +118,27 @@ interface CampaignsPageProps {
   // result — this page picks it back up as if the user had just uploaded it.
   pendingResumeVideo?: { threadId: string; url: string; pendingVariants?: PendingVariants } | null;
   onResumeVideoConsumed?: () => void;
+  // Same idea, for a Listening "ad_test" card: the thread and its seed
+  // message already exist server-side (POST /listening/cards/{id}/create) —
+  // this just resumes straight into that thread and sends the seed, same as
+  // duplicateThread() does for a re-launched campaign.
+  pendingResumeAdTest?: { threadId: string; seedMessage: string } | null;
+  onResumeAdTestConsumed?: () => void;
 }
 
 type ContinueChoice =
-  | { creative_source: 'generate' }
-  | {
+  | { creative_source: 'generate'; concepts?: number }
+  | ({
       creative_source: 'upload';
       reference_image_url: string;
       is_video: boolean;
-      asset_attestation?: 'product_photo' | 'real_customer_photo';
-    }
+      asset_attestation?: AssetAttestation;
+    } & Partial<CreativeProvenanceInput>)
   | { creative_source: 'draft'; draft_id: string }
   | {
       creative_source: 'recomposite';
       reference_image_url: string;
-      asset_attestation?: 'product_photo' | 'real_customer_photo';
+      asset_attestation?: AssetAttestation;
     };
 
 type ChatMsg =
@@ -159,21 +183,51 @@ interface SelectedMedia {
   // VSG-01 v3 (§1.2/§6) — set only for a real (non-video) photo attached directly in
   // the composer, once the user has confirmed what it actually shows. Undefined for a
   // draft, a video, or a photo attached without answering (treated as "skip").
-  assetAttestation?: 'product_photo' | 'real_customer_photo';
+  assetAttestation?: AssetAttestation;
+  // An AI studio video, or who is in an uploaded video and whether they agreed —
+  // sent with the plan so the ad is labelled and checked honestly.
+  provenance?: CreativeProvenanceInput;
 }
 
-const naira = (n?: number | null) => (n == null ? 'N/A' : '₦' + Number(n).toLocaleString());
-const uid = () => Math.random().toString(36).slice(2);
+const provenanceFields = (m: SelectedMedia | null | undefined) => m?.provenance ?? {};
+
+export const naira = (n?: number | null) => (n == null ? 'N/A' : '₦' + Number(n).toLocaleString());
+
+const refundNote = (c: CampaignRow): string => {
+  const r = c.refund;
+  if (!r || r.amount_ngn <= 0) return '';
+  const amount = naira(Math.round(r.amount_ngn));
+  if (r.state === 'done') return `${amount} this campaign didn't spend is back in your ad wallet.`;
+  if (r.state === 'pending')
+    return `This campaign has ended. The ${amount} it didn't spend comes back to your ad wallet within about an hour.`;
+  if (c.status.toLowerCase().includes('paused') && r.ends_at) {
+    const end = new Date(r.ends_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    return `Paused. If it stays paused, the ${amount} it hasn't spent comes back to your ad wallet about an hour after it ends on ${end}.`;
+  }
+  return '';
+};
+
+/** Jane's reasoning, minus the questions she wrote into it. A plan card states the
+ *  plan; "Does this align with where your clients come from?" there has nowhere to be
+ *  answered and reads as if the plan is still undecided. */
+const withoutQuestions = (text: string) =>
+  text
+    .split(/(?<=[.?!])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s && !s.endsWith('?'))
+    .join(' ');
+
+export const uid = () => Math.random().toString(36).slice(2);
 
 const GREETING_TEXT =
   "Hi! Tell me what you'd like to promote, and I'll plan and launch a campaign for you. " +
   "I'll write the copy, design the visual, and set it up for you, paused until you say go.";
 const makeGreeting = (): ChatMsg => ({ id: uid(), role: 'jane', kind: 'text', text: GREETING_TEXT });
 
-// Tappable quick replies (Tier 5b) — pure UI sugar to cut down on typing for the
-// two spots where Jane's own conversation flow always lands: picking a starting
-// goal, and answering the budget/customer-count question nl.py always asks when
-// budget_ngn is missing (the only thing that ever triggers stage === 'need_more').
+// Tappable quick replies (Tier 5b) — pure UI sugar to cut down on typing when Jane
+// asks for a budget (the only thing that ever triggers stage === 'need_more'). The
+// goal chips that used to sit here are gone: ObjectivePicker asks the same question
+// in Meta's own vocabulary, and it is the one that actually sets the objective.
 const BUDGET_REPLY_CHIPS = ['₦5,000 budget', '₦10,000 budget', '₦20,000 budget', '20 customers'];
 
 // Objective-first flow: nl.py now asks WHAT's being promoted (offer_type) right after
@@ -236,6 +290,8 @@ export default function CampaignsPage({
   onNavigate,
   onRequestVideoPolish,
   pendingResumeVideo,
+  pendingResumeAdTest,
+  onResumeAdTestConsumed,
   onResumeVideoConsumed,
 }: CampaignsPageProps) {
   const isMobile = useIsMobile();
@@ -254,21 +310,28 @@ export default function CampaignsPage({
   // The client's Meta campaign objective. Empty until they pick, and Jane then falls
   // back to the one her goal implies — the behaviour before the picker existed.
   const [objective, setObjective] = useState('');
-  // A ref too: the objective must ride on EVERY planFromMessage call, and the
-  // follow-up ones fire from closures that would otherwise capture a stale value.
+  const [objectiveLabels, setObjectiveLabels] = useState<Record<string, string>>({});
+  // A ref as well as state: the objective must ride on EVERY planFromMessage call, and
+  // the follow-up ones fire from closures that would otherwise capture a stale value.
+  // Attached media was silently dropped on four follow-up call sites for exactly this
+  // reason; one source of truth avoids repeating it.
   const objectiveRef = useRef('');
   const [busy, setBusy] = useState(false);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [media, setMedia] = useState<SelectedMedia | null>(null);
-  // TikTok Carousel Ads (2+ photos, no video) — additive on top of `media` above, which is
-  // reused as carousel slide 1. TikTok has no single-static-image ad unit (video or Carousel
-  // Ads only), so this is how a photo-only business reaches TikTok without shooting a video.
-  // Never touches the Meta/video paths — only sent when TikTok is chosen.
+  // TikTok Carousel Ads (2+ photos, no video) — additive on top of `media` above,
+  // which is reused as carousel slide 1. TikTok has no single-static-image ad unit
+  // (video or Carousel Ads only), so this is how a photo-only business reaches
+  // TikTok without shooting a video. Never touches the Meta/video paths at all —
+  // only assembled into a real request when the user has both a base photo AND
+  // at least one of these (2+ total), same "additive, opt-in" shape as
+  // preferredPlatformRef.
   const [carouselExtraUrls, setCarouselExtraUrls] = useState<string[]>([]);
   const carouselExtraInputRef = useRef<HTMLInputElement>(null);
   const [carouselUploading, setCarouselUploading] = useState(false);
   const [briefSoFar, setBriefSoFar] = useState('');
+  const creativePaths = useCreativePaths(briefSoFar);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [draftsOpen, setDraftsOpen] = useState(false);
@@ -307,6 +370,13 @@ export default function CampaignsPage({
   // raw File (needed to seed Video Polish, which takes a fresh upload, not a URL)
   // alongside the already-hosted url/forChoice so "use as-is" can proceed exactly
   // as a normal video upload would have.
+  // A video is uploaded and waiting on "who's in this video?" — answered before it
+  // continues, so a person on camera is labelled honestly (creative_paths.py).
+  const [pendingVideoWho, setPendingVideoWho] = useState<{
+    url: string;
+    label: string;
+    forChoice: false | 'upload';
+  } | null>(null);
   const [pendingVideoQualityCheck, setPendingVideoQualityCheck] = useState<{
     file: File;
     url: string;
@@ -345,49 +415,50 @@ export default function CampaignsPage({
   // campaign for exactly the same reason chosenVariantRef is: it IS the choice, so every
   // later call has to carry it or the backend re-offers the picker it already answered.
   const ownAudienceRef = useRef<string | null>(null);
-  // Explicit "put this on TikTok" toggle — same "has to ride along on every call or the
-  // backend forgets it" reasoning as the refs above (_build_campaign_plan reads
-  // preferred_platform fresh off each request, with no server-side memory of an earlier
-  // turn's choice). Cleared only when a fresh conversation starts — NOT when the client
-  // answers a question mid-way (picking a plan card, typing an audience), or the very
-  // next request builds the creative with no platform preference and Jane falls back to Meta.
-  const preferredPlatformRef = useRef<'' | 'meta' | 'tiktok'>('');
-  const [preferredPlatformUi, setPreferredPlatformUi] = useState<'' | 'meta' | 'tiktok'>('');
-  const setPreferredPlatform = (v: '' | 'meta' | 'tiktok') => {
+  // Explicit "put this on TikTok" toggle — same "has to ride along on every call or
+  // the backend forgets it" reasoning as the refs above (_build_campaign_plan reads
+  // preferred_platform fresh off each request, with no server-side memory of an
+  // earlier turn's choice).
+  const preferredPlatformRef = useRef<'' | 'meta' | 'tiktok' | 'google'>('');
+  const [preferredPlatformUi, setPreferredPlatformUi] = useState<'' | 'meta' | 'tiktok' | 'google'>('');
+  const setPreferredPlatform = (v: '' | 'meta' | 'tiktok' | 'google') => {
     preferredPlatformRef.current = v;
     setPreferredPlatformUi(v);
   };
-  // What a TikTok campaign must say on EVERY plan request, and nothing at all otherwise —
-  // so every Meta request is byte-for-byte what it was before.
-  const tiktokPlatformFields = (attached: SelectedMedia | null) => {
-    if (preferredPlatformRef.current === 'meta') return { preferred_platform: 'meta' as const };
-    if (preferredPlatformRef.current !== 'tiktok') return {};
-    const photos =
-      attached?.source === 'upload' && !attached.isVideo && carouselExtraUrls.length > 0
-        ? [attached.url, ...carouselExtraUrls]
-        : [];
-    return {
-      preferred_platform: 'tiktok' as const,
-      ...(photos.length >= 2 ? { carousel_image_urls: photos } : {}),
-    };
+  // Where on Google, when Google is chosen.
+  const googlePlacementRef = useRef<GooglePlacement>('search');
+  const [googlePlacementUi, setGooglePlacementUi] = useState<GooglePlacement>('search');
+  const setGooglePlacement = (v: GooglePlacement) => {
+    googlePlacementRef.current = v;
+    setGooglePlacementUi(v);
   };
-  // The attached video / photo, re-sent at the steps that used to drop it (audience,
-  // destination, WhatsApp number): TikTok judges "video or 2+ photos" from the request in
-  // front of it, so a media attachment that vanishes mid-conversation reads as "needs video".
-  // null for any non-TikTok request, which keeps exactly the behaviour those steps had.
-  const tiktokMediaFields = (attached: SelectedMedia | null) => {
-    if (preferredPlatformRef.current !== 'tiktok' || !attached) return null;
-    if (attached.source === 'upload') {
-      return {
-        creative_source: 'upload' as const,
-        reference_image_url: attached.url,
-        is_video: attached.isVideo,
-        asset_attestation: attached.assetAttestation,
-      };
-    }
-    if (attached.source === 'draft') return { creative_source: 'draft' as const, draft_id: attached.draftId };
-    return null;
+  // What every Jane request says about where the campaign should run.
+  const platformFields = () =>
+    preferredPlatformRef.current
+      ? {
+          preferred_platform: preferredPlatformRef.current,
+          ...(preferredPlatformRef.current === 'google' ? { google_placement: googlePlacementRef.current } : {}),
+        }
+      : {};
+  // Run the same brief on several platforms at once — a toggle on the single-select
+  // PLATFORM row above, not a replacement for it. Each selected platform becomes its
+  // own independent plan/launch (see sendMultiPlatform below); nothing here touches
+  // the single-platform preferredPlatform state or flow.
+  const [multiPlatformMode, setMultiPlatformMode] = useState(false);
+  const [selectedPlatformsMulti, setSelectedPlatformsMulti] = useState<Set<'meta' | 'tiktok' | 'google'>>(new Set());
+  const toggleMultiPlatform = (p: 'meta' | 'tiktok' | 'google') => {
+    setSelectedPlatformsMulti((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
   };
+  // Captured directly rather than left in the brief's free text — the NL layer
+  // reads budget out of the message for a single-platform plan, but a multi-platform
+  // submission needs the real number client-side to split it evenly per platform.
+  const [multiTotalBudget, setMultiTotalBudget] = useState('');
+  const [multiDays, setMultiDays] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -395,24 +466,43 @@ export default function CampaignsPage({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, busy]);
 
+  // Spinner on the first load only; after starting/pausing/deleting a campaign or
+  // pressing Refresh the cards update in place. A failed refresh keeps the list
+  // that's on screen (emptying it read as "you have no campaigns").
+  const campaignsLoadedRef = useRef(false);
   const loadCampaigns = useCallback(async () => {
-    setLoadingList(true);
+    if (!campaignsLoadedRef.current) setLoadingList(true);
     try {
       const res = await CampaignService.listCampaigns();
       setCampaigns(res.campaigns || []);
-    } catch {
-      setCampaigns([]);
+      campaignsLoadedRef.current = true;
+    } catch (e) {
+      if (campaignsLoadedRef.current) {
+        ToastService.showToast(
+          extractErrorMessage(e, 'Couldn’t refresh your campaigns. Showing the last ones loaded.'),
+          ToastTypeEnum.Error
+        );
+      } else {
+        setCampaigns([]);
+      }
     } finally {
       setLoadingList(false);
     }
   }, []);
 
+  // Same: the wallet shows a spinner once, then refreshes in place (after a top-up).
+  const walletLoadedRef = useRef(false);
   const loadWallet = useCallback(async () => {
-    setLoadingWallet(true);
+    if (!walletLoadedRef.current) setLoadingWallet(true);
     try {
       setWallet(await CampaignService.getWallet());
-    } catch {
-      setWallet(null);
+      walletLoadedRef.current = true;
+    } catch (e) {
+      if (walletLoadedRef.current) {
+        ToastService.showToast(extractErrorMessage(e, 'Couldn’t refresh your wallet. Try again.'), ToastTypeEnum.Error);
+      } else {
+        setWallet(null);
+      }
     } finally {
       setLoadingWallet(false);
     }
@@ -439,15 +529,15 @@ export default function CampaignsPage({
   // so starting a campaign in one tab made any OTHER tab snap to it on reload, looking
   // like the same generation was running in both. If the brand has no threads yet, we
   // leave the greeting and create one lazily on first send. Skipped when a video
-  // hand-off is resuming (below): that effect owns which thread opens in that case,
-  // and racing both against each other let this one silently win and clobber the
-  // resumed thread back to whatever this tab last had open.
+  // or ad-test hand-off is resuming (below): that effect owns which thread opens
+  // in that case, and racing both against each other let this one silently win
+  // and clobber the resumed thread back to whatever this tab last had open.
   useEffect(() => {
     (async () => {
       try {
         const list = await CampaignService.listThreads();
         setThreads(list);
-        if (!list.length || pendingResumeVideo) return;
+        if (!list.length || pendingResumeVideo || pendingResumeAdTest) return;
         let rememberedId: string | null = null;
         try {
           rememberedId = sessionStorage.getItem(ACTIVE_THREAD_SESSION_KEY);
@@ -466,13 +556,13 @@ export default function CampaignsPage({
 
   // Fire-and-forget save — the chat must keep working locally even if this fails. Every
   // message is tagged with the active thread (Tier E) so it lands in the right conversation.
-  const saveMsg = (msg: ChatMsg) => {
+  const saveMsg = (msg: ChatMsg): Promise<void> | undefined => {
     // A pending style_choice is transient UI state, not history — it either
     // resolves into a real 'result' message (which IS saved) or the user
     // never answers it and a reload has nothing useful to restore anyway.
     if (msg.role === 'jane' && msg.kind === 'style_choice') return;
     const thread_id = activeThreadRef.current || undefined;
-    CampaignService.saveChatMessage(
+    return CampaignService.saveChatMessage(
       msg.role === 'user'
         ? { message_id: msg.id, role: 'user', kind: 'text', text: msg.text, thread_id }
         : msg.kind === 'result'
@@ -530,13 +620,13 @@ export default function CampaignsPage({
     selectThreadId(threadId);
     setMedia(null);
     setCarouselExtraUrls([]);
-    preferredPlatformRef.current = '';
-    setPreferredPlatformUi('');
     setBriefSoFar('');
     lastCreativeRef.current = '';
     creativeChoiceRef.current = null;
     chosenVariantRef.current = null;
     ownAudienceRef.current = null;
+    preferredPlatformRef.current = '';
+    setPreferredPlatformUi('');
     // A fresh conversation starts with NO objective chosen. Carrying the
     // last one over launches a campaign against a goal nobody picked for it.
     setObjective('');
@@ -582,13 +672,13 @@ export default function CampaignsPage({
   const startNewThread = async () => {
     setMedia(null);
     setCarouselExtraUrls([]);
-    preferredPlatformRef.current = '';
-    setPreferredPlatformUi('');
     setBriefSoFar('');
     lastCreativeRef.current = '';
     creativeChoiceRef.current = null;
     chosenVariantRef.current = null;
     ownAudienceRef.current = null;
+    preferredPlatformRef.current = '';
+    setPreferredPlatformUi('');
     // A fresh conversation starts with NO objective chosen. Carrying the
     // last one over launches a campaign against a goal nobody picked for it.
     setObjective('');
@@ -612,11 +702,11 @@ export default function CampaignsPage({
       setThreads((prev) => [thread, ...prev]);
       setMedia(null);
       setCarouselExtraUrls([]);
-      preferredPlatformRef.current = '';
-      setPreferredPlatformUi('');
       setBriefSoFar('');
       chosenVariantRef.current = null;
       ownAudienceRef.current = null;
+      preferredPlatformRef.current = '';
+      setPreferredPlatformUi('');
       // A fresh conversation starts with NO objective chosen. Carrying the
       // last one over launches a campaign against a goal nobody picked for it.
       setObjective('');
@@ -638,13 +728,13 @@ export default function CampaignsPage({
         selectThreadId(null);
         setMedia(null);
         setCarouselExtraUrls([]);
-        preferredPlatformRef.current = '';
-        setPreferredPlatformUi('');
         setBriefSoFar('');
         lastCreativeRef.current = '';
         creativeChoiceRef.current = null;
         chosenVariantRef.current = null;
         ownAudienceRef.current = null;
+        preferredPlatformRef.current = '';
+        setPreferredPlatformUi('');
         // A fresh conversation starts with NO objective chosen. Carrying the
         // last one over launches a campaign against a goal nobody picked for it.
         setObjective('');
@@ -715,15 +805,23 @@ export default function CampaignsPage({
 
   /** Picking an objective has to MOVE THE CONVERSATION ON.
    *
-   * It used to only tint a card: the client chose, nothing happened, and the picker sat
-   * there looking broken. The choice is an answer to Jane's question, so it reads back
-   * as one — their pick as a message, Jane acknowledging it and asking the next thing.
+   * It used to only tint a card: the client chose Awareness, nothing happened, and the
+   * picker sat there looking broken while they wondered what to do next. The choice is
+   * an answer to Jane's question, so it reads back as one — their pick as a message,
+   * Jane acknowledging it and asking the next thing.
    *
    * No API call: Jane cannot plan anything until she knows WHAT is being promoted, and
    * the objective rides along on that request when it comes. */
-  const pickObjective = (value: string, label: string, blurb: string) => {
+  const pickObjective = (value: string, label: string, blurb: string, caveat: string) => {
     setObjective(value);
     objectiveRef.current = value;
+    setObjectiveLabels((prev) => ({ ...prev, [value]: label }));
+    // The caveat goes in JANE'S REPLY, not on the card. It used to render only on the
+    // selected card, and once picking started advancing the conversation the card
+    // vanished the instant it was chosen — so the one warning that changes what a
+    // client should expect ("optimises for taps, not confirmed purchases") became
+    // unreachable. Here it is read at the moment of choosing and stays in the thread.
+    const caveatLine = caveat ? ` One thing worth knowing: ${caveat}` : '';
     setMessages((m) => [
       ...m,
       { id: uid(), role: 'user', text: label },
@@ -732,8 +830,8 @@ export default function CampaignsPage({
         role: 'jane',
         kind: 'text',
         text:
-          `${label} it is — ${blurb.replace(/\.$/, '')}. So, what are you promoting? ` +
-          'Tell me what it is and roughly what you want to spend.',
+          `${label} it is — ${blurb.replace(/\.$/, '')}.${caveatLine} ` +
+          'So, what are you promoting? Tell me what it is and roughly what you want to spend.',
       },
     ]);
   };
@@ -743,6 +841,10 @@ export default function CampaignsPage({
     if (!text || busy) return;
     if (override == null) setInput('');
     const attachedMedia = media;
+    const carouselImageUrls =
+      attachedMedia?.source === 'upload' && !attachedMedia.isVideo && carouselExtraUrls.length > 0
+        ? [attachedMedia.url, ...carouselExtraUrls]
+        : [];
     // The backend parses each call fresh, with no memory of earlier turns — so a
     // follow-up like "use this draft" (no budget) would otherwise loop forever
     // asking for the same thing. Send the whole brief-so-far each time so Jane
@@ -755,8 +857,9 @@ export default function CampaignsPage({
     saveMsg(userMsg);
     try {
       const result = await CampaignService.planFromMessage({
-        ...tiktokPlatformFields(media),
+        ...platformFields(),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
+        ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: combinedMessage,
         thread_id: threadId,
         // Keep the already-chosen audience attached to every follow-up, so typing a
@@ -776,6 +879,7 @@ export default function CampaignsPage({
               reference_image_url: attachedMedia.url,
               is_video: attachedMedia.isVideo,
               asset_attestation: attachedMedia.assetAttestation,
+              ...provenanceFields(attachedMedia),
             }
           : attachedMedia?.source === 'draft'
             ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
@@ -810,6 +914,117 @@ export default function CampaignsPage({
     }
   };
 
+  // Same brief, run independently on every platform the client checked — each its
+  // own single-platform plan/launch through the exact pipeline send() already uses
+  // one platform at a time, just fired in parallel with an even budget split and a
+  // shared campaign_group_id tying the siblings together. No new backend behaviour:
+  // creative generation, launch, billing and the adapters are untouched — only
+  // budget_ngn_override/days_override/campaign_group_id are new, additive fields.
+  const sendMultiPlatform = async () => {
+    const text = input.trim();
+    if (!text || busy) return;
+    const platforms = Array.from(selectedPlatformsMulti);
+    if (platforms.length < 2) {
+      ToastService.showToast('Pick at least 2 platforms to run this on.', ToastTypeEnum.Error);
+      return;
+    }
+    const totalBudget = Number(multiTotalBudget);
+    const days = Number(multiDays);
+    if (!totalBudget || totalBudget <= 0) {
+      ToastService.showToast('Enter a total budget to split across the platforms.', ToastTypeEnum.Error);
+      return;
+    }
+    if (!days || days <= 0) {
+      ToastService.showToast('Enter how many days this should run.', ToastTypeEnum.Error);
+      return;
+    }
+    const perPlatformBudget = totalBudget / platforms.length;
+
+    setInput('');
+    const attachedMedia = media;
+    const carouselImageUrls =
+      attachedMedia?.source === 'upload' && !attachedMedia.isVideo && carouselExtraUrls.length > 0
+        ? [attachedMedia.url, ...carouselExtraUrls]
+        : [];
+    const combinedMessage = briefSoFar ? `${briefSoFar}. ${text}` : text;
+    setBusy(true);
+    const threadId = await ensureThread();
+    const userMsg: ChatMsg = { id: uid(), role: 'user', text };
+    setMessages((m) => [...m, userMsg]);
+    saveMsg(userMsg);
+
+    const campaignGroupId = uid();
+    const sharedFields = (platform: 'meta' | 'tiktok' | 'google') => ({
+      preferred_platform: platform,
+      ...(platform === 'google' ? { google_placement: googlePlacementRef.current } : {}),
+      ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
+      ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
+      message: combinedMessage,
+      thread_id: threadId,
+      budget_ngn_override: perPlatformBudget,
+      days_override: days,
+      campaign_group_id: campaignGroupId,
+      ...(chosenVariantRef.current
+        ? {
+            selected_plan_variant: chosenVariantRef.current.variant,
+            variant_group_id: chosenVariantRef.current.variantGroupId,
+          }
+        : {}),
+      ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
+      ...(attachedMedia?.source === 'upload'
+        ? {
+            creative_source: 'upload' as const,
+            reference_image_url: attachedMedia.url,
+            is_video: attachedMedia.isVideo,
+            asset_attestation: attachedMedia.assetAttestation,
+            ...provenanceFields(attachedMedia),
+          }
+        : attachedMedia?.source === 'draft'
+          ? { creative_source: 'draft' as const, draft_id: attachedMedia.draftId }
+          : lastCreativeRef.current
+            ? { reuse_image_url: lastCreativeRef.current }
+            : { creative_source: creativeChoiceRef.current ?? ('ask' as const) }),
+    });
+
+    const introMsg: ChatMsg = {
+      id: uid(),
+      role: 'jane',
+      kind: 'text',
+      text: `Here's a plan for each platform — ₦${perPlatformBudget.toLocaleString()} each, ${days} day${days === 1 ? '' : 's'}:`,
+    };
+    setMessages((m) => [...m, introMsg]);
+    saveMsg(introMsg);
+
+    const outcomes = await Promise.allSettled(platforms.map((p) => CampaignService.planFromMessage(sharedFields(p))));
+    outcomes.forEach((outcome, i) => {
+      const platform = platforms[i];
+      if (outcome.status === 'fulfilled') {
+        const result = outcome.value;
+        const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
+        setMessages((m) => [...m, resultMsg]);
+        saveMsg(resultMsg);
+        if (result.creative?.image_url) lastCreativeRef.current = result.creative.image_url;
+      } else {
+        const msg = extractErrorMessage(
+          outcome.reason,
+          "We're experiencing some difficulties — please try again in a little while."
+        );
+        const errMsg: ChatMsg = {
+          id: uid(),
+          role: 'jane',
+          kind: 'text',
+          text: `${platformChoice(platform).label}: ${msg}`,
+        };
+        setMessages((m) => [...m, errMsg]);
+        saveMsg(errMsg);
+      }
+    });
+
+    setBriefSoFar(combinedMessage);
+    refreshThreads();
+    setBusy(false);
+  };
+
   // Answer the need_whatsapp step: send the brand's WhatsApp number (stored server-side
   // for reuse) and continue building the plan. Kept separate from send() because the
   // number is a distinct field, not another line of the campaign brief.
@@ -823,9 +1038,14 @@ export default function CampaignsPage({
     saveMsg(userMsg);
     try {
       const attachedMedia = media;
+      const carouselImageUrls =
+        attachedMedia?.source === 'upload' && !attachedMedia.isVideo && carouselExtraUrls.length > 0
+          ? [attachedMedia.url, ...carouselExtraUrls]
+          : [];
       const result = await CampaignService.planFromMessage({
-        ...tiktokPlatformFields(media),
+        ...platformFields(),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
+        ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar || clean,
         whatsapp_number: clean,
         thread_id: threadId,
@@ -836,6 +1056,7 @@ export default function CampaignsPage({
               reference_image_url: attachedMedia.url,
               is_video: attachedMedia.isVideo,
               asset_attestation: attachedMedia.assetAttestation,
+              ...provenanceFields(attachedMedia),
             }
           : attachedMedia?.source === 'draft'
             ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
@@ -873,13 +1094,34 @@ export default function CampaignsPage({
       // such row, so saving here just 409'd with meta_connection_none and the number
       // never reached the launch at all. Live-reported.
       await CampaignService.setWhatsapp(clean);
+      // Same media-drop bug as continueWithOwnAudience/continueWithDestination/
+      // continueWithVariants below (confirmed live 2026-09-17) — this omitted
+      // media entirely, so a video attached before hitting this prompt vanished.
+      const attachedMedia = media;
+      const carouselImageUrls =
+        attachedMedia?.source === 'upload' && !attachedMedia.isVideo && carouselExtraUrls.length > 0
+          ? [attachedMedia.url, ...carouselExtraUrls]
+          : [];
       const result = await CampaignService.planFromMessage({
-        ...tiktokPlatformFields(media),
+        ...platformFields(),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
+        ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
         ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
-        ...(tiktokMediaFields(media) ?? {}),
+        ...(attachedMedia?.source === 'upload'
+          ? {
+              creative_source: 'upload',
+              reference_image_url: attachedMedia.url,
+              is_video: attachedMedia.isVideo,
+              asset_attestation: attachedMedia.assetAttestation,
+              ...provenanceFields(attachedMedia),
+            }
+          : attachedMedia?.source === 'draft'
+            ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
+            : lastCreativeRef.current
+              ? { reuse_image_url: lastCreativeRef.current }
+              : {}),
       });
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
@@ -921,7 +1163,7 @@ export default function CampaignsPage({
       const variants = pendingVariants ? pendingVariants.variants : [null];
       for (const variant of variants) {
         const result = await CampaignService.planFromMessage({
-          ...tiktokPlatformFields(media),
+          ...platformFields(),
           ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
           message: brief,
           thread_id: activeThreadRef.current ?? undefined,
@@ -977,6 +1219,11 @@ export default function CampaignsPage({
     if (busy || !brief) return;
     const isVideo = choice.creative_source === 'upload' && choice.is_video;
     const assetAttestation = 'asset_attestation' in choice ? choice.asset_attestation : undefined;
+    // Testing several ideas: each gets its own visual structure, so there's no one style to pick.
+    if (choice.creative_source === 'generate' && (choice.concepts ?? 1) > 1) {
+      await runGeneration(choice, briefOverride);
+      return;
+    }
     if (choice.creative_source === 'draft' || choice.creative_source === 'upload') {
       // Nothing is being DESIGNED on these paths, so there is no style to choose.
       // "Upload my own" means use the photo the user gave us — offering a visual
@@ -1043,13 +1290,35 @@ export default function CampaignsPage({
   }) => {
     if (busy || !briefSoFar) return;
     setBusy(true);
+    // Same media-drop bug as continueWithOwnAudience/submitMetaConnectionWhatsapp/
+    // continueWithVariants (confirmed live 2026-09-17) — this hardcoded
+    // creative_source: 'ask' unconditionally, so an already-attached video/image
+    // vanished the moment the user answered the destination question.
+    const attachedMedia = media;
+    const carouselImageUrls =
+      attachedMedia?.source === 'upload' && !attachedMedia.isVideo && carouselExtraUrls.length > 0
+        ? [attachedMedia.url, ...carouselExtraUrls]
+        : [];
     try {
       const result = await CampaignService.planFromMessage({
-        ...tiktokPlatformFields(media),
+        ...platformFields(),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
+        ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
-        ...(tiktokMediaFields(media) ?? { creative_source: 'ask' as const }),
+        ...(attachedMedia?.source === 'upload'
+          ? {
+              creative_source: 'upload',
+              reference_image_url: attachedMedia.url,
+              is_video: attachedMedia.isVideo,
+              asset_attestation: attachedMedia.assetAttestation,
+              ...provenanceFields(attachedMedia),
+            }
+          : attachedMedia?.source === 'draft'
+            ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
+            : lastCreativeRef.current
+              ? { reuse_image_url: lastCreativeRef.current }
+              : { creative_source: 'ask' as const }),
         // Carry the audience choice, exactly as continueWithSource does — without it
         // the backend has no way to know one was made and regenerates the whole
         // variant set, dropping the user back to "pick an audience".
@@ -1086,12 +1355,28 @@ export default function CampaignsPage({
   const continueWithVariants = async (variants: PlanVariant[], variantGroupId: string) => {
     if (busy || !briefSoFar || variants.length === 0) return;
     pendingVariantsRef.current = { variants, variantGroupId };
-    // Picking a card and typing an audience are competing answers to one question.
+    // Picking a card and typing an audience are competing answers to one question —
+    // only ownAudienceRef is about that choice. Confirmed live (2026-09-17): an
+    // earlier blind find-and-replace across every ownAudienceRef.current = null
+    // site also inserted a preferredPlatformRef reset HERE, which has nothing to
+    // do with audience-vs-card — it silently wiped the TikTok choice the instant
+    // the user picked a plan card, so the very next call (the one that actually
+    // builds the creative) went out with no platform preference and Jane silently
+    // fell back to Meta.
     ownAudienceRef.current = null;
     // Remember the choice for the REST of the campaign, so a typed reply after this
     // point never drops back to "pick an audience" (see chosenVariantRef above).
     chosenVariantRef.current = { variant: variants[0], variantGroupId };
     setBusy(true);
+    // Same media-drop bug as the other call sites (confirmed live 2026-09-17) —
+    // creative_source was hardcoded 'ask' here too, so has_video (and TikTok's
+    // requirement for it) got evaluated against nothing even with a video already
+    // attached.
+    const attachedMedia = media;
+    const carouselImageUrls =
+      attachedMedia?.source === 'upload' && !attachedMedia.isVideo && carouselExtraUrls.length > 0
+        ? [attachedMedia.url, ...carouselExtraUrls]
+        : [];
     try {
       // Live-reported bug: this call omitted selected_plan_variant entirely, so the
       // backend had no way to know a choice had already been made — it just
@@ -1101,11 +1386,24 @@ export default function CampaignsPage({
       // to signal "a choice was made" and skip regeneration) — continueWithSource
       // below still builds each pending variant with its own correct data.
       const result = await CampaignService.planFromMessage({
-        ...tiktokPlatformFields(media),
+        ...platformFields(),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
+        ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
-        ...(tiktokMediaFields(media) ?? { creative_source: 'ask' as const }),
+        ...(attachedMedia?.source === 'upload'
+          ? {
+              creative_source: 'upload',
+              reference_image_url: attachedMedia.url,
+              is_video: attachedMedia.isVideo,
+              asset_attestation: attachedMedia.assetAttestation,
+              ...provenanceFields(attachedMedia),
+            }
+          : attachedMedia?.source === 'draft'
+            ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
+            : lastCreativeRef.current
+              ? { reuse_image_url: lastCreativeRef.current }
+              : { creative_source: 'ask' as const }),
         selected_plan_variant: variants[0],
         variant_group_id: variantGroupId,
       });
@@ -1136,20 +1434,50 @@ export default function CampaignsPage({
     chosenVariantRef.current = null;
     pendingVariantsRef.current = null;
     setBusy(true);
+    // Confirmed live (2026-09-17): this always hardcoded creative_source: 'ask',
+    // silently dropping any media the user had already attached in the composer
+    // (the chip stays visible, but the backend never learns about it on this
+    // call) — a TikTok request would then get rejected as "needs video" even
+    // with a real video attached, and any campaign would lose the attachment
+    // entirely. Same media-forwarding logic send() already uses.
+    const attachedMedia = media;
+    const carouselImageUrls =
+      attachedMedia?.source === 'upload' && !attachedMedia.isVideo && carouselExtraUrls.length > 0
+        ? [attachedMedia.url, ...carouselExtraUrls]
+        : [];
     try {
       const result = await CampaignService.planFromMessage({
-        ...tiktokPlatformFields(media),
+        ...platformFields(),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
+        ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
-        ...(tiktokMediaFields(media) ?? { creative_source: 'ask' as const }),
         target_audience: audience,
+        ...(attachedMedia?.source === 'upload'
+          ? {
+              creative_source: 'upload',
+              reference_image_url: attachedMedia.url,
+              is_video: attachedMedia.isVideo,
+              asset_attestation: attachedMedia.assetAttestation,
+              ...provenanceFields(attachedMedia),
+            }
+          : attachedMedia?.source === 'draft'
+            ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
+            : lastCreativeRef.current
+              ? { reuse_image_url: lastCreativeRef.current }
+              : { creative_source: creativeChoiceRef.current ?? ('ask' as const) }),
       });
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
       saveMsg(resultMsg);
     } catch (e) {
       ownAudienceRef.current = null;
+      preferredPlatformRef.current = '';
+      setPreferredPlatformUi('');
+      // A fresh conversation starts with NO objective chosen. Carrying the
+      // last one over launches a campaign against a goal nobody picked for it.
+      setObjective('');
+      objectiveRef.current = '';
       const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
       const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: msg };
       setMessages((m) => [...m, errMsg]);
@@ -1166,13 +1494,26 @@ export default function CampaignsPage({
     uploadForChoiceRef.current = false;
     if (!files.length) return;
 
-    // TikTok carousel shortcut: picking several photos at once from the composer attach
-    // button (forChoice is only set by the choose-source card / recomposite request) builds
-    // the whole carousel in one action — file[0] becomes the base photo and the rest become
-    // slides. Its own branch, because the single-file path below (attestation prompt,
-    // video-quality check) assumes exactly one file and one decision about it, and a
-    // carousel slide is just a photo. Only reachable once TikTok is chosen (see `multiple`).
-    if (files.length > 1 && !forChoice && preferredPlatformRef.current === 'tiktok') {
+    // TikTok carousel shortcut, user-requested 2026-09-24: picking several photos
+    // at once from THIS button (composer attach, not the choose-source card or a
+    // recomposite request — forChoice is only set by those) builds the whole
+    // carousel in one action, file[0] becoming the base photo and the rest
+    // becoming slides, instead of needing a separate visit to "+ Add carousel
+    // photos" for anything past the first. Runs as its own self-contained branch
+    // rather than reusing the single-file logic below (attestation prompt,
+    // video-quality-check) — those assume exactly one file and one decision to
+    // make about it, and a carousel slide is just a photo with no such decision,
+    // same reasoning handleCarouselExtraFileChosen already applies.
+    //
+    // Live-caught 2026-09-24: this used to also require preferredPlatformUi ===
+    // 'tiktok' already being true, which meant multi-select silently did nothing
+    // unless the client had clicked the "TikTok" chip before attaching photos —
+    // backwards ordering. Multi-photo-select has no other meaning in this
+    // composer (Meta has no multi-image concept here), so picking 2+ files is
+    // itself the signal — it now selects TikTok as a side effect rather than
+    // requiring it as a precondition.
+    if (files.length > 1 && !forChoice) {
+      if (preferredPlatformUi !== 'tiktok') setPreferredPlatform('tiktok');
       setUploadError('');
       setUploading(true);
       try {
@@ -1230,6 +1571,8 @@ export default function CampaignsPage({
         // Came from the choose card with a real photo — ask what it actually shows
         // before continuing (a video skips straight through, same as before).
         setPendingAssetAttestation({ url, forChoice: 'upload' });
+      } else if (is_video) {
+        setPendingVideoWho({ url, label: file.name, forChoice: forChoice === 'upload' ? 'upload' : false });
       } else if (forChoice === 'upload') {
         await continueWithSource({ creative_source: 'upload', reference_image_url: url, is_video });
       } else if (!is_video) {
@@ -1248,12 +1591,16 @@ export default function CampaignsPage({
     }
   };
 
-  // TikTok Carousel Ads — a second (third, ...) photo for the slides beyond the base `media`
-  // attachment. A plain, direct upload with none of handleFileChosen's branches
-  // (recomposite / video-quality check / attestation): a carousel slide is just a photo.
-  // Multi-select uploads them all in parallel. TikTok caps a carousel at 35 slides total
-  // (base photo included), so anything past that is dropped rather than sent to a launch
-  // that would reject it; a stray video in the selection is skipped, not a reason to fail.
+  // TikTok Carousel Ads — a second (third, ...) photo for the slides beyond the
+  // base `media` attachment. Deliberately a plain, direct upload with none of
+  // handleFileChosen's branches (recomposite/video-quality-check/attestation) —
+  // a carousel slide is just a photo, no format decision to make about it.
+  // Multi-select: picking several files in one dialog uploads them all in parallel
+  // and adds every slide in one go, rather than repeating "+ Add carousel photo"
+  // once per image. TikTok Carousel Ads cap at 35 slides total (base photo
+  // included), so anything past that is dropped rather than sent to a launch that
+  // would just reject it; a stray video mixed into the selection is skipped, not
+  // treated as a reason to fail the whole batch — the good photos still upload.
   const handleCarouselExtraFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     e.target.value = '';
@@ -1301,7 +1648,7 @@ export default function CampaignsPage({
   // Answer the "what does this photo actually show?" prompt — value is undefined
   // for "Skip", which proceeds exactly as this flow always has (no format-selection
   // attempt on the backend, the photo is just used as-is).
-  const resolveAssetAttestation = async (value?: 'product_photo' | 'real_customer_photo') => {
+  const resolveAssetAttestation = async (value?: AssetAttestation) => {
     const pending = pendingAssetAttestation;
     if (!pending) return;
     setPendingAssetAttestation(null);
@@ -1337,10 +1684,23 @@ export default function CampaignsPage({
     const pending = pendingVideoQualityCheck;
     if (!pending) return;
     setPendingVideoQualityCheck(null);
+    setPendingVideoWho({ url: pending.url, label: pending.file.name, forChoice: pending.forChoice });
+  };
+
+  // "Who's in this video?" answered — carry it with the video into the plan.
+  const resolveVideoWho = async (provenance?: CreativeProvenanceInput) => {
+    const pending = pendingVideoWho;
+    if (!pending) return;
+    setPendingVideoWho(null);
     if (pending.forChoice === 'upload') {
-      await continueWithSource({ creative_source: 'upload', reference_image_url: pending.url, is_video: true });
+      await continueWithSource({
+        creative_source: 'upload',
+        reference_image_url: pending.url,
+        is_video: true,
+        ...(provenance ?? {}),
+      });
     } else {
-      setMedia({ source: 'upload', url: pending.url, isVideo: true, label: pending.file.name });
+      setMedia({ source: 'upload', url: pending.url, isVideo: true, label: pending.label, provenance });
     }
   };
 
@@ -1369,11 +1729,7 @@ export default function CampaignsPage({
   useEffect(() => {
     if (!pendingResumeVideo) return;
     (async () => {
-      // openThread's setBriefSoFar hasn't flushed to a re-render yet at this point —
-      // continueWithSource would still read the pre-openThread (empty, on a fresh
-      // mount) briefSoFar via its stale closure and silently no-op. Use openThread's
-      // returned brief explicitly instead.
-      const brief = await openThread(pendingResumeVideo.threadId);
+      await openThread(pendingResumeVideo.threadId);
       // openThread just reset both refs above — restore the pre-hand-off audience
       // choice, if there was one, before continueWithSource reads pendingVariantsRef.
       if (pendingResumeVideo.pendingVariants) {
@@ -1383,18 +1739,27 @@ export default function CampaignsPage({
           variantGroupId: pendingResumeVideo.pendingVariants.variantGroupId,
         };
       }
-      await continueWithSource(
-        {
-          creative_source: 'upload',
-          reference_image_url: pendingResumeVideo.url,
-          is_video: true,
-        },
-        brief
-      );
+      // Ask who's in it, as for any upload. The plan continues once it's answered,
+      // by which time openThread's brief has rendered, so no stale-brief workaround.
+      setPendingVideoWho({ url: pendingResumeVideo.url, label: 'Polished video', forChoice: 'upload' });
       onResumeVideoConsumed?.();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingResumeVideo]);
+
+  // Coming from a Listening "ad_test" card: the draft thread and its seed
+  // message already exist server-side — open that exact thread and send the
+  // seed, same as duplicateThread() does for a re-launched campaign, just
+  // arriving from a different tab instead of a button in this one.
+  useEffect(() => {
+    if (!pendingResumeAdTest) return;
+    (async () => {
+      await openThread(pendingResumeAdTest.threadId);
+      await send(pendingResumeAdTest.seedMessage);
+      onResumeAdTestConsumed?.();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingResumeAdTest]);
 
   const openDrafts = async () => {
     setDraftsOpen((v) => !v);
@@ -1423,7 +1788,11 @@ export default function CampaignsPage({
     );
     // Same message_id — the backend upserts, so this replaces the saved "planned"
     // row with "launched" in place rather than creating a second saved message.
-    saveMsg({ id, role: 'jane', kind: 'result', result });
+    // The save is what moves the thread to "launched", so the rail is re-read
+    // only once it has landed — refreshing straight away still read "planned".
+    saveMsg({ id, role: 'jane', kind: 'result', result })?.then(() => {
+      if (result.stage === 'launched') refreshThreads();
+    });
   };
 
   // The newest interactive card (a 'result' choice/plan card OR a 'style_choice'
@@ -1598,6 +1967,14 @@ export default function CampaignsPage({
                       // quality check) counts as newer still, even before it becomes a
                       // message of its own.
                       stale={inTransientPrompt || i !== lastInteractiveIndex}
+                      // Only the one live, non-stale card can be the thing a busy
+                      // request is actually about — passing it to every card would
+                      // flash "Setting up…" on an already-answered one too.
+                      busy={!inTransientPrompt && i === lastInteractiveIndex && busy}
+                      onPickPlatform={(p) => {
+                        setPreferredPlatform(p);
+                        send('Use this platform instead.');
+                      }}
                       onResultChange={(r) => updateResultMessage(m.id, r)}
                       onLaunched={() => {
                         // Campaign is live — this brief is done. Clear it so the next message
@@ -1605,12 +1982,17 @@ export default function CampaignsPage({
                         setBriefSoFar('');
                         setMedia(null);
                         setCarouselExtraUrls([]);
-                        preferredPlatformRef.current = '';
-                        setPreferredPlatformUi('');
                         lastCreativeRef.current = '';
                         creativeChoiceRef.current = null;
                         chosenVariantRef.current = null;
                         ownAudienceRef.current = null;
+                        preferredPlatformRef.current = '';
+                        setPreferredPlatformUi('');
+                        setGooglePlacement('search');
+                        // A fresh conversation starts with NO objective chosen. Carrying the
+                        // last one over launches a campaign against a goal nobody picked for it.
+                        setObjective('');
+                        objectiveRef.current = '';
                         loadCampaigns();
                         refreshThreads();
                       }}
@@ -1619,6 +2001,7 @@ export default function CampaignsPage({
                       onSubmitWhatsapp={submitWhatsapp}
                       onSubmitMetaConnectionWhatsapp={submitMetaConnectionWhatsapp}
                       onChooseGenerate={() => continueWithSource({ creative_source: 'generate' })}
+                      onChooseConcepts={(n) => continueWithSource({ creative_source: 'generate', concepts: n })}
                       onChooseUpload={() => {
                         uploadForChoiceRef.current = 'upload';
                         fileInputRef.current?.click();
@@ -1628,6 +2011,16 @@ export default function CampaignsPage({
                         fileInputRef.current?.click();
                       }}
                       onChooseDraft={(draftId) => continueWithSource({ creative_source: 'draft', draft_id: draftId })}
+                      onChooseAiVideo={(url, provenance) =>
+                        continueWithSource({
+                          creative_source: 'upload',
+                          reference_image_url: url,
+                          is_video: true,
+                          ...provenance,
+                        })
+                      }
+                      creativePaths={creativePaths}
+                      briefText={briefSoFar}
                       onChooseVariants={(variants, groupId) => continueWithVariants(variants, groupId)}
                       onChooseOwnAudience={(audience) => continueWithOwnAudience(audience)}
                       onChooseDestination={continueWithDestination}
@@ -1690,6 +2083,14 @@ export default function CampaignsPage({
                   </div>
                 </div>
               )}
+              {pendingVideoWho && (
+                <div>
+                  <JaneBubble>Who’s in this video?</JaneBubble>
+                  <div className="camp-indent" style={{ marginTop: 8, marginLeft: 40 }}>
+                    <VideoWhoPrompt info={creativePaths} onAnswer={resolveVideoWho} />
+                  </div>
+                </div>
+              )}
               {pendingAssetAttestation && (
                 <div>
                   <JaneBubble>What does this photo actually show?</JaneBubble>
@@ -1728,6 +2129,21 @@ export default function CampaignsPage({
                       🙋 A real customer (I have their permission)
                     </button>
                     <button
+                      onClick={() => resolveAssetAttestation('owner_photo')}
+                      style={{
+                        background: `linear-gradient(135deg,${PINK},#8E1545)`,
+                        border: 'none',
+                        color: '#fff',
+                        borderRadius: 12,
+                        padding: '10px 14px',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      🧑🏾 Me or my team
+                    </button>
+                    <button
                       onClick={() => resolveAssetAttestation(undefined)}
                       style={{
                         background: '#fff',
@@ -1758,9 +2174,15 @@ export default function CampaignsPage({
                 ref={fileInputRef}
                 type="file"
                 accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm"
-                // Several photos at once build a TikTok carousel; for any other platform a
-                // pick is still exactly one file, as it always was.
-                multiple={preferredPlatformUi === 'tiktok'}
+                // Live-caught 2026-09-24: this used to be gated on
+                // preferredPlatformUi === 'tiktok', which meant the OS picker only
+                // allowed multi-select if the client had already clicked the "TikTok"
+                // chip BEFORE attaching photos — backwards from how people actually
+                // use this (attach photos first, worry about platform after). Always
+                // multiple now; handleFileChosen's own carousel-batch branch is what
+                // decides what a multi-file pick MEANS (and now auto-selects TikTok
+                // itself, rather than requiring it to already be chosen).
+                multiple
                 style={{ display: 'none' }}
                 onChange={handleFileChosen}
               />
@@ -1854,6 +2276,8 @@ export default function CampaignsPage({
                     <button
                       onClick={() => {
                         setMedia(null);
+                        // Removing the base photo invalidates any carousel slides
+                        // riding on it (media is reused as slide 1).
                         setCarouselExtraUrls([]);
                       }}
                       style={{
@@ -1870,9 +2294,10 @@ export default function CampaignsPage({
                     </button>
                   </div>
                 )}
-                {/* TikTok Carousel Ads — only offered once a real base photo is attached and
-                    TikTok is the chosen platform; a video makes this irrelevant (TikTok already
-                    accepts that directly), and Meta has no carousel path here at all. */}
+                {/* TikTok Carousel Ads — only offered once a real base photo is
+                    attached and TikTok is the chosen platform; a video makes this
+                    irrelevant (TikTok already accepts that directly), and Meta has
+                    no carousel path here at all. */}
                 {preferredPlatformUi === 'tiktok' && media?.source === 'upload' && !media.isVideo && (
                   <>
                     <input
@@ -2015,43 +2440,168 @@ export default function CampaignsPage({
                   )}
                 </div>
               )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#888' }}>PLATFORM</span>
-                {PLATFORM_CHOICES.map((c) => {
-                  const on = preferredPlatformUi === c.value;
-                  return (
-                    <button
-                      key={c.value || 'auto'}
-                      type="button"
-                      data-testid={`platform-chip-${c.value || 'auto'}`}
-                      aria-pressed={on}
-                      onClick={() => setPreferredPlatform(c.value)}
-                      title={c.hint}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        padding: '4px 11px',
-                        borderRadius: 20,
-                        border: `1.5px solid ${on ? PINK : '#e0dcd9'}`,
-                        background: on ? PINK : '#fff',
-                        color: on ? '#fff' : '#666',
-                        fontSize: 11.5,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        boxShadow: on ? '0 2px 8px rgba(194,24,91,.25)' : 'none',
-                      }}
-                    >
-                      {on && <Check size={12} strokeWidth={3} />}
-                      {c.value === 'tiktok' && !on && <Music2 size={12} strokeWidth={2} />}
-                      {c.label}
-                    </button>
-                  );
-                })}
+                {!multiPlatformMode &&
+                  PLATFORM_CHOICES.map((c) => {
+                    const on = preferredPlatformUi === c.value;
+                    return (
+                      <button
+                        key={c.value || 'auto'}
+                        type="button"
+                        data-testid={`platform-chip-${c.value || 'auto'}`}
+                        aria-pressed={on}
+                        onClick={() => setPreferredPlatform(c.value)}
+                        title={c.hint}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          padding: '4px 11px',
+                          borderRadius: 20,
+                          border: `1.5px solid ${on ? PINK : '#e0dcd9'}`,
+                          background: on ? PINK : '#fff',
+                          color: on ? '#fff' : '#666',
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: on ? '0 2px 8px rgba(194,24,91,.25)' : 'none',
+                        }}
+                      >
+                        {on && <Check size={12} strokeWidth={3} />}
+                        {c.value === 'tiktok' && !on && <Music2 size={12} strokeWidth={2} />}
+                        {c.label}
+                      </button>
+                    );
+                  })}
+                {multiPlatformMode &&
+                  (['meta', 'tiktok', 'google'] as const).map((p) => {
+                    const on = selectedPlatformsMulti.has(p);
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        data-testid={`multi-platform-chip-${p}`}
+                        aria-pressed={on}
+                        onClick={() => toggleMultiPlatform(p)}
+                        title={platformChoice(p).hint}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          padding: '4px 11px',
+                          borderRadius: 20,
+                          border: `1.5px solid ${on ? PINK : '#e0dcd9'}`,
+                          background: on ? PINK : '#fff',
+                          color: on ? '#fff' : '#666',
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: on ? '0 2px 8px rgba(194,24,91,.25)' : 'none',
+                        }}
+                      >
+                        {on && <Check size={12} strokeWidth={3} />}
+                        {p === 'tiktok' && !on && <Music2 size={12} strokeWidth={2} />}
+                        {platformChoice(p).label}
+                      </button>
+                    );
+                  })}
+                {/* Run on several platforms at once, one brief, an even budget split per
+                    platform — each becomes its own independent plan/launch (sendMultiPlatform),
+                    reviewed and launched separately. A toggle, not a replacement for the
+                    single-select row above: Jane's own single-platform picks still work exactly
+                    as before when this is off. */}
+                <button
+                  type="button"
+                  onClick={() => setMultiPlatformMode((v) => !v)}
+                  style={{
+                    marginLeft: 'auto',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '4px 11px',
+                    borderRadius: 20,
+                    border: `1.5px solid ${multiPlatformMode ? PINK : '#e0dcd9'}`,
+                    background: multiPlatformMode ? '#FDF2F8' : '#fff',
+                    color: multiPlatformMode ? PINK : '#888',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {multiPlatformMode ? '✓ Multiple platforms' : 'Run on multiple platforms'}
+                </button>
               </div>
-              <p style={{ margin: '5px 0 8px', fontSize: 11.5, color: '#777', lineHeight: 1.4 }}>
-                {platformChoice(preferredPlatformUi).hint}
-              </p>
+              {!multiPlatformMode && (
+                <p style={{ margin: '5px 0 8px', fontSize: 11.5, color: '#777', lineHeight: 1.4 }}>
+                  {preferredPlatformUi === 'google'
+                    ? `This campaign will run on ${placementLabel(googlePlacementUi)}. ${
+                        GOOGLE_PLACEMENTS.find((g) => g.value === googlePlacementUi)?.where ?? ''
+                      } Pick where:`
+                    : platformChoice(preferredPlatformUi).hint}
+                </p>
+              )}
+              {!multiPlatformMode && preferredPlatformUi === 'google' && (
+                <GooglePlacementPicker
+                  value={googlePlacementUi}
+                  onChange={setGooglePlacement}
+                  ad={{
+                    headline: 'Your headline here',
+                    text: 'A short line about what you offer and why to tap.',
+                    imageUrl: media && !media.isVideo ? media.url : undefined,
+                    business: 'Your business',
+                  }}
+                />
+              )}
+              {multiPlatformMode && (
+                <div style={{ display: 'flex', gap: 10, margin: '5px 0 8px', flexWrap: 'wrap' }}>
+                  <label style={{ fontSize: 11.5, color: '#777' }}>
+                    Total budget (₦)
+                    <input
+                      type="number"
+                      min={0}
+                      value={multiTotalBudget}
+                      onChange={(e) => setMultiTotalBudget(e.target.value)}
+                      placeholder="e.g. 60000"
+                      disabled={busy}
+                      style={{
+                        display: 'block',
+                        marginTop: 3,
+                        width: 140,
+                        border: '1.5px solid #e0dcd9',
+                        borderRadius: 10,
+                        padding: '7px 10px',
+                        fontSize: 13,
+                      }}
+                    />
+                  </label>
+                  <label style={{ fontSize: 11.5, color: '#777' }}>
+                    Days
+                    <input
+                      type="number"
+                      min={1}
+                      value={multiDays}
+                      onChange={(e) => setMultiDays(e.target.value)}
+                      placeholder="e.g. 7"
+                      disabled={busy}
+                      style={{
+                        display: 'block',
+                        marginTop: 3,
+                        width: 90,
+                        border: '1.5px solid #e0dcd9',
+                        borderRadius: 10,
+                        padding: '7px 10px',
+                        fontSize: 13,
+                      }}
+                    />
+                  </label>
+                  {selectedPlatformsMulti.size >= 2 && Number(multiTotalBudget) > 0 && (
+                    <p style={{ fontSize: 11, color: '#999', alignSelf: 'flex-end', margin: 0 }}>
+                      ≈ ₦{(Number(multiTotalBudget) / selectedPlatformsMulti.size).toLocaleString()} per platform
+                    </p>
+                  )}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
                 <textarea
                   value={input}
@@ -2059,10 +2609,17 @@ export default function CampaignsPage({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      send();
+                      if (multiPlatformMode) sendMultiPlatform();
+                      else send();
                     }
                   }}
-                  placeholder={platformChoice(preferredPlatformUi).placeholder}
+                  placeholder={
+                    multiPlatformMode
+                      ? 'Describe what to promote — Jane will plan it for each platform you picked…'
+                      : preferredPlatformUi === 'google'
+                        ? `Tell Jane what to promote on ${placementLabel(googlePlacementUi)}…`
+                        : platformChoice(preferredPlatformUi).placeholder
+                  }
                   rows={1}
                   disabled={busy}
                   style={{
@@ -2078,17 +2635,31 @@ export default function CampaignsPage({
                   }}
                 />
                 <button
-                  onClick={() => send()}
-                  disabled={busy || !input.trim()}
+                  onClick={() => (multiPlatformMode ? sendMultiPlatform() : send())}
+                  disabled={
+                    busy ||
+                    !input.trim() ||
+                    (multiPlatformMode && (selectedPlatformsMulti.size < 2 || !multiTotalBudget || !multiDays))
+                  }
                   style={{
                     padding: '11px 20px',
                     border: 'none',
                     borderRadius: 12,
-                    background: busy || !input.trim() ? '#ddd' : `linear-gradient(135deg,${PINK},#8E1545)`,
+                    background:
+                      busy ||
+                      !input.trim() ||
+                      (multiPlatformMode && (selectedPlatformsMulti.size < 2 || !multiTotalBudget || !multiDays))
+                        ? '#ddd'
+                        : `linear-gradient(135deg,${PINK},#8E1545)`,
                     color: '#fff',
                     fontWeight: 800,
                     fontSize: 14,
-                    cursor: busy || !input.trim() ? 'default' : 'pointer',
+                    cursor:
+                      busy ||
+                      !input.trim() ||
+                      (multiPlatformMode && (selectedPlatformsMulti.size < 2 || !multiTotalBudget || !multiDays))
+                        ? 'default'
+                        : 'pointer',
                     whiteSpace: 'nowrap',
                   }}
                 >
@@ -2423,7 +2994,7 @@ function JaneBubble({ children }: { children: React.ReactNode }) {
   );
 }
 
-function QuickReplyChips({ chips, onPick }: { chips: string[]; onPick: (text: string) => void }) {
+export function QuickReplyChips({ chips, onPick }: { chips: string[]; onPick: (text: string) => void }) {
   return (
     <div className="camp-indent" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, marginLeft: 40 }}>
       {chips.map((chip) => (
@@ -2535,18 +3106,20 @@ function CampaignReview({ summary, edited }: { summary: CampaignSummary; edited?
 // the backend (destination.py), so this card never drifts from what the server accepts:
 // one input box whatever they pick, plus a button picker for any option whose
 // `takes_cta` is set (all of them, since WhatsApp stopped using Meta's native button).
-function ChooseDestination({
+export function ChooseDestination({
   options,
   ctaChoices,
   selected,
   error,
   onSubmit,
+  busy,
 }: {
   options: DestinationOption[];
   ctaChoices: CtaChoice[];
   selected?: { destination_type: string; destination_cta: string };
   error?: string;
   onSubmit: (answer: { destination_type: string; destination_value: string; destination_cta: string }) => void;
+  busy?: boolean;
 }) {
   const [type, setType] = useState(selected?.destination_type || options[0]?.value || 'whatsapp');
   const active = options.find((o) => o.value === type) || options[0];
@@ -2561,7 +3134,7 @@ function ChooseDestination({
   };
   // A blank input is allowed only when the brand already has a value saved for this
   // type — that's "keep what I have, just change the button".
-  const canSubmit = Boolean(value.trim() || active?.current);
+  const canSubmit = Boolean(value.trim() || active?.current) && !busy;
   const submit = () => {
     if (canSubmit) onSubmit({ destination_type: type, destination_value: value.trim(), destination_cta: cta });
   };
@@ -2645,7 +3218,7 @@ function ChooseDestination({
                 opacity: canSubmit ? 1 : 0.5,
               }}
             >
-              Use this
+              {busy ? 'Setting up…' : 'Use this'}
             </button>
           </div>
 
@@ -2683,20 +3256,34 @@ function ChooseDestination({
   );
 }
 
-function ChooseCreativeSource({
+export function ChooseCreativeSource({
   drafts,
   onGenerate,
+  onTestConcepts,
+  maxConcepts = 1,
   onUpload,
   onRecomposite,
   onPickDraft,
+  onPickAiVideo,
+  info,
+  description,
 }: {
   drafts: DraftSummary[];
   onGenerate: () => void;
+  onTestConcepts?: (n: number) => void;
+  maxConcepts?: number;
   onUpload: () => void;
   onRecomposite: () => void;
   onPickDraft: (draftId: string) => void;
+  onPickAiVideo?: (url: string, provenance: CreativeProvenanceInput) => void;
+  info: CreativePathsInfo | null;
+  description: string;
 }) {
-  const [showDrafts, setShowDrafts] = useState(false);
+  const [open, setOpen] = useState<'' | 'drafts' | 'ai_video' | 'film' | 'test'>('');
+  const toggle = (k: 'drafts' | 'ai_video' | 'film' | 'test') => setOpen((v) => (v === k ? '' : k));
+  const showDrafts = open === 'drafts';
+  const aiVideo = info?.paths.ai_video;
+  const ugc = info?.paths.ugc;
   const optionBtn: React.CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
@@ -2715,11 +3302,16 @@ function ChooseCreativeSource({
   const sub: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#a06', opacity: 0.85 };
   return (
     <div>
-      <JaneBubble>Great — how would you like to handle the image for this ad?</JaneBubble>
+      <JaneBubble>Great — how should we make your ad?</JaneBubble>
       <div className="camp-indent" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 40 }}>
         <button onClick={onGenerate} style={optionBtn}>
           ✨ Let Jane create one<span style={sub}>I&apos;ll design a visual for you</span>
         </button>
+        {onTestConcepts && maxConcepts >= 2 && (
+          <button onClick={() => toggle('test')} style={optionBtn}>
+            🧩 Make several ads<span style={sub}>Different styles, Meta finds the best · 1 credit each</span>
+          </button>
+        )}
         <button onClick={onUpload} style={optionBtn}>
           📎 Upload my own<span style={sub}>Use your own photo or video</span>
         </button>
@@ -2727,11 +3319,62 @@ function ChooseCreativeSource({
           🎨 Use my product photo<span style={sub}>Keep the real product, new scene around it</span>
         </button>
         {drafts.length > 0 && (
-          <button onClick={() => setShowDrafts((v) => !v)} style={optionBtn}>
+          <button onClick={() => toggle('drafts')} style={optionBtn}>
             🖼 Use a past post<span style={sub}>{drafts.length} available</span>
           </button>
         )}
+        {onPickAiVideo && (
+          <button
+            onClick={() => toggle('ai_video')}
+            disabled={aiVideo ? !aiVideo.open : false}
+            title={aiVideo?.why_closed ?? undefined}
+            style={{ ...optionBtn, opacity: aiVideo && !aiVideo.open ? 0.45 : 1 }}
+          >
+            🎬 Use an AI video
+            <span style={sub}>
+              {aiVideo && !aiVideo.open ? aiVideo.why_closed : 'One you made in the video studio'}
+            </span>
+          </button>
+        )}
+        <button
+          onClick={() => toggle('film')}
+          disabled={ugc ? !ugc.open : false}
+          title={ugc?.why_closed ?? undefined}
+          style={{ ...optionBtn, opacity: ugc && !ugc.open ? 0.45 : 1 }}
+        >
+          🎥 Film a video
+          <span style={sub}>{ugc && !ugc.open ? ugc.why_closed : 'Jane writes the brief for whoever films it'}</span>
+        </button>
       </div>
+      {open === 'test' && onTestConcepts && (
+        <div
+          className="camp-indent"
+          style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 10, marginLeft: 40 }}
+        >
+          <span style={{ fontSize: 13, color: '#555', fontWeight: 700 }}>How many ads should Jane make?</span>
+          {Array.from({ length: maxConcepts - 1 }, (_, i) => i + 2).map((n) => (
+            <button
+              key={n}
+              type="button"
+              aria-label={`Make ${n} ads`}
+              onClick={() => onTestConcepts(n)}
+              style={{ ...optionBtn, alignItems: 'center', minWidth: 44 }}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      )}
+      {open === 'ai_video' && onPickAiVideo && info?.paths.ai_video.open !== false && (
+        <div className="camp-indent" style={{ marginTop: 10, marginLeft: 40 }}>
+          <AiVideoChoices info={info} onPick={onPickAiVideo} />
+        </div>
+      )}
+      {open === 'film' && info?.paths.ugc.open !== false && (
+        <div className="camp-indent" style={{ marginTop: 10, marginLeft: 40 }}>
+          <VideoBriefInline info={info} description={description} onUploadFilmed={onUpload} />
+        </div>
+      )}
       {showDrafts && drafts.length > 0 && (
         <div
           className="camp-indent"
@@ -2772,7 +3415,7 @@ function ChooseCreativeSource({
 // expanded by default, others collapsed to a one-line summary (spec §4.2). Budget
 // gates how many can be selected (max_selectable, computed server-side — never
 // guessed here) — single-select becomes a radio-like tap, multi-select toggles.
-function PlanVariantCards({
+export function PlanVariantCards({
   variantSet,
   onConfirm,
   onConfirmOwnAudience,
@@ -2790,6 +3433,7 @@ function PlanVariantCards({
     () => new Set(variantSet.variants.map((v) => v.rank))
   );
   const [selectedRanks, setSelectedRanks] = useState<number[]>([]);
+  const creditCount = Math.max(selectedRanks.length, 1);
   // Guards against a duplicate build from a second tap (see the Build button below).
   const [confirmed, setConfirmed] = useState(false);
   // "None of these" — the client's own audience, in their words. Picking a card and
@@ -2855,7 +3499,9 @@ function PlanVariantCards({
               >
                 <div>
                   <span style={label}>Plan {v.rank}</span>
-                  <p style={{ margin: '2px 0 0', fontSize: 14, fontWeight: 800, color: '#1a0a12' }}>{v.who_its_for}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: 14, fontWeight: 800, color: '#1a0a12' }}>
+                    {v.who_its_for.charAt(0).toUpperCase() + v.who_its_for.slice(1)}
+                  </p>
                 </div>
                 {v.recommended && (
                   <span style={{ fontSize: 10.5, fontWeight: 800, color: PINK, whiteSpace: 'nowrap' }}>
@@ -2932,8 +3578,7 @@ function PlanVariantCards({
       {maxSelectable > 1 && (
         <p style={{ margin: '10px 0 0 40px', fontSize: 11.5, color: '#888', maxWidth: 520 }}>
           ℹ️ Picking more than one means a separate ad for each — since they need different messages, one shared ad
-          would end up vague. That's {Math.max(selectedRanks.length, 1)} creative credit
-          {selectedRanks.length === 1 ? '' : 's'}.
+          would end up vague. That's {creditCount} creative credit{creditCount === 1 ? '' : 's'}.
         </p>
       )}
       {/* None of these — the business knows its own customers better than any generated
@@ -3034,7 +3679,7 @@ function PlanVariantCards({
 // button in WorkspaceDashboard.tsx), which sends the browser to Facebook's own OAuth
 // dialog. Facebook redirects back to /workspace?tab=connections&connected=facebook_ads,
 // handled there to call finalizeFacebookAds().
-function ConnectMetaAdsLink({ children }: { children: React.ReactNode }) {
+export function ConnectMetaAdsLink({ children }: { children: React.ReactNode }) {
   const apiBase = (process.env.NEXT_PUBLIC_URI_API_BASE_URL || '').replace(/\/$/, '');
   return (
     <a
@@ -3169,7 +3814,7 @@ function PlanAskBox({
   );
 }
 
-function NeedWhatsapp({
+export function NeedWhatsapp({
   question,
   onSubmit,
   showConnectedAccountsLink,
@@ -3370,7 +4015,7 @@ function PromptCard({ stale, children }: { stale?: boolean; children: React.Reac
   );
 }
 
-function ResultCard({
+export function ResultCard({
   result,
   adFormats,
   formatFallbackFrom,
@@ -3381,13 +4026,19 @@ function ResultCard({
   onSubmitWhatsapp,
   onSubmitMetaConnectionWhatsapp,
   onChooseGenerate,
+  onChooseConcepts,
   onChooseUpload,
   onChooseRecomposite,
   onChooseDraft,
+  onChooseAiVideo,
+  creativePaths,
+  briefText,
   onChooseVariants,
   onChooseOwnAudience,
   onChooseDestination,
   stale,
+  busy,
+  onPickPlatform,
 }: {
   result: LaunchFromMessageResult;
   adFormats: AdFormat[];
@@ -3403,9 +4054,13 @@ function ResultCard({
   onSubmitWhatsapp: (number: string) => void;
   onSubmitMetaConnectionWhatsapp: (number: string) => void;
   onChooseGenerate: () => void;
+  onChooseConcepts?: (n: number) => void;
   onChooseUpload: () => void;
   onChooseRecomposite: () => void;
   onChooseDraft: (draftId: string) => void;
+  onChooseAiVideo?: (url: string, provenance: CreativeProvenanceInput) => void;
+  creativePaths?: CreativePathsInfo | null;
+  briefText?: string;
   onChooseVariants: (variants: PlanVariant[], variantGroupId: string) => void;
   onChooseOwnAudience: (audience: string) => void;
   onChooseDestination: (answer: {
@@ -3415,8 +4070,25 @@ function ResultCard({
   }) => void;
   // True for every result card except the newest — see PromptCard above.
   stale?: boolean;
+  // The chat-level in-flight flag — threaded down to ChooseDestination so its
+  // "Use this" button can show it's actually working instead of sitting there
+  // unchanged while the request runs in the background (the only other
+  // feedback is a typing-dots bubble the viewport auto-scrolls to, far from
+  // where the user just clicked).
+  busy?: boolean;
+  // Lets the "Runs on X — Not right?" line on an already-generated plan
+  // actually switch platforms, instead of just saying "ask again" with
+  // nothing to click. Sets the same preferred-platform state the composer's
+  // own PLATFORM chips use, then resends the brief so Jane replans with it.
+  onPickPlatform?: (platform: '' | 'meta' | 'tiktok' | 'google') => void;
 }) {
   const [launching, setLaunching] = useState(false);
+  const [planChecks, setPlanChecks] = useState<PlanChecksState>({
+    blocked: false,
+    allowOutOfArea: false,
+    canLaunch: true,
+  });
+  const launchBlocked = planChecks.blocked || !planChecks.canLaunch;
   // Edits sitting unsaved in the review panel are NOT on the stored plan, so a launch
   // now would run Jane's original ad while the screen shows the client's version.
   const [unsavedEdits, setUnsavedEdits] = useState(false);
@@ -3448,6 +4120,7 @@ function ResultCard({
             selected={result.selected}
             error={result.error}
             onSubmit={onChooseDestination}
+            busy={busy}
           />
         </div>
       );
@@ -3464,9 +4137,14 @@ function ResultCard({
           <ChooseCreativeSource
             drafts={result.creative_options?.drafts || []}
             onGenerate={onChooseGenerate}
+            onTestConcepts={onChooseConcepts}
+            maxConcepts={result.creative_options?.max_concepts ?? 1}
             onUpload={onChooseUpload}
             onRecomposite={onChooseRecomposite}
             onPickDraft={onChooseDraft}
+            onPickAiVideo={onChooseAiVideo}
+            info={creativePaths ?? null}
+            description={briefText ?? ''}
           />
         </div>
       );
@@ -3525,28 +4203,6 @@ function ResultCard({
     // Per-Brand Page Connection plan — six explicit states (never inferred from one
     // boolean), checked before Jane even builds a plan. Each state below is framed
     // as "progress not restart": what's already true stays true, one reason, one tap.
-    if (result.stage === 'tiktok_needs_video') {
-      return (
-        <JaneBubble>
-          TikTok needs either a video, or at least 2 photos for a carousel ad. Attach a video (upload your own, or ask
-          me to generate one), or use &ldquo;Add carousel photos&rdquo; after attaching a first photo — you can select
-          several at once — then send your message again.
-        </JaneBubble>
-      );
-    }
-    if (result.stage === 'tiktok_not_configured') {
-      return <JaneBubble>TikTok Ads isn&rsquo;t connected right now — try again shortly.</JaneBubble>;
-    }
-    if (result.stage === 'tiktok_connection_no_whatsapp') {
-      return (
-        <JaneBubble>
-          {result.question || 'I need a WhatsApp number to run this TikTok ad.'}{' '}
-          <a href="/workspace/?tab=connections" style={{ color: PINK, fontWeight: 600 }}>
-            Open Connected Accounts →
-          </a>
-        </JaneBubble>
-      );
-    }
     if (result.stage === 'meta_connection_none') {
       return (
         <div>
@@ -3621,6 +4277,47 @@ function ResultCard({
         />
       );
     }
+    if (result.stage === 'tiktok_needs_video') {
+      return (
+        <JaneBubble>
+          TikTok needs either a video, or at least 2 photos for a carousel ad. Attach a video (upload your own, or ask
+          me to generate one), or use &ldquo;Add carousel photos&rdquo; after attaching a first photo — you can select
+          several at once — then send your message again.
+        </JaneBubble>
+      );
+    }
+    if (result.stage === 'tiktok_not_configured') {
+      return <JaneBubble>TikTok Ads isn&rsquo;t connected right now — try again shortly.</JaneBubble>;
+    }
+    if (result.stage === 'tiktok_connection_no_whatsapp') {
+      return (
+        <JaneBubble>
+          {result.question || 'I need a WhatsApp number to run this TikTok ad.'}{' '}
+          <a href="/workspace/?tab=connections" style={{ color: PINK, fontWeight: 600 }}>
+            Open Connected Accounts →
+          </a>
+        </JaneBubble>
+      );
+    }
+    if (
+      result.stage === 'google_not_connected' ||
+      result.stage === 'google_budget_too_low' ||
+      result.stage === 'google_connection_no_whatsapp'
+    ) {
+      return (
+        <JaneBubble>
+          {result.question || 'Google can’t run this as asked yet.'}
+          {result.stage !== 'google_budget_too_low' && (
+            <>
+              {' '}
+              <a href="/workspace/?tab=connections" style={{ color: PINK, fontWeight: 600 }}>
+                Open Connected Accounts →
+              </a>
+            </>
+          )}
+        </JaneBubble>
+      );
+    }
     return null;
   };
 
@@ -3628,11 +4325,11 @@ function ResultCard({
   if (prompt) return <PromptCard stale={stale}>{prompt}</PromptCard>;
 
   const confirmLaunch = async () => {
-    if (launching || !result.plan_id) return;
+    if (launching || !result.plan_id || launchBlocked) return;
     setLaunchError('');
     setLaunching(true);
     try {
-      const launched = await CampaignService.launchPlan(result.plan_id);
+      const launched = await CampaignService.launchPlan(result.plan_id, planChecks.allowOutOfArea);
       // Launching debits the ad wallet in full, so the header badge is now stale.
       window.dispatchEvent(new Event('ad-wallet-changed'));
       onResultChange(launched);
@@ -3664,7 +4361,7 @@ function ResultCard({
       await CampaignService.setWhatsapp(clean);
       setFixingWhatsapp(false);
       setWhatsappFix('');
-      const launched = await CampaignService.launchPlan(result.plan_id!);
+      const launched = await CampaignService.launchPlan(result.plan_id!, planChecks.allowOutOfArea);
       window.dispatchEvent(new Event('ad-wallet-changed'));
       onResultChange(launched);
       onLaunched();
@@ -3678,6 +4375,11 @@ function ResultCard({
   };
 
   const { plan, creative, launch, wallet } = result;
+  const geoLabel = plan?.geo?.pins?.length
+    ? plan.geo.pins.map((x) => x.name).join(', ')
+    : plan?.geo?.fallback_area
+      ? `All of ${plan.geo.fallback_area}`
+      : '';
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
       <div
@@ -3707,7 +4409,7 @@ function ResultCard({
           background: '#fff',
         }}
       >
-        {plan?.platforms?.[0]?.platform === 'tiktok' && (
+        {plan?.platforms?.[0]?.platform && (
           <div
             style={{
               display: 'flex',
@@ -3720,15 +4422,56 @@ function ResultCard({
             }}
           >
             <span style={{ opacity: 0.7, fontWeight: 600 }}>Runs on</span>
-            <strong style={{ fontWeight: 800 }}>{runsOnLabel(plan.platforms[0].platform)}</strong>
-            {result.stage === 'planned' && (
-              <span style={{ marginLeft: 'auto', opacity: 0.7, fontSize: 11.5 }}>
-                Not right? Pick another platform below and ask again.
-              </span>
+            <strong style={{ fontWeight: 800 }}>
+              {runsOnLabel(plan.platforms[0].platform, plan.google_keyword_context?.placement)}
+            </strong>
+            {/* Used to just say "pick another platform below and ask again" with
+                nothing actually below it to pick — the only way to change it was
+                typing a fresh message and hoping Jane's NL parse caught the intent.
+                These call the same setPreferredPlatform the composer's own PLATFORM
+                chips use, then resend the brief so Jane replans with it explicitly. */}
+            {result.stage === 'planned' && onPickPlatform && (
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ opacity: 0.7, fontSize: 11.5 }}>Not right?</span>
+                {(['meta', 'tiktok', 'google'] as const)
+                  .filter((p) => p !== plan.platforms[0].platform)
+                  .map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => onPickPlatform(p)}
+                      style={{
+                        background: 'rgba(255,255,255,0.12)',
+                        border: '1px solid rgba(255,255,255,0.3)',
+                        color: '#fff',
+                        borderRadius: 20,
+                        padding: '3px 10px',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: busy ? 'default' : 'pointer',
+                        opacity: busy ? 0.5 : 1,
+                      }}
+                    >
+                      {platformChoice(p).label}
+                    </button>
+                  ))}
+              </div>
             )}
           </div>
         )}
-        {creative?.image_url && (
+        {plan?.platforms?.[0]?.platform === 'google' && (
+          <GooglePlacementPreview
+            placement={(plan.google_keyword_context?.placement as GooglePlacement) || 'search'}
+            ad={{
+              headline: creative?.headline,
+              text: creative?.primary_text,
+              imageUrl: creative?.image_url && !creative.is_video ? creative.image_url : undefined,
+              business: plan.google_keyword_context?.business_name,
+            }}
+          />
+        )}
+        {creative?.image_url && plan?.platforms?.[0]?.platform !== 'google' && !result.concepts?.length && (
           <ZoomableImage
             src={creative.image_url}
             alt="campaign visual"
@@ -3736,10 +4479,30 @@ function ResultCard({
             style={{ width: '100%', display: 'block', maxHeight: 320, objectFit: 'contain', background: '#f5f5f5' }}
           />
         )}
+        {creative?.image_url && plan?.platforms?.[0]?.platform === 'meta' && (
+          <AdTestBuilder
+            planId={result.stage === 'planned' ? result.plan_id : undefined}
+            main={creative}
+            concepts={result.concepts ?? []}
+            layout={result.ad_layout ?? 'single_ad_set'}
+            canSplit={!!result.can_split}
+            dailyNgn={plan.platforms[0].budget_ngn / Math.max(1, plan.platforms[0].days)}
+            description={briefText ?? ''}
+            wanted={result.concepts_wanted ?? 0}
+            onChange={(next) => onResultChange({ ...result, ...next })}
+          />
+        )}
         <div style={{ padding: 16 }}>
-          <p style={{ margin: '0 0 4px', fontWeight: 800, fontSize: 15, color: '#1a0a12' }}>{creative?.headline}</p>
-          <p style={{ margin: '0 0 12px', fontSize: 13, color: '#555', lineHeight: 1.5 }}>{creative?.primary_text}</p>
+          {!result.concepts?.length && (
+            <>
+              <p style={{ margin: '0 0 4px', fontWeight: 800, fontSize: 15, color: '#1a0a12' }}>{creative?.headline}</p>
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#555', lineHeight: 1.5 }}>
+                {creative?.primary_text}
+              </p>
+            </>
+          )}
           {creative?.vsg01_format_id &&
+            !result.concepts?.length &&
             (() => {
               const usedFormat = adFormats.find((f) => f.format_id === creative.vsg01_format_id);
               if (!usedFormat) return null;
@@ -3748,40 +4511,59 @@ function ResultCard({
                 : undefined;
               return <UsedStyleTag format={usedFormat} fallbackFrom={fallbackFrom} />;
             })()}
-          {plan?.explanation && (
-            <p style={{ margin: '0 0 12px', fontSize: 12.5, color: '#888', fontStyle: 'italic', lineHeight: 1.5 }}>
-              &ldquo;{plan.explanation}&rdquo;
-            </p>
+          {plan?.explanation && withoutQuestions(plan.explanation) && (
+            <div style={{ margin: '14px 0 12px' }}>
+              <p
+                style={{
+                  margin: '0 0 4px',
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  letterSpacing: 0.6,
+                  textTransform: 'uppercase',
+                  color: '#999',
+                }}
+              >
+                Why this plan
+              </p>
+              <p style={{ margin: 0, fontSize: 13, color: '#555', lineHeight: 1.55 }}>
+                {withoutQuestions(plan.explanation)}
+              </p>
+            </div>
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
             {plan?.platforms?.map((p, i) => (
               <span
                 key={i}
                 style={{
-                  fontSize: 11,
+                  fontSize: 11.5,
                   fontWeight: 700,
-                  padding: '3px 9px',
+                  padding: '4px 10px',
                   borderRadius: 20,
                   background: '#fce4ec',
                   color: PINK,
+                  lineHeight: 1.3,
                 }}
               >
                 {naira(p.budget_ngn)} · {p.days} {p.days === 1 ? 'day' : 'days'}
               </span>
             ))}
-            {plan?.geo?.pins?.length && plan.platforms?.[0]?.platform !== 'tiktok' ? (
+            {geoLabel && plan?.platforms?.[0]?.platform !== 'tiktok' ? (
               <span
                 style={{
-                  fontSize: 11,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontSize: 11.5,
                   fontWeight: 600,
-                  padding: '3px 9px',
+                  padding: '4px 10px',
                   borderRadius: 20,
                   background: '#f0eded',
                   color: '#666',
+                  lineHeight: 1.3,
                 }}
               >
-                <MapPin size={12} strokeWidth={2} style={{ verticalAlign: '-2px', marginRight: 4 }} />
-                {plan.geo.pins.map((x) => x.name).join(', ')}
+                <MapPin size={12} strokeWidth={2} style={{ flexShrink: 0 }} />
+                {geoLabel}
               </span>
             ) : null}
           </div>
@@ -3837,6 +4619,13 @@ function ResultCard({
           {result.summary && (
             <CampaignReview summary={result.summary} edited={result.plan_edited && result.summary_stale} />
           )}
+          {result.stage === 'planned' && result.plan_id && (
+            <PlanChecksPanel
+              planId={result.plan_id}
+              refreshKey={JSON.stringify([result.summary ?? '', result.concepts?.length ?? 0, result.ad_layout ?? ''])}
+              onState={setPlanChecks}
+            />
+          )}
           {result.stage === 'planned' ? (
             <div style={{ background: '#fdf8f3', border: '1px solid #f0e3d0', borderRadius: 10, padding: '10px 12px' }}>
               {/* One number: what actually leaves the wallet, which IS the budget the
@@ -3844,9 +4633,19 @@ function ResultCard({
                   campaign is planned, so there is nothing to add on and nothing to
                   itemise. This used to read "X ad spend + Y service fee = Z from your
                   wallet", which asked them to fund more than the figure they gave. */}
+              {wallet && <BudgetBreakdown wallet={wallet} />}
               {wallet && (
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: '#777' }}>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: '#777', lineHeight: 1.5 }}>
                   <strong>{naira(wallet.total_due_ngn ?? wallet.budget_ngn)}</strong> from your wallet
+                  {wallet.google_billing === 'own' ? (
+                    <>
+                      {' '}
+                      — URI&rsquo;s fee. Google bills your own Google Ads account for the{' '}
+                      <strong>{naira(wallet.ad_spend_ngn ?? wallet.budget_ngn)}</strong> ad spend.
+                    </>
+                  ) : wallet.google_billing === 'uri' ? (
+                    <> — covers everything. Runs in URI&rsquo;s Google Ads account; there&rsquo;s no Google bill.</>
+                  ) : null}
                 </p>
               )}
               {wallet && !wallet.sufficient && (
@@ -3876,8 +4675,14 @@ function ResultCard({
               )}
               <button
                 onClick={confirmLaunch}
-                disabled={launching || unsavedEdits}
-                title={unsavedEdits ? 'Save your changes first — otherwise the original ad launches' : undefined}
+                disabled={launching || unsavedEdits || launchBlocked}
+                title={
+                  unsavedEdits
+                    ? 'Save your changes first — otherwise the original ad launches'
+                    : launchBlocked
+                      ? 'Resolve the issues above first'
+                      : undefined
+                }
                 style={{
                   width: '100%',
                   display: 'flex',
@@ -3889,9 +4694,10 @@ function ResultCard({
                   padding: '10px 14px',
                   fontWeight: 700,
                   fontSize: 13,
-                  cursor: launching || unsavedEdits ? 'default' : 'pointer',
-                  background: launching || unsavedEdits ? '#eee' : `linear-gradient(135deg,${PINK},#8E1545)`,
-                  color: launching || unsavedEdits ? '#999' : '#fff',
+                  cursor: launching || unsavedEdits || launchBlocked ? 'default' : 'pointer',
+                  background:
+                    launching || unsavedEdits || launchBlocked ? '#eee' : `linear-gradient(135deg,${PINK},#8E1545)`,
+                  color: launching || unsavedEdits || launchBlocked ? '#999' : '#fff',
                 }}
               >
                 {launching ? (
@@ -3901,11 +4707,18 @@ function ResultCard({
                 ) : (
                   <>
                     <Check size={14} strokeWidth={2.5} />
-                    <span>Looks good — launch{plan?.platforms?.[0]?.platform === 'tiktok' ? ' on TikTok' : ' it'}</span>
+                    <span>
+                      Looks good — launch on{' '}
+                      {runsOnLabel(plan?.platforms?.[0]?.platform, plan?.google_keyword_context?.placement)}
+                    </span>
                   </>
                 )}
               </button>
-              {launchError && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#c62828' }}>{launchError}</p>}
+              {launchError && (
+                <p style={{ margin: '8px 0 0', fontSize: 12, color: '#c62828', whiteSpace: 'pre-line' }}>
+                  {launchError}
+                </p>
+              )}
               {fixingWhatsapp && (
                 <div style={{ marginTop: 8 }}>
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -3951,9 +4764,9 @@ function ResultCard({
           {result.stage === 'planned' && result.plan_id && (
             <PlanReviewPanel
               planId={result.plan_id}
-              // TikTok names states and cities, not neighbourhoods, so the pockets Jane plans on
-              // (Ikoyi, Lekki, ...) are not something the client can review there.
-              hiddenFieldKeys={plan?.platforms?.[0]?.platform === 'tiktok' ? ['locations'] : undefined}
+              // TikTok names states and cities, not neighbourhoods, so the pockets Jane
+              // plans on (Ikoyi, Lekki, ...) are not something the client can review here.
+              hiddenFieldKeys={result.plan?.platforms?.[0]?.platform === 'tiktok' ? ['locations'] : undefined}
               onDirtyChange={setUnsavedEdits}
               onSaved={(refreshed) =>
                 onResultChange({
@@ -3984,15 +4797,66 @@ function ResultCard({
             <div style={{ background: '#f6fbf6', border: '1px solid #cde9cd', borderRadius: 10, padding: '10px 12px' }}>
               <p style={{ margin: 0, fontSize: 12.5, color: '#2e7d32', fontWeight: 700 }}>
                 <Check size={13} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 5 }} />
-                {plan?.platforms?.[0]?.platform === 'tiktok'
-                  ? `Campaign created on ${runsOnLabel('tiktok')} — paused, no spend yet`
-                  : 'Campaign created, paused, no spend yet'}
+                Campaign created on{' '}
+                {runsOnLabel(plan?.platforms?.[0]?.platform, plan?.google_keyword_context?.placement)} — paused, no
+                spend yet
               </p>
               <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>{launch?.note}</p>
             </div>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Where the budget goes. The plan above is built on the ad spend (what the ads
+ * themselves get), so it reads ₦6,300 when the owner typed ₦7,000 — this says
+ * why, in one glance, instead of leaving them to wonder where ₦700 went.
+ */
+function BudgetBreakdown({ wallet }: { wallet: NonNullable<LaunchFromMessageResult['wallet']> }) {
+  const ads = wallet.ad_spend_ngn ?? wallet.budget_ngn;
+  const own = wallet.google_billing === 'own';
+  const due = wallet.total_due_ngn ?? ads;
+  const fee = Math.round((own ? due : due - ads) * 100) / 100;
+  if (!ads || fee <= 0) return null;
+  const total = ads + fee;
+  const row = (label: string, value: number, hint: string, strong = false) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline' }}>
+      <span style={{ color: strong ? '#1a0a12' : '#555', fontWeight: strong ? 700 : 500 }}>
+        {label}
+        {hint && <span style={{ display: 'block', fontSize: 11, color: '#999', fontWeight: 400 }}>{hint}</span>}
+      </span>
+      <span style={{ fontWeight: strong ? 800 : 600, color: '#1a0a12', whiteSpace: 'nowrap' }}>{naira(value)}</span>
+    </div>
+  );
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gap: 7,
+        fontSize: 12.5,
+        background: '#fff',
+        border: '1px solid #f0e3d0',
+        borderRadius: 8,
+        padding: '9px 11px',
+        marginBottom: 9,
+      }}
+    >
+      <div style={{ fontSize: 10.5, fontWeight: 800, color: '#a15c00', letterSpacing: 0.4 }}>
+        WHERE YOUR BUDGET GOES
+      </div>
+      {row(
+        'Your ads',
+        ads,
+        own
+          ? 'Billed by Google to your Google Ads account. This is the figure in the plan above.'
+          : 'What the ads themselves get to spend. This is the figure in the plan above.'
+      )}
+      {row('URI service', fee, 'Jane’s planning, the ad itself, and running and tracking it for you.')}
+      <div style={{ borderTop: '1px dashed #eadfcd' }} />
+      {row('Your budget', total, '', true)}
     </div>
   );
 }
@@ -4017,7 +4881,7 @@ function fmtTxnDate(iso: string): string {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function WalletTab({
+export function WalletTab({
   wallet,
   loading,
   onFunded,
@@ -4030,6 +4894,7 @@ function WalletTab({
   const [amount, setAmount] = useState<number>(min);
   const [funding, setFunding] = useState(false);
   const [error, setError] = useState('');
+  const isMobile = useIsMobile();
 
   const presets = [5000, 10000, 20000, 50000];
 
@@ -4062,22 +4927,24 @@ function WalletTab({
   };
 
   return (
-    <div className="camp-pane" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
-        <p style={{ margin: 0, color: '#888', fontSize: 13 }}>
+    <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '14px 12px' : '18px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+        <p style={{ margin: 0, color: '#7a7270', fontSize: 12.5, minWidth: 0, flex: '1 1 200px' }}>
           Your prepaid wallet. Campaigns spend from this balance — top up before you launch.
         </p>
         <button
           onClick={onFunded}
           style={{
-            marginLeft: 'auto',
-            background: 'none',
-            border: '1px solid #e0dcd9',
-            borderRadius: 8,
-            padding: '6px 12px',
+            marginLeft: isMobile ? 0 : 'auto',
+            flexShrink: 0,
+            background: '#fff',
+            border: '1px solid #ece8e6',
+            borderRadius: 10,
+            padding: '7px 14px',
             fontSize: 12,
+            fontWeight: 700,
             cursor: 'pointer',
-            color: '#555',
+            color: '#1a0a12',
           }}
         >
           <RotateCw size={12} strokeWidth={2} style={{ verticalAlign: '-2px', marginRight: 5 }} />
@@ -4090,20 +4957,28 @@ function WalletTab({
         style={{
           background: `linear-gradient(135deg,${PINK},#8E1545)`,
           borderRadius: 16,
-          padding: '22px 24px',
+          padding: isMobile ? '18px 16px' : '22px 24px',
           color: '#fff',
-          marginBottom: 20,
+          marginBottom: 16,
         }}
       >
-        <div style={{ fontSize: 12.5, opacity: 0.85, fontWeight: 600, letterSpacing: 0.3 }}>CURRENT BALANCE</div>
-        <div style={{ fontSize: 34, fontWeight: 800, marginTop: 4 }}>
+        <div style={{ fontSize: 12, opacity: 0.85, fontWeight: 700, letterSpacing: 0.3 }}>CURRENT BALANCE</div>
+        <div style={{ fontSize: 32, fontWeight: 800, marginTop: 4 }}>
           {loading && !wallet ? '…' : naira(wallet?.balance_ngn ?? 0)}
         </div>
       </div>
 
       {/* Top up */}
-      <div style={{ border: '1px solid #eee', borderRadius: 14, padding: 18, marginBottom: 20, background: '#fff' }}>
-        <p style={{ margin: '0 0 12px', fontWeight: 700, fontSize: 14, color: '#1a0a12' }}>Add money</p>
+      <div
+        style={{
+          border: '1px solid #ece8e6',
+          borderRadius: 16,
+          padding: 18,
+          marginBottom: 16,
+          background: '#fff',
+        }}
+      >
+        <p style={{ margin: '0 0 12px', fontWeight: 800, fontSize: 13.5, color: '#1a0a12' }}>Add money</p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
           {presets.map((p) => (
             <button
@@ -4127,18 +5002,18 @@ function WalletTab({
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              flex: 1,
-              border: '1.5px solid #e0dcd9',
-              borderRadius: 12,
+              flex: '1 1 160px',
+              border: '1px solid #ece8e6',
+              borderRadius: 10,
               padding: '0 12px',
             }}
           >
-            <span style={{ color: '#888', fontSize: 15, fontWeight: 700 }}>₦</span>
+            <span style={{ color: '#7a7270', fontSize: 15, fontWeight: 700 }}>₦</span>
             <input
               type="number"
               min={min}
@@ -4153,7 +5028,7 @@ function WalletTab({
                 padding: '11px 8px',
                 fontSize: 15,
                 width: '100%',
-                color: '#111',
+                color: '#1a0a12',
                 fontFamily: 'inherit',
               }}
             />
@@ -4164,37 +5039,37 @@ function WalletTab({
             style={{
               padding: '11px 22px',
               border: 'none',
-              borderRadius: 12,
+              borderRadius: 10,
               whiteSpace: 'nowrap',
-              background: funding ? '#ddd' : `linear-gradient(135deg,${PINK},#8E1545)`,
+              background: funding ? '#f0c6d6' : PINK,
               color: '#fff',
               fontWeight: 800,
-              fontSize: 14,
+              fontSize: 13.5,
               cursor: funding ? 'default' : 'pointer',
             }}
           >
             {funding ? 'Starting…' : 'Top up'}
           </button>
         </div>
-        <p style={{ margin: '8px 0 0', fontSize: 11.5, color: error ? '#c62828' : '#aaa' }}>
+        <p style={{ margin: '8px 0 0', fontSize: 11.5, color: error ? '#b91c1c' : '#9a9090' }}>
           {error || `Minimum ${naira(min)}. Secured by Squad — you'll be taken to a payment page.`}
         </p>
       </div>
 
       {/* Ledger */}
-      <p style={{ margin: '0 0 10px', fontWeight: 700, fontSize: 13, color: '#1a0a12' }}>Recent activity</p>
+      <p style={{ margin: '0 0 10px', fontWeight: 800, fontSize: 13.5, color: '#1a0a12' }}>Recent activity</p>
       {loading && !wallet ? (
-        <p style={{ color: '#aaa', fontSize: 13 }}>Loading…</p>
+        <p style={{ color: '#9a9090', fontSize: 13 }}>Loading…</p>
       ) : !wallet?.transactions?.length ? (
-        <p style={{ color: '#aaa', fontSize: 13 }}>No activity yet. Top up to get started.</p>
+        <p style={{ color: '#9a9090', fontSize: 13 }}>No activity yet. Top up to get started.</p>
       ) : (
         <div
           style={{
             display: 'grid',
             gap: 1,
-            background: '#eee',
-            border: '1px solid #eee',
-            borderRadius: 12,
+            background: '#ece8e6',
+            border: '1px solid #ece8e6',
+            borderRadius: 16,
             overflow: 'hidden',
           }}
         >
@@ -4206,14 +5081,14 @@ function WalletTab({
                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', background: '#fff' }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#333' }}>{walletTxnLabel(t)}</div>
-                  <div style={{ fontSize: 11.5, color: '#aaa' }}>{fmtTxnDate(t.created_at)}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1a0a12' }}>{walletTxnLabel(t)}</div>
+                  <div style={{ fontSize: 11.5, color: '#9a9090' }}>{fmtTxnDate(t.created_at)}</div>
                 </div>
                 <div
                   style={{
                     fontSize: 13.5,
-                    fontWeight: 700,
-                    color: credit ? '#1e7e34' : '#c62828',
+                    fontWeight: 800,
+                    color: credit ? '#15803d' : '#b91c1c',
                     whiteSpace: 'nowrap',
                   }}
                 >
@@ -4229,7 +5104,7 @@ function WalletTab({
   );
 }
 
-function BillingTab() {
+export function BillingTab() {
   const [data, setData] = useState<BillingSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -4268,28 +5143,30 @@ function BillingTab() {
 
   const t = data?.totals;
   const dateInput: React.CSSProperties = {
-    border: '1.5px solid #e0dcd9',
+    border: '1px solid #ece8e6',
     borderRadius: 10,
     padding: '8px 10px',
     fontSize: 13,
     fontFamily: 'inherit',
-    color: '#111',
+    color: '#1a0a12',
   };
 
+  const isMobile = useIsMobile();
+
   return (
-    <div className="camp-pane" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
-      <p style={{ margin: '0 0 14px', color: '#888', fontSize: 13 }}>
+    <div className="camp-pane" style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '14px 12px' : '18px 24px' }}>
+      <p style={{ margin: '0 0 14px', color: '#7a7270', fontSize: 12.5 }}>
         What each customer has spent on ads, what we billed them, and our margin. Numbers fill in as campaigns deliver.
       </p>
 
       {/* Filters */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end', marginBottom: 18 }}>
-        <label style={{ fontSize: 11.5, color: '#888' }}>
+        <label style={{ fontSize: 11.5, color: '#7a7270' }}>
           From
           <br />
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={dateInput} />
         </label>
-        <label style={{ fontSize: 11.5, color: '#888' }}>
+        <label style={{ fontSize: 11.5, color: '#7a7270' }}>
           To
           <br />
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={dateInput} />
@@ -4301,10 +5178,10 @@ function BillingTab() {
             border: 'none',
             borderRadius: 10,
             padding: '9px 18px',
-            fontWeight: 700,
+            fontWeight: 800,
             fontSize: 13,
             cursor: 'pointer',
-            background: `linear-gradient(135deg,${PINK},#8E1545)`,
+            background: PINK,
             color: '#fff',
           }}
         >
@@ -4339,33 +5216,37 @@ function BillingTab() {
         </div>
       )}
 
-      {error && <p style={{ fontSize: 12.5, color: '#c62828' }}>{error}</p>}
+      {error && <p style={{ fontSize: 12.5, color: '#b91c1c' }}>{error}</p>}
 
       {/* Table */}
       {loading && !data ? (
-        <p style={{ color: '#aaa', fontSize: 13 }}>Loading…</p>
+        <p style={{ color: '#9a9090', fontSize: 13 }}>Loading…</p>
       ) : !data?.per_user?.length ? (
-        <p style={{ color: '#aaa', fontSize: 13 }}>No ad spend recorded yet for this period.</p>
+        <p style={{ color: '#9a9090', fontSize: 13 }}>No ad spend recorded yet for this period.</p>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div style={{ overflowX: 'auto', border: '1px solid #ece8e6', borderRadius: 16 }}>
           <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 640, fontSize: 12.5 }}>
             <thead>
-              <tr style={{ textAlign: 'left', color: '#888', borderBottom: '1px solid #eee' }}>
-                <th style={{ padding: '8px 10px' }}>Customer</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Campaigns</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Real ad spend</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Billed</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Margin</th>
+              <tr style={{ textAlign: 'left', color: '#7a7270', borderBottom: '1px solid #ece8e6' }}>
+                <th style={{ padding: '10px 14px' }}>Customer</th>
+                <th style={{ padding: '10px 14px', textAlign: 'right' }}>Campaigns</th>
+                <th style={{ padding: '10px 14px', textAlign: 'right' }}>Real ad spend</th>
+                <th style={{ padding: '10px 14px', textAlign: 'right' }}>Billed</th>
+                <th style={{ padding: '10px 14px', textAlign: 'right' }}>Margin</th>
               </tr>
             </thead>
             <tbody>
               {data.per_user.map((r) => (
                 <tr key={r.business_id} style={{ borderBottom: '1px solid #f4f2f0' }}>
-                  <td style={{ padding: '9px 10px', color: '#333' }}>{r.label || r.business_id}</td>
-                  <td style={{ padding: '9px 10px', textAlign: 'right', color: '#666' }}>{r.campaigns}</td>
-                  <td style={{ padding: '9px 10px', textAlign: 'right', color: '#333' }}>{naira(r.real_spend_ngn)}</td>
-                  <td style={{ padding: '9px 10px', textAlign: 'right', color: '#333' }}>{naira(r.billed_ngn)}</td>
-                  <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 700, color: '#1e7e34' }}>
+                  <td style={{ padding: '10px 14px', color: '#1a0a12', fontWeight: 700 }}>
+                    {r.label || r.business_id}
+                  </td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', color: '#7a7270' }}>{r.campaigns}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', color: '#1a0a12' }}>
+                    {naira(r.real_spend_ngn)}
+                  </td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', color: '#1a0a12' }}>{naira(r.billed_ngn)}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: '#15803d' }}>
                     {naira(r.margin_ngn)}
                   </td>
                 </tr>
@@ -4382,32 +5263,37 @@ function TotalCard({ label, value, accent }: { label: string; value: string; acc
   return (
     <div
       style={{
-        border: '1px solid #eee',
+        border: `1px solid ${accent ? '#bbf0cf' : '#ece8e6'}`,
         borderRadius: 12,
         padding: '12px 16px',
         minWidth: 130,
-        background: accent ? '#f6fbf6' : '#fff',
+        background: accent ? '#ecfdf5' : '#fff',
       }}
     >
-      <div style={{ fontSize: 10.5, color: '#aaa', textTransform: 'uppercase', letterSpacing: 0.3 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 800, color: accent ? '#1e7e34' : '#1a0a12', marginTop: 2 }}>{value}</div>
+      <div style={{ fontSize: 10.5, color: '#9a9090', textTransform: 'uppercase', letterSpacing: 0.3 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color: accent ? '#15803d' : '#1a0a12', marginTop: 2 }}>{value}</div>
     </div>
   );
 }
 
-type PlatformChoice = { value: '' | 'meta' | 'tiktok'; label: string; hint: string; placeholder: string };
+export type PlatformChoice = {
+  value: '' | 'meta' | 'tiktok' | 'google';
+  label: string;
+  hint: string;
+  placeholder: string;
+};
 
 // What TikTok will take as a budget. TikTok's own ad group needs ₦31,000 a day and URI takes
 // no fee on it, so the stated budget is the ad spend: ₦31,000 buys about a day, each further
 // ₦31,000 adds a day up to 7 (₦217,000), and anything bigger is simply spent faster each day.
 // Mirrors the backend's HARD_FLOOR_DAILY_NGN["tiktok"] and MAX_CAMPAIGN_DAYS — change together.
-const TIKTOK_DAILY_FLOOR_NGN = 31_000;
-const TIKTOK_MAX_DAYS = 7;
+export const TIKTOK_DAILY_FLOOR_NGN = 31_000;
+export const TIKTOK_MAX_DAYS = 7;
 const TIKTOK_BUDGET_HINT =
   `Budget: at least ${naira(TIKTOK_DAILY_FLOOR_NGN)} (about 1 day). Each extra ${naira(TIKTOK_DAILY_FLOOR_NGN)} ` +
   `adds a day, up to ${TIKTOK_MAX_DAYS} days (${naira(TIKTOK_DAILY_FLOOR_NGN * TIKTOK_MAX_DAYS)}).`;
 
-const PLATFORM_CHOICES: PlatformChoice[] = [
+export const PLATFORM_CHOICES: PlatformChoice[] = [
   {
     value: '',
     label: 'Jane picks',
@@ -4426,12 +5312,19 @@ const PLATFORM_CHOICES: PlatformChoice[] = [
     hint: `This campaign will run on TikTok. It needs a video, or 2+ photos as a carousel. ${TIKTOK_BUDGET_HINT}`,
     placeholder: 'Tell Jane what to promote on TikTok…',
   },
+  {
+    value: 'google',
+    label: 'Google',
+    hint: 'This campaign will run on Google.',
+    placeholder: 'Tell Jane what to promote on Google…',
+  },
 ];
 
-const platformChoice = (v: string) => PLATFORM_CHOICES.find((c) => c.value === v) ?? PLATFORM_CHOICES[0];
+export const platformChoice = (v: string) => PLATFORM_CHOICES.find((c) => c.value === v) ?? PLATFORM_CHOICES[0];
 
 /** Where a planned or launched campaign actually runs, in plain words. */
-function runsOnLabel(platform?: string): string {
+function runsOnLabel(platform?: string, googlePlacement?: string): string {
+  if (platform === 'google') return placementLabel(googlePlacement);
   if (platform === 'tiktok') return 'TikTok';
   // Only an explicit meta plan reads as Instagram & Facebook — a plan with no platform
   // must not be mistaken for a Meta one (it showed on TikTok plans before).
@@ -4446,13 +5339,15 @@ const _STATUS_STYLES: Record<string, { bg: string; color: string }> = {
   'in review': { bg: '#e8f0fe', color: '#1a56db' },
   processing: { bg: '#e8f0fe', color: '#1a56db' },
   scheduled: { bg: '#e8f0fe', color: '#1a56db' },
-  ended: { bg: '#f0eded', color: '#666' },
-  'budget used': { bg: '#f0eded', color: '#666' },
   'needs changes': { bg: '#fdecea', color: '#c62828' },
   'needs attention': { bg: '#fdecea', color: '#c62828' },
   'needs billing info': { bg: '#fdecea', color: '#c62828' },
+  ended: { bg: '#f0eded', color: '#666' },
+  'budget used': { bg: '#f0eded', color: '#666' },
   archived: { bg: '#f0eded', color: '#666' },
   deleted: { bg: '#f0eded', color: '#666' },
+  'not managed by uri': { bg: '#f0eded', color: '#666' },
+  'status unavailable': { bg: '#f0eded', color: '#666' },
 };
 
 function statusStyle(status: string) {
@@ -4470,7 +5365,20 @@ function formatEnds(endsAt: string | null | undefined) {
 // 'ad paused' = the campaign is on but its ads are off; resuming turns them back on.
 const _TOGGLABLE_STATUSES = new Set(['active', 'paused', 'ad paused']);
 
-function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void }) {
+export function CampaignCard({
+  c,
+  onChanged,
+  onDuplicate,
+}: {
+  c: CampaignRow;
+  onChanged: () => void;
+  // The chat flow's own "duplicate a launched campaign into a fresh draft" (its
+  // ThreadRail's duplicateThread) needs a thread_id CampaignRow doesn't carry, so it
+  // can't be reused as-is here — undefined (the chat page's own usage) keeps this
+  // button off entirely there, unchanged from before. The Campaign Builder passes a
+  // real handler that seeds a fresh wizard run from this row's own fields instead.
+  onDuplicate?: (c: CampaignRow) => void;
+}) {
   const [working, setWorking] = useState(false);
   // Campaign Management PRD §19 "Audience or geography edit" — the only post-launch
   // change Uri can make itself. Everything else there is still Ads Manager's job.
@@ -4480,14 +5388,16 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
   const [keepingRunning, setKeepingRunning] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
-  // A successful activate/pause used to give no feedback beyond the button changing colour.
-  // A toast plus this inline confirmation both fire on success, and neither depends on the
-  // client noticing a subtle change on a round button.
+  // Live-caught 2026-09-24: a successful activate/pause gave no feedback beyond the
+  // button itself changing — a client who'd just watched an earlier attempt 404
+  // silently had no way to tell THIS one actually worked short of reopening DevTools.
+  // A toast plus this inline confirmation line both fire on success, and neither
+  // depends on the client noticing a subtle colour change on a round button.
   const [confirmingStart, setConfirmingStart] = useState(false);
   const [justToggled, setJustToggled] = useState<'active' | 'paused' | null>(null);
   // The on/off state drives the pause/play button and what can be done to the campaign.
-  // What the BADGE says can differ: a TikTok campaign that is switched on but waiting in ad
-  // review or out of balance is "Active" to the button and "In review" to the client.
+  // What the BADGE says can differ: a TikTok campaign that is switched on but waiting in
+  // ad review or out of balance is "Active" to the button and "In review" to the client.
   const baseStatus = c.metrics?.delivery || c.status;
   const displayStatus = c.metrics?.delivery_display || baseStatus;
   const { bg, color } = statusStyle(displayStatus);
@@ -4534,12 +5444,20 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
 
   const remove = async () => {
     if (busy) return;
-    const ok = window.confirm(`Delete "${c.name}"? This can't be undone.`);
+    const ok = window.confirm(
+      c.detached
+        ? `Remove "${c.name}" from this list? It stays in your Google Ads account — URI no longer has access to it.`
+        : c.platform === 'google'
+          ? `Delete "${c.name}"? This can't be undone.`
+          : `Delete "${c.name}"? This can't be undone. Any budget it hasn't spent goes back to your ad wallet.`
+    );
     if (!ok) return;
     setError('');
     setDeleting(true);
     try {
       await CampaignService.deleteCampaign(c.campaign_id);
+      // A delete can refund unspent budget, so the header badge may now be stale.
+      window.dispatchEvent(new Event('ad-wallet-changed'));
       onChanged();
     } catch (e) {
       setError(extractErrorMessage(e, 'Could not delete the campaign, please try again.'));
@@ -4547,9 +5465,14 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
     }
   };
 
-  // Only campaigns that exist on the provider — Meta and TikTok both have a live targeting
-  // editor and a keep-it-running adapter.
-  const canEditTargeting = !!c.campaign_id && baseStatus.toLowerCase() !== 'deleted';
+  // TikTok gained real live-targeting-edit support 2026-09-25 (location/gender/
+  // age — see live_edit.py's TikTok-native functions), so this is no longer
+  // Meta-only. Only campaigns that exist on the provider can be edited either way.
+  // Not for Google Search campaigns yet: changing the audience or the end date isn't supported there.
+  const canEditTargeting = c.platform !== 'google' && !!c.campaign_id && baseStatus.toLowerCase() !== 'deleted';
+  const detachedNote = c.detached
+    ? 'This brand disconnected that Google Ads account, so URI can no longer pause or track this campaign. Manage it in Google Ads.'
+    : '';
 
   return (
     <div>
@@ -4571,6 +5494,28 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
               style={{ width: 84, height: 84, borderRadius: 8, objectFit: 'cover' }}
             />
           </div>
+        ) : c.platform === 'google' ? (
+          <div
+            title={`${placementLabel(c.placement)} ad`}
+            style={{
+              width: 84,
+              height: 84,
+              borderRadius: 8,
+              background: '#f1f6ff',
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#4285F4',
+              fontWeight: 800,
+            }}
+          >
+            <span style={{ fontSize: 26, lineHeight: 1 }}>G</span>
+            <span style={{ fontSize: 9.5, fontWeight: 700, marginTop: 4, textAlign: 'center' }}>
+              {c.placement && c.placement !== 'search' ? placementLabel(c.placement).toUpperCase() : 'SEARCH AD'}
+            </span>
+          </div>
         ) : (
           <div style={{ width: 84, height: 84, borderRadius: 8, background: '#f4f2f0', flexShrink: 0 }} />
         )}
@@ -4590,22 +5535,43 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
             >
               {displayStatus}
             </span>
-            {c.platform === 'tiktok' && (
-              <span
-                title="Running on TikTok"
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 700,
-                  padding: '2px 8px',
-                  borderRadius: 20,
-                  background: 'rgba(0,0,0,.06)',
-                  color: '#111',
-                }}
-              >
-                <Music2 size={11} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 3 }} />
-                TikTok
-              </span>
-            )}
+            <span
+              title={
+                c.platform === 'tiktok'
+                  ? 'Running on TikTok'
+                  : c.platform === 'google'
+                    ? `Running on ${placementLabel(c.placement)}`
+                    : c.platform === 'meta'
+                      ? 'Running on Meta (Facebook/Instagram)'
+                      : 'Running on your chosen platform'
+              }
+              style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: 20,
+                background:
+                  c.platform === 'tiktok'
+                    ? 'rgba(0,0,0,.06)'
+                    : c.platform === 'google'
+                      ? 'rgba(66,133,244,.12)'
+                      : 'rgba(24,119,242,.1)',
+                color: c.platform === 'tiktok' ? '#111' : c.platform === 'google' ? '#4285F4' : '#1877F2',
+              }}
+            >
+              {c.platform === 'tiktok' ? (
+                <>
+                  <Music2 size={11} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 3 }} />
+                  TikTok
+                </>
+              ) : c.platform === 'google' ? (
+                'Google'
+              ) : c.platform === 'meta' ? (
+                'Meta'
+              ) : (
+                'Ads'
+              )}
+            </span>
           </div>
           <p
             style={{
@@ -4641,10 +5607,7 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
                 Its real numbers are clicks and what each cost. */}
             {c.platform === 'tiktok' ? (
               <>
-                <Metric
-                  label="Clicks"
-                  value={c.metrics?.clicks != null ? c.metrics.clicks.toLocaleString() : 'N/A'}
-                />
+                <Metric label="Clicks" value={c.metrics?.clicks != null ? c.metrics.clicks.toLocaleString() : 'N/A'} />
                 <Metric
                   label="Cost per click"
                   value={c.metrics?.cost_per_click_ngn != null ? naira(c.metrics.cost_per_click_ngn) : 'N/A'}
@@ -4723,6 +5686,26 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
               {c.serving_note}
             </p>
           )}
+          {detachedNote && (
+            <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#666', lineHeight: 1.45 }}>{detachedNote}</p>
+          )}
+          {refundNote(c) && (
+            <p
+              role="status"
+              style={{
+                margin: '8px 0 0',
+                padding: '7px 10px',
+                borderRadius: 8,
+                background: '#EEF7F0',
+                border: '1px solid #CBE6D2',
+                fontSize: 12,
+                color: '#1f5f33',
+                lineHeight: 1.45,
+              }}
+            >
+              {refundNote(c)}
+            </p>
+          )}
           {justToggled && (
             <p
               style={{
@@ -4741,9 +5724,43 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
             </p>
           )}
           {error && <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#c62828' }}>{error}</p>}
+          {c.ads_manager_url && (
+            <a
+              href={c.ads_manager_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'inline-block', marginTop: 8, fontSize: 11.5, color: PINK, fontWeight: 600 }}
+            >
+              {c.platform === 'google'
+                ? 'View in Google Ads →'
+                : `View in ${c.platform === 'tiktok' ? 'TikTok' : c.platform === 'meta' ? 'Meta' : 'your'} Ads Manager →`}
+            </a>
+          )}
         </div>
-        {(canToggle || canDelete || canEditTargeting) && (
+        {(canToggle || canDelete || canEditTargeting || onDuplicate) && (
           <div style={{ display: 'flex', gap: 8, alignSelf: 'center', flexShrink: 0 }}>
+            {onDuplicate && (
+              <button
+                onClick={() => onDuplicate(c)}
+                title="Duplicate — start a new campaign prefilled from this one"
+                aria-label="Duplicate this campaign"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 34,
+                  height: 34,
+                  borderRadius: '50%',
+                  border: '1px solid #e0dcd9',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                  color: '#555',
+                }}
+              >
+                <Copy size={14} strokeWidth={2} />
+              </button>
+            )}
             {canEditTargeting && (
               <button
                 onClick={() => {
@@ -4856,7 +5873,7 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
         <LiveTargetingEditor
           campaignId={c.campaign_id}
           campaignName={c.name}
-          platform={c.platform === 'tiktok' ? 'tiktok' : 'meta'}
+          platform={c.platform === 'google' ? undefined : c.platform}
           onClose={() => setEditingTargeting(false)}
           onSaved={onChanged}
         />
@@ -4864,18 +5881,20 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
       {keepingRunning && (
         <KeepRunningPanel
           campaignId={c.campaign_id}
-          platform={c.platform === 'tiktok' ? 'tiktok' : 'meta'}
+          platform={c.platform === 'google' ? undefined : c.platform}
           onClose={() => setKeepingRunning(false)}
           onExtended={onChanged}
         />
       )}
-      {/* Real money starts spending here, so it gets the app's own dialog rather than an
-          OS-styled window.confirm() a client might reflexively dismiss. */}
+      {/* Was a native window.confirm() — replaced so the one genuinely consequential
+          action here (real money starts spending) gets a dialog that actually looks
+          like it belongs to the app, not an OS-styled popup a client might reflexively
+          dismiss. */}
       <ConfirmDialog
         isOpen={confirmingStart}
         title="Start running this campaign?"
         message={`"${c.name}" will begin spending its ₦${(c.budget_ngn ?? 0).toLocaleString()} budget${
-          c.platform === 'tiktok' ? ' on TikTok' : ''
+          c.platform === 'tiktok' ? ' on TikTok' : c.platform === 'google' ? ` on ${placementLabel(c.placement)}` : ''
         }.`}
         confirmText="Start running"
         cancelText="Not yet"

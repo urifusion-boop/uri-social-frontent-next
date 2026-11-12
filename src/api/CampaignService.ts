@@ -6,9 +6,71 @@ import { UriHttpClient } from '@/src/configs/http.config';
 
 const MAX_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024;
 
-interface PresignedUpload {
+interface S3SignedUpload {
   put_url: string;
   public_url: string;
+}
+
+export type AssetAttestation = 'product_photo' | 'real_customer_photo' | 'owner_photo';
+
+export type CreativePath = 'static' | 'upload' | 'ai_video' | 'ugc';
+export type UgcKind = 'real_customer' | 'paid_creator' | 'creator_style' | 'staff_demo';
+export type AdsViewMode = 'guided' | 'advanced';
+
+/** What a creative IS, beyond its media: the AI-video or UGC path, sent with a plan request. */
+export interface CreativeProvenanceInput {
+  creative_path: 'ai_video' | 'ugc';
+  video_job_id?: string;
+  ugc_kind?: UgcKind;
+  ugc_rights_confirmed?: boolean;
+}
+
+export interface CreativePathsInfo {
+  primary: CreativePath;
+  why: string;
+  ugc: { suggested: boolean; why: string } | null;
+  paths: Record<CreativePath, { open: boolean; why_closed: string | null; note?: string }>;
+  ai_video_note: string | null;
+  ugc_kinds: Record<UgcKind, string>;
+}
+
+export interface AiVideoChoice {
+  video_job_id: string;
+  clips: number;
+  seconds: number;
+  preview_url: string;
+  has_people: boolean;
+  about: string;
+}
+
+export type PlanAdLayout = 'single_ad_set' | 'abo';
+
+export interface AdsPlanAd {
+  image_url: string;
+  headline: string;
+  primary_text: string;
+  concept?: string;
+  is_video?: boolean;
+  vsg01_format_id?: string;
+}
+
+export interface PlanAdsState {
+  concepts: AdsPlanAd[];
+  ad_layout: PlanAdLayout;
+  can_split: boolean;
+  concepts_wanted?: number;
+}
+
+export interface CreatorBrief {
+  for: string;
+  message: string;
+  proof: string;
+  shots: { shot: string; direction: string }[];
+  talking_points?: string[];
+  length: string;
+  honesty: string;
+  disclosure: string;
+  usage_rights: string;
 }
 
 export interface UnderstoodFields {
@@ -236,7 +298,12 @@ export interface LaunchFromMessageResult {
     | 'tiktok_not_configured'
     // TikTok's own ad account has no Facebook Page concept — this is TikTok's
     // counterpart to meta_connection_ads_no_whatsapp, not routed through Meta at all.
-    | 'tiktok_connection_no_whatsapp';
+    | 'tiktok_connection_no_whatsapp'
+    // Google Search asked for (or the only platform connected) but it can't run as
+    // asked — each carries a plain-words `question` saying what to do.
+    | 'google_not_connected'
+    | 'google_budget_too_low'
+    | 'google_connection_no_whatsapp';
   plan_id?: string; // present when stage === 'planned' — pass to launchPlan()
   /** Set once the client edits the plan in the review panel. */
   plan_edited?: boolean;
@@ -247,7 +314,7 @@ export interface LaunchFromMessageResult {
   question?: string;
   page_name?: string; // present on meta_connection_* stages, when a Page is already known
   // present when stage === 'choose_creative_source' — the image-source options Jane offers
-  creative_options?: { can_generate: boolean; drafts: DraftSummary[] };
+  creative_options?: { can_generate: boolean; drafts: DraftSummary[]; max_concepts?: number };
   // present when stage === 'choose_creative_source' — Jane's geography/audience call,
   // confirmed back to the client (never silently decided) before image selection
   explanation?: string;
@@ -273,8 +340,10 @@ export interface LaunchFromMessageResult {
     behaviour: string;
     explanation: string;
     platforms: CampaignPlatform[];
-    geo?: { pins?: { name: string; reason?: string }[]; explanation?: string } | null;
+    geo?: { pins?: { name: string; reason?: string }[]; explanation?: string; fallback_area?: string } | null;
     trace?: string[];
+    /** Google only: where it runs (placement) and the business name the ad shows. */
+    google_keyword_context?: { placement?: string; business_name?: string } | null;
   };
   creative?: {
     image_url: string;
@@ -288,7 +357,13 @@ export interface LaunchFromMessageResult {
     // plain generic generation, no format was used.
     vsg01_format_id?: string;
     vsg01_format_attributes?: Record<string, unknown>;
+    concept?: string;
   };
+  /** The other ads tested beside `creative` in the same campaign. */
+  concepts?: AdsPlanAd[];
+  ad_layout?: PlanAdLayout;
+  can_split?: boolean;
+  concepts_wanted?: number;
   whatsapp_number?: string; // where ad leads route (wa.me/<this>); shown on the plan card
   destination_type?: string; // whatsapp | website | instagram_dm | custom
   destination_link?: string; // the actual link the ad carries — shown on the plan card
@@ -304,14 +379,17 @@ export interface LaunchFromMessageResult {
     service_fee_ngn?: number;
     total_due_ngn?: number; // budget + fee — what the wallet must cover
     sufficient: boolean;
+    /** Google only: 'uri' = wallet pays everything; 'own' = wallet pays URI's fee and
+     * Google bills the brand's own Google Ads account for ad_spend_ngn. */
+    google_billing?: '' | 'uri' | 'own';
+    ad_spend_ngn?: number;
   };
   launch?: {
     campaign_id: string;
     status: string;
     note: string;
     ads_manager_url: string;
-    // Which platform it launched on — a named field for the platform badge.
-    platform?: 'tiktok' | 'meta';
+    platform?: 'tiktok' | 'meta' | 'google'; // which platform this campaign actually launched on
   };
 }
 
@@ -367,8 +445,7 @@ export interface CampaignMetrics {
 
 export interface CampaignRow {
   campaign_id: string;
-  /** Which platform runs it: "tiktok" or "meta". Absent on older responses, which means Meta. */
-  platform?: 'tiktok' | 'meta' | string;
+  platform: 'tiktok' | 'meta' | 'google';
   name: string;
   headline: string;
   primary_text: string;
@@ -385,9 +462,14 @@ export interface CampaignRow {
   created_at: string | null;
   ads_manager_url: string;
   metrics: CampaignMetrics | null;
-  /** Why a switched-on campaign isn't delivering yet, in plain words (TikTok: in review,
-   * rejected, out of balance...). Rendered on the card for any platform. */
+  /** Google only: the brand let go of that Google Ads account — URI can't reach it any more. */
+  detached?: boolean;
+  /** Google only: Google's own reason a campaign isn't showing, in plain words. */
   serving_note?: string;
+  /** The budget a prepaid campaign didn't spend: back in the wallet, on its way, or due when it ends. */
+  refund?: { state: 'done' | 'pending' | 'on_end'; amount_ngn: number; ends_at?: string } | null;
+  /** Google only: search | display | demand_gen | pmax. */
+  placement?: string;
 }
 
 export interface DraftSummary {
@@ -491,6 +573,161 @@ export interface DashboardHome {
   is_first_run: boolean;
 }
 
+/** A campaign's decision record (CI-SPEC-01 Part 1) — what Jane decided and why.
+ *  Admin-only: it carries other businesses' reasoning and is never client-facing. */
+export interface CampaignRecord {
+  campaign_id: string;
+  created_at: string | null;
+  exploration: boolean;
+  generated_count: number;
+  context: {
+    business_category: string;
+    city: string;
+    budget_tier: string;
+    platform: string;
+    area: string[];
+    conversion_location: string;
+    purchase_behaviour: string;
+    geo_strategy: string;
+  };
+  strategy: {
+    geo_pockets: string[];
+    platform_chosen: string[];
+    purchase_behaviour: string;
+    behaviour_source: string;
+    plans_generated: { rank: number; recommended: boolean; who_its_for: string; trigger: string }[];
+    plan_selected: { rank?: number; who_its_for?: string } | null;
+    plan_recommended: { rank?: number; who_its_for?: string } | null;
+    recommendation_diverged: boolean;
+    corpus_coverage: string;
+    corpus_records_cited: { strategy_id?: string; version?: number }[];
+  };
+  creative: { format_id: string; asset_source: string; media_type: string; headline: string };
+  budget: {
+    stated_ngn: number;
+    effective_spend_ngn: number;
+    service_fee_ngn: number;
+    duration_days: number;
+    budget_tier: string;
+    budget_source: string;
+  };
+  modifications: { field: string; from: unknown; to: unknown; changed_at: string }[];
+  results: Record<string, unknown> | null;
+}
+
+export interface BucketView {
+  bucket: Record<string, string>;
+  headline: {
+    campaigns: number;
+    threshold_state: string;
+    median_cost_per_conversation_ngn: number | null;
+    repeat_rate: number | null;
+    plan_acceptance_rate: number | null;
+    recommendation_divergence_rate: number | null;
+    exploration_share: number | null;
+  };
+  comparison: {
+    dimension: string;
+    campaigns: number;
+    threshold_state: string;
+    thresholds: { observe: number; bias: number; claim: number };
+    message?: string;
+    rows: {
+      value: string;
+      campaigns: number;
+      median_cost_per_conversation_ngn: number | null;
+      with_results: number;
+      sufficient: boolean;
+    }[];
+  };
+}
+
+export interface DigestView {
+  window_days: number;
+  campaigns: number;
+  items: { kind: string; text: string }[];
+}
+
+/** What to do with URI campaigns still in the Google Ads account being let go of. */
+export type GoogleReleaseOptions = { pauseCampaigns?: boolean; keepRunning?: boolean };
+
+export type GoogleReleaseResult = {
+  released: boolean;
+  removed: boolean;
+  google_note: string;
+  campaigns_paused?: number;
+  campaigns_left_running?: number;
+};
+
+/** The 409 detail when URI campaigns are still in that account. */
+export type GoogleCampaignsInAccount = {
+  code: 'google_campaigns_in_account';
+  message: string;
+  running: number;
+  campaigns: { campaign_id: string; name: string; delivery: string }[];
+};
+
+const googleReleaseParams = (o: GoogleReleaseOptions) => ({
+  ...(o.pauseCampaigns ? { pause_campaigns: true } : {}),
+  ...(o.keepRunning ? { keep_running: true } : {}),
+});
+
+/** One of URI's own Google Ads accounts ("Run by URI"), as the admin screen lists it. */
+export type GoogleUriAccount = {
+  customer_id: string;
+  name: string;
+  currency_code: string;
+  billing_ready: boolean;
+  brand_id: string | null;
+  brand_name?: string;
+  added_at?: string;
+};
+
+export interface AdsBrief {
+  service_area: string[];
+  excluded_locations: string[];
+  constraints: string[];
+  tracking: 'none' | 'messages_only' | 'website_pixel' | 'website_purchases';
+  success_definition: string;
+  qualified_lead_definition: string;
+  customer_data: string;
+  assets_available: string;
+  previous_results: string;
+}
+
+export interface AdsBriefResponse {
+  brief: AdsBrief;
+  constraint_options: Record<string, string>;
+  tracking_options: string[];
+}
+
+export interface PlanCheckIssue {
+  code: string;
+  level: 'block' | 'warning';
+  message: string;
+  overridable?: boolean;
+}
+
+export interface PlanChecks {
+  issues: PlanCheckIssue[];
+  blocking: PlanCheckIssue[];
+  structure: {
+    campaigns: number;
+    ad_sets: number;
+    ads_per_ad_set: number;
+    per_ad_set_daily_ngn?: number;
+    budget_type: string;
+    daily_ngn: number;
+    days: number;
+    total_ngn: number;
+    why: string;
+    recommended?: { concepts: number; structure: 'single' | 'abo' | 'cbo'; why: string };
+  };
+  brief_missing: string[];
+  confidence: 'normal' | 'lower';
+  can_launch: boolean;
+}
+
 export class CampaignService {
   /** Conversational planning: Jane parses a plain-English message and returns her plan
    * (or asks a follow-up). Does NOT create anything — used for the chat preview. */
@@ -549,13 +786,20 @@ export class CampaignService {
     reference_image_url?: string;
     is_video?: boolean;
     draft_id?: string;
+    // "Make several ads" — Jane generates this many distinct concepts instead of
+    // one, each its own credit. Only meaningful with creative_source: 'generate'.
+    concepts?: number;
     // VSG-01 v3 (§1.2/§6) — what reference_image_url actually shows, per the user's own
     // confirmation collected right after upload/recomposite. Undefined ("Skip") means
     // exactly what it always meant: use the photo as-is, no format-selection attempt.
-    asset_attestation?: 'product_photo' | 'real_customer_photo';
+    asset_attestation?: AssetAttestation;
     // The user's own pick from suggestAdFormat()'s alternatives (the "change" link
     // on the Style row). Undefined means "use whatever ranks best" (unchanged default).
     vsg01_format_id?: string;
+    creative_path?: CreativeProvenanceInput['creative_path'];
+    video_job_id?: string;
+    ugc_kind?: UgcKind;
+    ugc_rights_confirmed?: boolean;
     reuse_image_url?: string; // refinement — keep the prior plan's image (no regen/credit)
     whatsapp_number?: string; // where leads route; sent when answering need_whatsapp
     thread_id?: string; // which campaign thread this plan belongs to (Tier E)
@@ -578,12 +822,22 @@ export class CampaignService {
     // "" (default/omitted) keeps today's behaviour exactly as-is. "tiktok" asks for
     // TikTok specifically; the backend returns a tiktok_not_configured or
     // tiktok_needs_video early_return if that can't be honoured right now.
-    preferred_platform?: '' | 'meta' | 'tiktok';
+    preferred_platform?: '' | 'meta' | 'tiktok' | 'google';
+    // Where on Google: search | display | demand_gen (YouTube & Discover) | pmax (everywhere).
+    google_placement?: 'search' | 'display' | 'demand_gen' | 'pmax';
     // TikTok Carousel Ads (2+ photos, no video) — additive, TikTok-only. TikTok has
     // no single-static-image ad unit at all (video or Carousel Ads only), so this is
     // how a photo-only business reaches TikTok without shooting a video. Ignored
     // entirely for a Meta-bound plan, and ignored here too unless there are 2+ URLs.
     carousel_image_urls?: string[];
+    // Multi-platform campaigns: an explicit real number instead of folding it into
+    // `message` for the NL layer to re-parse — safer for a money-critical field.
+    // Applied deterministically server-side, overriding whatever the brief text says.
+    budget_ngn_override?: number;
+    days_override?: number;
+    // Ties this plan to its sibling plans launched for the SAME brief on other
+    // platforms (one id generated client-side per multi-platform submission).
+    campaign_group_id?: string;
   }): Promise<LaunchFromMessageResult> {
     const res = await UriHttpClient.getClient().post('/jane-ads/meta/plan-from-message', payload, { timeout: 240000 });
     return res.data as LaunchFromMessageResult;
@@ -670,13 +924,114 @@ export class CampaignService {
     return (res.data as { objectives: CampaignObjectiveChoice[] }).objectives;
   }
 
-  static async launchPlan(planId: string): Promise<LaunchFromMessageResult> {
+  /** The brand's standing ads brief — saved once, every plan is checked against it. */
+  static async getAdsBrief(): Promise<AdsBriefResponse> {
+    return (await UriHttpClient.getClient().get('/jane-ads/brief')).data as AdsBriefResponse;
+  }
+
+  static async saveAdsBrief(brief: Partial<AdsBrief>): Promise<AdsBrief> {
+    const saved = ((await UriHttpClient.getClient().put('/jane-ads/brief', brief)).data as { brief: AdsBrief }).brief;
+    // What the brief rules out decides which creative options are open.
+    window.dispatchEvent(new Event('ads-brief-changed'));
+    return saved;
+  }
+
+  static async getAdsMode(): Promise<AdsViewMode> {
+    return ((await UriHttpClient.getClient().get('/jane-ads/mode')).data as { mode: AdsViewMode }).mode;
+  }
+
+  static async setAdsMode(mode: AdsViewMode): Promise<AdsViewMode> {
+    return ((await UriHttpClient.getClient().put('/jane-ads/mode', { mode })).data as { mode: AdsViewMode }).mode;
+  }
+
+  static async creativePaths(params: {
+    category?: string;
+    description?: string;
+    has_own_media?: boolean;
+  }): Promise<CreativePathsInfo> {
+    return (await UriHttpClient.getClient().get('/jane-ads/creative/paths', { params })).data as CreativePathsInfo;
+  }
+
+  static async aiVideos(): Promise<AiVideoChoice[]> {
+    return ((await UriHttpClient.getClient().get('/jane-ads/creative/ai-videos')).data as { videos: AiVideoChoice[] })
+      .videos;
+  }
+
+  static async creatorBrief(body: { ugc_kind: UgcKind; description?: string; offer?: string }): Promise<CreatorBrief> {
+    return (
+      (await UriHttpClient.getClient().post('/jane-ads/creative/creator-brief', body, { timeout: 90000 })).data as {
+        brief: CreatorBrief;
+      }
+    ).brief;
+  }
+
+  /** What a plan launches as, and anything in it that conflicts with the brief. */
+  static async planChecks(planId: string): Promise<PlanChecks> {
+    return (await UriHttpClient.getClient().get(`/jane-ads/meta/plan/${planId}/checks`)).data as PlanChecks;
+  }
+
+  static async addPlanAd(
+    planId: string,
+    body: {
+      source: 'generate' | 'upload';
+      auto?: boolean;
+      reference_image_url?: string;
+      is_video?: boolean;
+      asset_attestation?: AssetAttestation;
+    } & Partial<CreativeProvenanceInput>
+  ): Promise<PlanAdsState> {
+    const { job_id } = (await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/ad-jobs`, body)).data as {
+      job_id: string;
+    };
+    return CampaignService.waitForAdJob<PlanAdsState>(job_id);
+  }
+
+  /** Ads are made in the background: a long request would be cut at 120 seconds. */
+  static async waitForAdJob<T>(jobId: string): Promise<T> {
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const job = (await UriHttpClient.getClient().get(`/jane-ads/ad-jobs/${jobId}`)).data as {
+        status: 'running' | 'done' | 'failed';
+        result?: T;
+        detail?: string;
+      };
+      if (job.status === 'done') return job.result as T;
+      if (job.status === 'failed') {
+        // The same shape a refused request has, so callers read the reason the same way.
+        throw { response: { data: { detail: job.detail } } };
+      }
+    }
+  }
+
+  static async editPlanAd(planId: string, index: number, headline: string, primaryText: string): Promise<PlanAdsState> {
+    return (
+      await UriHttpClient.getClient().patch(`/jane-ads/meta/plan/${planId}/ads/${index}`, {
+        headline,
+        primary_text: primaryText,
+      })
+    ).data as PlanAdsState;
+  }
+
+  static async removePlanAd(planId: string, index: number): Promise<PlanAdsState> {
+    return (await UriHttpClient.getClient().delete(`/jane-ads/meta/plan/${planId}/ads/${index}`)).data as PlanAdsState;
+  }
+
+  static async setPlanAdLayout(planId: string, layout: PlanAdLayout): Promise<PlanAdsState> {
+    return (await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/layout`, { layout }))
+      .data as PlanAdsState;
+  }
+
+  static async launchPlan(planId: string, allowOutOfArea = false): Promise<LaunchFromMessageResult> {
     // 4 minutes, matching planFromMessage. A launch does real work on Meta's side
     // (creative upload, then campaign -> ad set -> creative -> ad) and 2 minutes was
     // not always enough: the request timed out client-side and showed a network error
     // while the server went on to publish the campaign successfully — so the user was
     // told it failed when it hadn't. Live-reported.
-    const res = await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/launch`, {}, { timeout: 240000 });
+    const res = await UriHttpClient.getClient().post(
+      `/jane-ads/meta/plan/${planId}/launch`,
+      { allow_out_of_area: allowOutOfArea },
+      { timeout: 240000 }
+    );
     return res.data as LaunchFromMessageResult;
   }
 
@@ -714,19 +1069,22 @@ export class CampaignService {
   }
 
   /** A phone video relayed through our API on a slow connection outlasts the request
-   *  timeout, so it goes straight to S3 instead — one PUT of the raw file body to a
-   *  presigned URL the backend signs for us, not a multipart POST with signed form
-   *  fields the way the old Cloudinary chunked-upload flow worked. S3's presigned PUT
-   *  has no per-request size ceiling to chunk around (unlike Cloudinary's), so this
-   *  is now a single request regardless of file size. */
+   *  timeout, so it goes straight to S3 via a presigned PUT URL we sign server-side —
+   *  our backend never sits in the transfer path. */
   private static async uploadVideoDirect(file: File): Promise<string> {
     if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
       throw new Error(`Video must be under ${MAX_VIDEO_UPLOAD_BYTES / (1024 * 1024)} MB.`);
     }
-    const res = await UriHttpClient.getClient().post('/jane-ads/creative/upload-signature');
-    const signed = res.data as PresignedUpload;
-    const upload = await fetch(signed.put_url, { method: 'PUT', body: file });
-    if (!upload.ok) throw new Error(`Video upload failed (${upload.status}).`);
+    const res = await UriHttpClient.getClient().post('/jane-ads/creative/upload-signature', null, {
+      params: { content_type: file.type || 'video/mp4' },
+    });
+    const signed = res.data as S3SignedUpload;
+    const put = await fetch(signed.put_url, {
+      method: 'PUT',
+      body: file,
+      headers: { 'Content-Type': file.type || 'video/mp4' },
+    });
+    if (!put.ok) throw new Error(`Video upload failed (${put.status}).`);
     return signed.public_url;
   }
 
@@ -749,7 +1107,7 @@ export class CampaignService {
    *  continueWithSource). suggested/alternatives are both empty when nothing is
    *  eligible (a plain video, no eligible format, or VSG-01 has nothing approved). */
   static async suggestAdFormat(params: {
-    asset_attestation?: 'product_photo' | 'real_customer_photo';
+    asset_attestation?: AssetAttestation;
     recomposite?: boolean;
     is_video?: boolean;
     /** The user's own ad brief so far — lets the backend favor a format whose
@@ -784,6 +1142,42 @@ export class CampaignService {
   static async getDashboardHome(): Promise<DashboardHome> {
     const res = await UriHttpClient.getClient().get('/jane-ads/dashboard/home');
     return res.data as DashboardHome;
+  }
+
+  /** Admin-only intelligence surfaces (CI-SPEC-01 §4). Never reachable from a
+   *  client-facing screen — they hold other businesses' performance data. */
+  static async listCampaignRecords(limit = 50): Promise<{ records: CampaignRecord[] }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/admin/intelligence/records', {
+      params: { limit },
+    });
+    return res.data as { records: CampaignRecord[] };
+  }
+
+  static async getCampaignRecord(campaignId: string): Promise<CampaignRecord> {
+    const res = await UriHttpClient.getClient().get(`/jane-ads/admin/intelligence/campaign/${campaignId}`);
+    return res.data as CampaignRecord;
+  }
+
+  static async getBucket(params: {
+    business_category?: string;
+    city?: string;
+    budget_tier?: string;
+    dimension?: string;
+  }): Promise<BucketView> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/admin/intelligence/bucket', {
+      params,
+    });
+    return res.data as BucketView;
+  }
+
+  static async getDigest(): Promise<DigestView> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/admin/intelligence/digest');
+    return res.data as DigestView;
+  }
+
+  static async backfillRecordResults(): Promise<{ filled: number; failed: number }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/admin/intelligence/backfill-results', {});
+    return res.data as { filled: number; failed: number };
   }
 
   /** Start a Squad checkout to fund the active brand's ad wallet. Returns the checkout
@@ -891,6 +1285,28 @@ export class CampaignService {
     await UriHttpClient.getClient().delete(`/jane-ads/threads/${threadId}`);
   }
 
+  /** Backstop for the Campaign Builder wizard's autosave (campaign-wizard/
+   *  wizardDraft.ts) — every in-progress run, each its own slot by draft_id,
+   *  behind the wizard's own (faster, free) localStorage copy. Never typed on
+   *  this side either: the backend stores and returns each payload exactly as
+   *  sent. */
+  static async saveWizardDraft(draftId: string, payload: Record<string, unknown>): Promise<void> {
+    await UriHttpClient.getClient().post(`/jane-ads/wizard-draft/${draftId}`, { payload });
+  }
+
+  static async listWizardDrafts(): Promise<{
+    drafts: { draft_id: string; payload: Record<string, unknown> | null; updated_at: string | null }[];
+  }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/wizard-drafts');
+    return res.data as {
+      drafts: { draft_id: string; payload: Record<string, unknown> | null; updated_at: string | null }[];
+    };
+  }
+
+  static async deleteWizardDraftRemote(draftId: string): Promise<void> {
+    await UriHttpClient.getClient().delete(`/jane-ads/wizard-draft/${draftId}`);
+  }
+
   /** The active brand's saved WhatsApp number (where ad leads route), or '' if unset. */
   static async getWhatsapp(): Promise<string> {
     try {
@@ -932,19 +1348,112 @@ export class CampaignService {
   /** The active brand's Google Ads connection state — mirrors getMetaConnectionStatus's
    * shape, but Google's state machine has an extra step Meta's doesn't (choosing/linking
    * an actual Ads account), reflected in `state` and `customer_id`. */
-  static async getGoogleConnectionStatus(): Promise<{
+  static async getGoogleConnectionStatus(refresh = false): Promise<{
+    /** How this brand's Google ads run: 'uri' or 'own'. */
+    mode?: 'uri' | 'own';
+    /** A URI Google Ads account is ready for this brand. */
+    uri_managed?: boolean;
     state: string;
     account_name: string;
     customer_id: string;
     whatsapp_number: string;
+    /** null/undefined = eligibility not yet known (never attempted or not checked);
+     * true = URI's Manager Account can create new client accounts; false = it can't
+     * (needs a spend-qualified account linked first) — gates whether "Create one for
+     * me" should be offered at all. */
+    can_create_account?: boolean | null;
+    currency_code?: string;
+    /** Why Google refused the link, when it did. */
+    detail?: string;
+    /** URI created this account for the brand (it can't be swapped out). */
+    created_by_uri?: boolean;
+    /** URI's manager account ID as Google Ads shows it. */
+    manager_customer_id?: string;
+    /** Set when Google couldn't be asked just now; the state is then our last known one. */
+    sync_error?: string;
+    /** false while Google hasn't verified URI's sign-in app (it shows a warning screen first). */
+    signin_verified?: boolean;
+    /** We approved the link with the owner's sign-in; Google is still catching up. Nothing to do. */
+    finishing?: boolean;
   }> {
-    const res = await UriHttpClient.getClient().get('/jane-ads/google/connection/status');
-    return res.data as {
-      state: string;
-      account_name: string;
-      customer_id: string;
-      whatsapp_number: string;
-    };
+    // refresh=true ("Check again") asks Google for the link's real status now.
+    const res = await UriHttpClient.getClient().get('/jane-ads/google/connection/status', {
+      params: refresh ? { refresh: true } : undefined,
+    });
+    return res.data;
+  }
+
+  /** Let go of the chosen account and go back to choosing one (also withdraws the
+   * request / removes the link on Google's side). */
+  static async googleChangeAccount(opts: GoogleReleaseOptions = {}): Promise<GoogleReleaseResult> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/google/connection/change-account', null, {
+      params: googleReleaseParams(opts),
+    });
+    return res.data as GoogleReleaseResult;
+  }
+
+  /** "Continue with Google": the Google sign-in URL. The browser comes back to
+   * Connected Accounts with ?google=linked|pending|choose|no_accounts|error. */
+  static async googleSigninStart(returnTo: string): Promise<{ auth_url: string }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/google/connect/signin/start', {
+      return_to: returnTo,
+    });
+    return res.data as { auth_url: string };
+  }
+
+  /** The Google Ads accounts the owner's sign-in found, by name. */
+  static async googleSigninAccounts(): Promise<{
+    signed_in: boolean;
+    accounts: { customer_id: string; name: string; currency_code: string }[];
+    other_accounts: number;
+  }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/google/connect/signin/accounts');
+    return res.data;
+  }
+
+  /** Link the picked account — URI sends the request and accepts it for the owner. */
+  static async googleSigninSelect(
+    customerId: string
+  ): Promise<{ state: string; auto_accepted: boolean; account_name: string; detail: string }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/google/connect/signin/select', {
+      customer_id: customerId,
+    });
+    return res.data;
+  }
+
+  /** Admin: URI's own Google Ads accounts and which business uses each. */
+  static async adminGoogleUriAccounts(): Promise<{ accounts: GoogleUriAccount[]; free: number }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/admin/google/uri-accounts');
+    return res.data as { accounts: GoogleUriAccount[]; free: number };
+  }
+
+  /** Admin: add an account created in Google Ads (checked with Google first). */
+  static async adminAddGoogleUriAccount(customerId: string): Promise<{ account: GoogleUriAccount }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/admin/google/uri-accounts', {
+      customer_id: customerId,
+    });
+    return res.data as { account: GoogleUriAccount };
+  }
+
+  /** Admin: ask Google to create a blank account (works once Google allows it). */
+  static async adminCreateGoogleUriAccount(name: string): Promise<{ account: GoogleUriAccount }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/admin/google/uri-accounts/create', { name });
+    return res.data as { account: GoogleUriAccount };
+  }
+
+  /** How this brand's Google ads run: 'uri' (URI's account, wallet pays all) or
+   * 'own' (their account, Google bills them, wallet pays URI's fee). */
+  static async googleSetMode(mode: 'uri' | 'own'): Promise<{ mode: string; ready: boolean; detail: string }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/google/mode', { mode });
+    return res.data as { mode: string; ready: boolean; detail: string };
+  }
+
+  /** Disconnect Google Ads for this brand altogether. */
+  static async googleDisconnect(opts: GoogleReleaseOptions = {}): Promise<GoogleReleaseResult> {
+    const res = await UriHttpClient.getClient().delete('/jane-ads/google/connection', {
+      params: googleReleaseParams(opts),
+    });
+    return res.data as GoogleReleaseResult;
   }
 
   /** Marks the brand as wanting Google Ads. No OAuth redirect — Google Ads API calls

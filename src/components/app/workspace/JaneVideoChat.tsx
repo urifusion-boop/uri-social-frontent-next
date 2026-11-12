@@ -3,12 +3,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SocialMediaAgentService, MultiClipJob, MultiClipClip } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
+import { downloadUrlFor } from '@/src/utils/cloudinaryDownload.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { probeVideoDuration, estimateVideoCost, VideoCostEstimate } from '@/src/utils/videoBilling';
 import { useVideoBillingStatus } from '@/src/hooks/useVideoBillingStatus';
 import VideoCostPreview from '@/src/components/app/workspace/VideoCostPreview';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { BrandTooltip } from '@/src/components/app/workspace/BrandTooltip';
+import { BrandProfileService } from '@/src/api/BrandProfileService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -23,9 +25,12 @@ type Stage =
   | 'cleanup'
   | 'caption_edit'
   | 'broll_edit'
+  | 'voiceover'
+  | 'brand_overlay_edit'
   | 'publish';
 
 type BrollConvStep = 'choose' | 'upload' | 'place' | 'confirm';
+type VoiceoverConvStep = 'offer' | 'script' | 'record';
 type BrollClipTag = 'product' | 'lifestyle' | 'talking' | 'other';
 
 interface BrollClipEntry {
@@ -43,7 +48,16 @@ interface BrollPlacement {
 type CaptionWord = { id: string; text: string; start_time: number; end_time: number };
 type Classification = 'talking_head' | 'product' | 'mixed';
 type Purpose = 'sell' | 'teach' | 'announce' | 'general';
-type AdjustField = 'style' | 'captions' | 'trim' | 'broll' | 'music' | 'hookText' | 'length' | 'format';
+type AdjustField =
+  | 'style'
+  | 'captions'
+  | 'trim'
+  | 'broll'
+  | 'music'
+  | 'hookText'
+  | 'length'
+  | 'format'
+  | 'brandOverlay';
 
 interface StyleTemplate {
   id: string;
@@ -71,6 +85,13 @@ interface VideoPlan {
   hookTextColor: string;
   targetLength: 'auto' | '15s' | '30s' | '60s';
   aspectRatio: '9:16' | '16:9' | '1:1';
+  brandOverlayEnabled: boolean;
+  logoPosition: 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right';
+  logoTiming: 'whole' | 'end' | 'start';
+  contactSource: 'whatsapp' | 'whatsapp_prefixed' | 'website' | 'custom' | 'none';
+  customContactText: string;
+  contactPosition: 'bottom_center' | 'top_center';
+  contactTiming: 'end' | 'whole' | 'last_few';
 }
 
 interface HistMsg {
@@ -82,6 +103,13 @@ interface HistMsg {
 interface Props {
   onSaveToDrafts?: () => void;
   isMobile?: boolean;
+  // Jane Ads hand-off: seed the picker with an already-chosen file, exactly as if
+  // the user had just attached it in this chat.
+  initialFile?: File;
+  // Shown as an extra action alongside "Save to drafts" once a video is ready,
+  // only when this chat was opened from that hand-off — calls back with the
+  // finished video's URL so the caller can resume wherever the video came from.
+  onUseInCampaign?: (url: string) => void;
 }
 
 // ── Style templates ───────────────────────────────────────────────────────────
@@ -104,7 +132,7 @@ const PLACEHOLDER_STYLE: StyleTemplate = {
   accent: TEMPLATE_PALETTE[0].accent,
 };
 
-function defaultPlan(c: Classification, p: Purpose): VideoPlan {
+function defaultPlan(c: Classification, p: Purpose, hasLogo: boolean = false): VideoPlan {
   const isTalking = c !== 'product';
   return {
     classification: c,
@@ -123,6 +151,15 @@ function defaultPlan(c: Classification, p: Purpose): VideoPlan {
     hookTextColor: '#ffffff',
     targetLength: 'auto',
     aspectRatio: '9:16',
+    // Most clients want their branding on their video and shouldn't have to ask
+    // for it — on by default whenever a logo is already on file.
+    brandOverlayEnabled: hasLogo,
+    logoPosition: 'top_left',
+    logoTiming: 'whole',
+    contactSource: 'whatsapp',
+    customContactText: '',
+    contactPosition: 'bottom_center',
+    contactTiming: 'end',
   };
 }
 
@@ -384,6 +421,154 @@ function StylePreviewThumb({ style }: { style: StyleTemplate }) {
   );
 }
 
+// ── Brand overlay: position picker over a real frame ───────────────────────────
+// Vertical video (9:16) has real platform UI covering the bottom band and right
+// edge (captions/buttons on TikTok & Reels) — bottom-right is usually the worst
+// spot, even though it's the one people instinctively reach for. This is a
+// static, per-aspect-ratio lookup, not detection — just enough to nudge once.
+const RISKY_LOGO_POSITIONS: Record<string, string[]> = {
+  '9:16': ['bottom_right'],
+};
+
+type LogoPos = 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right';
+
+function LogoPositionPicker({
+  videoSourceUrl,
+  aspectRatio,
+  position,
+  onPick,
+}: {
+  videoSourceUrl?: string | null;
+  aspectRatio: string;
+  position: LogoPos;
+  onPick: (pos: LogoPos) => void;
+}) {
+  const [frameUrl, setFrameUrl] = useState<string | null>(null);
+  const [pendingRisky, setPendingRisky] = useState<LogoPos | null>(null);
+
+  useEffect(() => {
+    // blob: URLs are local to this browser tab (URL.createObjectURL) — the
+    // backend can't fetch them at all, so there's nothing to send for a frame
+    // grab. Only fetch once a real, server-reachable URL exists (after
+    // stitching/upload); until then the picker just shows plain corner dots.
+    if (!videoSourceUrl || videoSourceUrl.startsWith('blob:')) {
+      setFrameUrl(null);
+      return;
+    }
+    let cancelled = false;
+    SocialMediaAgentService.getVideoFrame(videoSourceUrl, 1)
+      .then((url) => {
+        if (!cancelled) setFrameUrl(url);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [videoSourceUrl]);
+
+  const positions: { key: LogoPos; style: React.CSSProperties }[] = [
+    { key: 'top_left', style: { top: 10, left: 10 } },
+    { key: 'top_right', style: { top: 10, right: 10 } },
+    { key: 'bottom_left', style: { bottom: 10, left: 10 } },
+    { key: 'bottom_right', style: { bottom: 10, right: 10 } },
+  ];
+
+  const handleTap = (pos: LogoPos) => {
+    if ((RISKY_LOGO_POSITIONS[aspectRatio] || []).includes(pos) && pos !== position) {
+      setPendingRisky(pos);
+    } else {
+      onPick(pos);
+    }
+  };
+
+  return (
+    <div>
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: 220,
+          aspectRatio: aspectRatio === '9:16' ? '9/16' : aspectRatio === '1:1' ? '1/1' : '16/9',
+          borderRadius: 10,
+          overflow: 'hidden',
+          background: '#111',
+          margin: '0 auto',
+        }}
+      >
+        {frameUrl ? (
+          <img src={frameUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        ) : (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 12,
+              textAlign: 'center',
+              fontSize: 11,
+              color: 'rgba(255,255,255,0.5)',
+            }}
+          >
+            A preview frame will show here once your video finishes rendering — pick a corner for now, you can change it
+            after
+          </div>
+        )}
+        {positions.map((p) => (
+          <button
+            key={p.key}
+            onClick={() => handleTap(p.key)}
+            style={{
+              position: 'absolute',
+              ...p.style,
+              width: 34,
+              height: 34,
+              borderRadius: '50%',
+              border: `2px solid ${position === p.key ? PINK : '#fff'}`,
+              background: position === p.key ? PINK : 'rgba(0,0,0,0.35)',
+              cursor: 'pointer',
+            }}
+            aria-label={p.key}
+          />
+        ))}
+      </div>
+      {pendingRisky && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: '10px 12px',
+            borderRadius: 8,
+            background: '#FFF7ED',
+            border: '1px solid #FDBA74',
+            fontSize: 12,
+            color: '#9A3412',
+          }}
+        >
+          That corner usually gets covered by TikTok/Reels' buttons — a safer spot is available. Want me to move it?
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <TapBtn
+              label="Move it"
+              primary
+              onClick={() => {
+                onPick('top_left');
+                setPendingRisky(null);
+              }}
+            />
+            <TapBtn
+              label="Leave it there"
+              onClick={() => {
+                onPick(pendingRisky);
+                setPendingRisky(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Adjust field pickers ──────────────────────────────────────────────────────
 
 function AdjustPanel({
@@ -395,6 +580,10 @@ function AdjustPanel({
   isMobile = false,
   musicFile,
   onMusicFileChange,
+  videoSourceUrl,
+  brandLogoUrl,
+  brandName,
+  cancelLabel = '← Back to plan',
 }: {
   field: AdjustField;
   plan: VideoPlan;
@@ -404,6 +593,10 @@ function AdjustPanel({
   isMobile?: boolean;
   musicFile: File | null;
   onMusicFileChange: (f: File | null) => void;
+  videoSourceUrl?: string | null;
+  brandLogoUrl?: string | null;
+  brandName?: string;
+  cancelLabel?: string;
 }) {
   const musicInputRef = useRef<HTMLInputElement>(null);
 
@@ -736,6 +929,123 @@ function AdjustPanel({
           </>
         );
 
+      case 'brandOverlay':
+        return (
+          <div>
+            {section(
+              'Show your branding',
+              <>
+                {opt('On', plan.brandOverlayEnabled, () => onApply({ brandOverlayEnabled: true }, false))}
+                {opt('Off', !plan.brandOverlayEnabled, () => onApply({ brandOverlayEnabled: false }))}
+              </>
+            )}
+            {plan.brandOverlayEnabled && (
+              <>
+                {!brandLogoUrl && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      background: '#F9FAFB',
+                      border: `1px solid ${BORDER}`,
+                      fontSize: 11,
+                      color: GRAY,
+                    }}
+                  >
+                    No logo on file — I&apos;ll show your business name in your brand colour instead. Add a logo in
+                    Brand Playbook any time.
+                  </div>
+                )}
+
+                <div style={{ marginTop: 14 }}>
+                  <SectionLabel text={brandLogoUrl ? 'Logo position' : 'Name position'} />
+                  <LogoPositionPicker
+                    videoSourceUrl={videoSourceUrl}
+                    aspectRatio={plan.aspectRatio}
+                    position={plan.logoPosition}
+                    onPick={(pos) => onApply({ logoPosition: pos }, false)}
+                  />
+                </div>
+
+                <div style={{ marginTop: 14 }}>
+                  <SectionLabel text={brandLogoUrl ? 'Logo timing' : 'Name timing'} />
+                  {section(
+                    '',
+                    <>
+                      {opt('Whole video', plan.logoTiming === 'whole', () => onApply({ logoTiming: 'whole' }, false))}
+                      {opt('First few seconds', plan.logoTiming === 'start', () =>
+                        onApply({ logoTiming: 'start' }, false)
+                      )}
+                      {opt('End only', plan.logoTiming === 'end', () => onApply({ logoTiming: 'end' }, false))}
+                    </>
+                  )}
+                </div>
+
+                <div style={{ marginTop: 14 }}>
+                  <SectionLabel text="Contact" />
+                  {section(
+                    '',
+                    <>
+                      {opt('WhatsApp number', plan.contactSource === 'whatsapp', () =>
+                        onApply({ contactSource: 'whatsapp' }, false)
+                      )}
+                      {opt('"Message us" + number', plan.contactSource === 'whatsapp_prefixed', () =>
+                        onApply({ contactSource: 'whatsapp_prefixed' }, false)
+                      )}
+                      {opt('Website', plan.contactSource === 'website', () =>
+                        onApply({ contactSource: 'website' }, false)
+                      )}
+                      {opt('Custom', plan.contactSource === 'custom', () =>
+                        onApply({ contactSource: 'custom' }, false)
+                      )}
+                      {opt('None', plan.contactSource === 'none', () => onApply({ contactSource: 'none' }, false))}
+                    </>
+                  )}
+                </div>
+
+                {plan.contactSource === 'custom' && (
+                  <div style={{ marginTop: 10 }}>
+                    <input
+                      type="text"
+                      value={plan.customContactText}
+                      onChange={(e) => onApply({ customContactText: e.target.value }, false)}
+                      placeholder="e.g. Free delivery in Yaba"
+                      maxLength={40}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        border: `1.5px solid ${BORDER}`,
+                        fontSize: 13,
+                        fontFamily: 'inherit',
+                      }}
+                    />
+                  </div>
+                )}
+
+                {plan.contactSource !== 'none' && (
+                  <div style={{ marginTop: 14 }}>
+                    <SectionLabel text="Contact timing" />
+                    {section(
+                      '',
+                      <>
+                        {opt('End only', plan.contactTiming === 'end', () => onApply({ contactTiming: 'end' }, false))}
+                        {opt('Whole video', plan.contactTiming === 'whole', () =>
+                          onApply({ contactTiming: 'whole' }, false)
+                        )}
+                        {opt('Last few seconds', plan.contactTiming === 'last_few', () =>
+                          onApply({ contactTiming: 'last_few' }, false)
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+
       default:
         return null;
     }
@@ -764,7 +1074,7 @@ function AdjustPanel({
           padding: 0,
         }}
       >
-        ← Back to plan
+        {cancelLabel}
       </button>
     </div>
   );
@@ -772,7 +1082,7 @@ function AdjustPanel({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Props) {
+export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initialFile, onUseInCampaign }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const composePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -848,6 +1158,44 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
   // are kept outside the plan too).
   const [musicFile, setMusicFile] = useState<File | null>(null);
 
+  // Voiceover (MVP — no semantic shot-alignment yet, see the approved plan).
+  const [voiceoverStep, setVoiceoverStep] = useState<VoiceoverConvStep>('offer');
+  const [voiceoverScript, setVoiceoverScript] = useState('');
+  const [voiceoverNote, setVoiceoverNote] = useState('');
+  const [loadingVoiceoverScript, setLoadingVoiceoverScript] = useState(false);
+  const [voiceoverBlob, setVoiceoverBlob] = useState<Blob | null>(null);
+  const [voiceoverPreviewUrl, setVoiceoverPreviewUrl] = useState<string | null>(null);
+  const [voiceoverFileName, setVoiceoverFileName] = useState('');
+  const [voiceoverKeepOriginal, setVoiceoverKeepOriginal] = useState(false);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [voiceoverError, setVoiceoverError] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceoverChunksRef = useRef<Blob[]>([]);
+  const voiceoverInputRef = useRef<HTMLInputElement>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // A fresh object URL must NOT be created inline in render — any unrelated
+  // re-render (this file polls several things in the background) would swap the
+  // <audio> element's src to a new URL mid-playback, which the browser treats as
+  // an entirely different resource and stops playback wherever the re-render
+  // happened to land. Create it once per blob instead, and revoke the old one.
+  useEffect(() => {
+    if (!voiceoverBlob) {
+      setVoiceoverPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(voiceoverBlob);
+    setVoiceoverPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [voiceoverBlob]);
+
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    };
+  }, []);
+
   const [history, setHistory] = useState<HistMsg[]>([]);
   const [zapCapTemplates, setZapCapTemplates] = useState<
     {
@@ -885,10 +1233,24 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
   const [publishPlatforms, setPublishPlatforms] = useState<string[]>([]);
   const [publishCaption, setPublishCaption] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isAdjustingBrandOverlay, setIsAdjustingBrandOverlay] = useState(false);
+
+  // Brand overlay — logo/name pre-filled from the playbook, never asked for
+  // fresh. Fetched once on mount so defaultPlan() can turn the overlay on by
+  // default the moment a logo is on file.
+  const [brandLogoUrl, setBrandLogoUrl] = useState<string | null>(null);
+  const [brandName, setBrandName] = useState('');
 
   useEffect(() => {
     SocialMediaAgentService.getZapCapTemplates()
       .then((r) => setZapCapTemplates(r?.responseData?.templates ?? []))
+      .catch(() => {});
+    BrandProfileService.get()
+      .then((r) => {
+        const data = r?.responseData;
+        setBrandLogoUrl(data?.logo_url || null);
+        setBrandName(data?.brand_name || '');
+      })
       .catch(() => {});
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -968,6 +1330,21 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     [addMsg]
   );
 
+  // Jane Ads hand-off — the file arrives already chosen, so accept it exactly as
+  // if the user had just attached it. Unlike Video Polish/Submagic, this chat is
+  // kept mounted across tab switches (see the "keep-alive" comment where it's
+  // rendered) rather than remounted fresh each time — a plain mount-only effect
+  // would silently miss a hand-off that arrives after the chat already mounted
+  // from an earlier visit, so this reacts to initialFile changing instead, guarded
+  // against re-accepting the same file twice.
+  const acceptedInitialFileRef = useRef<File | null>(null);
+  useEffect(() => {
+    if (initialFile && acceptedInitialFileRef.current !== initialFile) {
+      acceptedInitialFileRef.current = initialFile;
+      acceptFiles([initialFile]);
+    }
+  }, [initialFile, acceptFiles]);
+
   // ── Classify ───────────────────────────────────────────────────────────────
 
   const handleClassify = (c: Classification, label: string) => {
@@ -980,7 +1357,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
 
   const handleIntent = (purpose: Purpose, label: string) => {
     addMsg('user', label);
-    const p = defaultPlan(classification, purpose);
+    const p = defaultPlan(classification, purpose, !!brandLogoUrl);
     // Apply the first real ZapCap template immediately if already loaded
     if (styledTemplates.length > 0) {
       p.style = styledTemplates[0];
@@ -1137,6 +1514,28 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     throw new Error('Upload failed');
   };
 
+  const produceWithZapCapRetry = async (
+    fd: FormData,
+    onRetry?: (attempt: number, maxAttempts: number) => void,
+    maxAttempts = 3
+  ) => {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await SocialMediaAgentService.produceWithZapCap(fd);
+      } catch (err) {
+        const axiosErr = err as { response?: unknown };
+        // Only retry a genuine dropped-connection failure (no response at all —
+        // common on weak mobile signal mid-upload of a large video file). A
+        // real HTTP error (402 insufficient credits, 4xx/5xx) means the server
+        // was reached and responded — retrying won't change that outcome.
+        if (axiosErr?.response || attempt === maxAttempts) throw err;
+        onRetry?.(attempt, maxAttempts);
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      }
+    }
+    throw new Error('Upload failed');
+  };
+
   const handleRender = async () => {
     if ((!videoFile && !stitchedUrl) || !plan) return;
     if (insufficientCredits) {
@@ -1163,6 +1562,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     fd.append('quality', 'standard');
     fd.append('enable_broll', String(plan.brollEnabled && plan.classification !== 'product'));
     fd.append('caption_style', 'bold');
+    fd.append('captions_enabled', String(plan.captionsEnabled));
     const musicActive = plan.musicEnabled && (plan.musicSource === 'auto' || !!musicFile);
     fd.append('enable_music', String(musicActive));
     if (musicActive) {
@@ -1181,9 +1581,22 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       }
       fd.append('hook_text_color', plan.hookTextColor);
     }
+    fd.append('enable_brand_overlay', String(plan.brandOverlayEnabled));
+    if (plan.brandOverlayEnabled) {
+      fd.append('logo_position', plan.logoPosition);
+      fd.append('logo_timing', plan.logoTiming);
+      fd.append('contact_source', plan.contactSource);
+      if (plan.contactSource === 'custom') {
+        fd.append('custom_contact_text', plan.customContactText.trim());
+      }
+      fd.append('contact_position', plan.contactPosition);
+      fd.append('contact_timing', plan.contactTiming);
+    }
 
     try {
-      const res = await SocialMediaAgentService.produceWithZapCap(fd);
+      const res = await produceWithZapCapRetry(fd, (attempt, maxAttempts) => {
+        setRenderStatus(`Connection dropped — retrying upload (${attempt}/${maxAttempts - 1})…`);
+      });
       const id = res?.responseData?.job_id;
       if (!id) throw new Error('No job ID returned');
       setZapCapJobId(id);
@@ -1274,9 +1687,14 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       },
       onReady: async (outputUrl) => {
         if (willRerender) {
-          // Fix Something path — pipe the silence-cut URL back through ZapCap
-          // so captions and b-roll are re-applied on the tighter edit.
-          addMsg('jane', 'Silences cut — re-applying captions and b-roll…');
+          // Fix Something path — pipe the silence-cut URL back through the
+          // same pipeline as the original render, respecting the user's
+          // captions choice instead of always forcing captions back on.
+          const captionsWanted = plan?.captionsEnabled ?? true;
+          addMsg(
+            'jane',
+            captionsWanted ? 'Silences cut — re-applying captions and b-roll…' : 'Silences cut — re-applying b-roll…'
+          );
           setRenderProgress(5);
           setRenderStatus('pending');
           const fd2 = new FormData();
@@ -1286,6 +1704,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
           fd2.append('output_mode', 'composited');
           fd2.append('quality', 'standard');
           fd2.append('enable_broll', String(plan?.brollEnabled ?? false));
+          fd2.append('captions_enabled', String(captionsWanted));
           fd2.append('enable_music', 'false');
           try {
             const res = await SocialMediaAgentService.produceWithZapCap(fd2);
@@ -1607,6 +2026,133 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     }
   };
 
+  // ── Voiceover (MVP — no semantic shot-alignment yet) ────────────────────────
+
+  const fetchVoiceoverScript = async () => {
+    setLoadingVoiceoverScript(true);
+    try {
+      const res = await SocialMediaAgentService.generateVoiceoverScript({
+        source_url: outputUrl || stitchedUrl || '',
+        purpose: plan?.purpose || 'general',
+      });
+      setVoiceoverScript(res?.responseData?.script || '');
+    } catch {
+      setVoiceoverScript('');
+    } finally {
+      setLoadingVoiceoverScript(false);
+      setVoiceoverStep('script');
+    }
+  };
+
+  const startVoiceRecording = async () => {
+    setVoiceoverError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      voiceoverChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) voiceoverChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(voiceoverChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        setVoiceoverBlob(blob);
+        setVoiceoverFileName('');
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecordingVoice(true);
+      setRecordingSeconds(0);
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
+    } catch {
+      setVoiceoverError(
+        "Couldn't access your microphone — check your browser permissions, or upload a voice note instead."
+      );
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setIsRecordingVoice(false);
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+  };
+
+  const handleSubmitVoiceover = async () => {
+    if (!voiceoverBlob || (!outputUrl && !stitchedUrl)) return;
+    addMsg('user', 'Here is my voiceover');
+    addMsg('jane', "On it — I'm cleaning it up and rebuilding your video with your voice.");
+    setStage('render');
+    setRenderProgress(5);
+    setRenderStatus('pending');
+
+    const fd = new FormData();
+    fd.append('source_url', outputUrl || stitchedUrl || '');
+    fd.append(
+      'voiceover_audio',
+      voiceoverBlob,
+      voiceoverFileName || `voiceover.${voiceoverBlob.type.includes('webm') ? 'webm' : 'm4a'}`
+    );
+    fd.append('keep_original_audio', String(voiceoverKeepOriginal));
+    fd.append('template_id', plan?.style?.id || zapCapTemplates[0]?.id || 'beast');
+    fd.append('caption_style', 'bold');
+    fd.append('enable_broll', String(plan?.brollEnabled && plan?.classification !== 'product'));
+
+    try {
+      const res = await SocialMediaAgentService.produceVoiceover(fd);
+      const id = res?.responseData?.job_id;
+      if (!id) throw new Error('No job ID returned');
+      setZapCapJobId(id);
+      setCaptionWords([]);
+      setCaptionEdits({});
+      EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'zapcap_produce' });
+      startPolling(id);
+    } catch (err) {
+      const axiosErr = err as { response?: { status?: number; data?: { responseMessage?: string } } };
+      setRenderError(
+        axiosErr?.response?.status === 402
+          ? axiosErr.response?.data?.responseMessage || 'You do not have enough credits to add a voiceover.'
+          : err instanceof Error
+            ? err.message
+            : 'Voiceover mix failed — try again.'
+      );
+      setStage('preview');
+    }
+  };
+
+  // ── Brand overlay post-render adjustment (compositing-only, no re-render) ───
+
+  const handleAdjustBrandOverlay = async () => {
+    if (!plan || !zapCapJobId) return;
+    setIsAdjustingBrandOverlay(true);
+    try {
+      const res = await SocialMediaAgentService.adjustBrandOverlay({
+        job_id: zapCapJobId,
+        logo_position: plan.logoPosition,
+        logo_timing: plan.logoTiming,
+        contact_source: plan.contactSource,
+        custom_contact_text: plan.customContactText,
+        contact_position: plan.contactPosition,
+        contact_timing: plan.contactTiming,
+      });
+      if (res?.responseData?.output_url) {
+        setOutputUrl(res.responseData.output_url);
+        addMsg('jane', "Updated — here's the new version 👇");
+      } else {
+        throw new Error('No output returned');
+      }
+    } catch {
+      ToastService.showToast('Could not update the overlay — try again.', ToastTypeEnum.Error);
+    } finally {
+      setIsAdjustingBrandOverlay(false);
+      setAdjustField(null);
+      setStage('preview');
+    }
+  };
+
   // ── Save to drafts ─────────────────────────────────────────────────────────
 
   const handleSaveToDrafts = async () => {
@@ -1838,6 +2384,11 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
               ? 'your track, replacing your voice'
               : 'your track, under your voice',
         hookTextLabel: !plan.hookTextEnabled ? 'off' : plan.hookTextCustom ? 'custom text' : 'AI-generated',
+        brandOverlayLabel: !plan.brandOverlayEnabled
+          ? 'off'
+          : plan.contactSource === 'none'
+            ? 'logo only'
+            : 'logo & contact',
         lengthLabel: plan.targetLength === 'auto' ? 'auto (no limit)' : plan.targetLength,
         formatLabel:
           plan.aspectRatio === '9:16'
@@ -2146,6 +2697,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
             <video
               src={stitchedUrl}
               controls
+              controlsList="nodownload"
               playsInline
               style={{
                 width: '100%',
@@ -2334,6 +2886,9 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
               isMobile={isMobile}
               musicFile={musicFile}
               onMusicFileChange={setMusicFile}
+              videoSourceUrl={stitchedUrl || videoPreviewUrl}
+              brandLogoUrl={brandLogoUrl}
+              brandName={brandName}
             />
           </div>
         );
@@ -2396,8 +2951,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
               value={planLabels.captionLabel}
               field="captions"
               onAdjust={setAdjustField}
-              disabled={plan.classification === 'product' && !plan.captionsEnabled}
-              tooltip="Burned-in subtitles synced to your speech. Off by default for silent product videos since there's no speech to caption."
+              tooltip="Burned-in subtitles synced to your speech. Off by default for product videos, which are usually silent — turn on if yours has narration."
             />
             <PlanRow
               label="Trim"
@@ -2427,6 +2981,13 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
               field="hookText"
               onAdjust={setAdjustField}
               tooltip="A short line of text shown on screen for the first ~2.5 seconds to grab attention. Leave it on AI-generated or type your own."
+            />
+            <PlanRow
+              label="Your logo & number"
+              value={planLabels.brandOverlayLabel}
+              field="brandOverlay"
+              onAdjust={setAdjustField}
+              tooltip="Burns your logo and a contact line (like your WhatsApp number) into the video in a corner you pick, timed so it doesn't get covered by platform buttons."
             />
             <PlanRow
               label="Length"
@@ -2522,18 +3083,45 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       return (
         <div>
           {outputUrl && (
-            <video
-              src={outputUrl}
-              controls
-              playsInline
-              style={{
-                width: '100%',
-                maxHeight: 340,
-                borderRadius: 12,
-                background: '#000',
-                marginBottom: 14,
-              }}
-            />
+            <>
+              <video
+                src={outputUrl}
+                controls
+                controlsList="nodownload"
+                playsInline
+                style={{
+                  width: '100%',
+                  maxHeight: 340,
+                  borderRadius: 12,
+                  background: '#000',
+                  marginBottom: 8,
+                }}
+              />
+              <a
+                href="#"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  const signedUrl = await downloadUrlFor(
+                    outputUrl,
+                    `Video-${zapCapJobId ? zapCapJobId.slice(0, 8) : Date.now()}`
+                  );
+                  const link = document.createElement('a');
+                  link.href = signedUrl;
+                  link.download = '';
+                  link.click();
+                }}
+                style={{
+                  display: 'inline-block',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: PINK,
+                  textDecoration: 'none',
+                  marginBottom: 14,
+                }}
+              >
+                ⬇ Download video
+              </a>
+            </>
           )}
 
           {/* Custom b-roll nudge */}
@@ -2638,6 +3226,9 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <TapBtn label={isSaving ? 'Saving…' : 'Save to drafts'} primary onClick={handleSaveToDrafts} />
+            {onUseInCampaign && outputUrl && (
+              <TapBtn label="↩ Use in my ad" onClick={() => onUseInCampaign(outputUrl)} />
+            )}
             <TapBtn
               label="Fix something"
               onClick={() => {
@@ -2674,6 +3265,29 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
                 label: 'Cut silences, pauses & repetitions',
                 desc: 'Audio + AI analysis removes silences, long pauses, filler words, and repeated phrases',
                 fn: handleCutSilences,
+              },
+              {
+                label: 'Add voice',
+                desc: 'Record or upload a voiceover — turns a silent video into one with real narration',
+                fn: () => {
+                  addMsg('user', 'Add voice');
+                  setVoiceoverStep('offer');
+                  setVoiceoverScript('');
+                  setVoiceoverNote('');
+                  setVoiceoverBlob(null);
+                  setVoiceoverFileName('');
+                  setVoiceoverError(null);
+                  setStage('voiceover');
+                },
+              },
+              {
+                label: 'Logo & number',
+                desc: 'Move or change your logo and contact overlay — no full re-render',
+                fn: () => {
+                  addMsg('user', 'Logo & number');
+                  setAdjustField('brandOverlay');
+                  setStage('brand_overlay_edit');
+                },
               },
               {
                 label: 'Caption text',
@@ -3004,7 +3618,10 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
 
         const addBrollFiles = (files: File[]) => {
           const valid = files.filter(
-            (f) => ['video/mp4', 'video/quicktime', 'video/webm'].includes(f.type) || /\.(mp4|mov|webm)$/i.test(f.name)
+            (f) =>
+              ['video/mp4', 'video/quicktime', 'video/webm', 'image/jpeg', 'image/png', 'image/webp'].includes(
+                f.type
+              ) || /\.(mp4|mov|webm|jpe?g|png|webp)$/i.test(f.name)
           );
           if (valid.length === 0) return;
           setBrollClips((prev) => [
@@ -3035,13 +3652,13 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
                 addBrollFiles(Array.from(e.dataTransfer.files));
               }}
             >
-              <div style={{ fontSize: 13, color: GRAY }}>Drop clips here or tap to browse</div>
-              <div style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>MP4 · MOV · WebM</div>
+              <div style={{ fontSize: 13, color: GRAY }}>Drop clips or photos here or tap to browse</div>
+              <div style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>MP4 · MOV · WebM · JPG · PNG · WebP</div>
             </div>
             <input
               ref={brollInputRef}
               type="file"
-              accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm"
+              accept="video/mp4,video/quicktime,video/webm,image/jpeg,image/png,image/webp,.mp4,.mov,.webm,.jpg,.jpeg,.png,.webp"
               multiple
               style={{ display: 'none' }}
               onChange={(e) => addBrollFiles(Array.from(e.target.files ?? []))}
@@ -3063,12 +3680,20 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
                       background: '#fff',
                     }}
                   >
-                    <video
-                      src={entry.previewUrl}
-                      style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
-                      muted
-                      playsInline
-                    />
+                    {entry.file.type.startsWith('image/') ? (
+                      <img
+                        src={entry.previewUrl}
+                        alt=""
+                        style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+                      />
+                    ) : (
+                      <video
+                        src={entry.previewUrl}
+                        style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+                        muted
+                        playsInline
+                      />
+                    )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div
                         style={{
@@ -3311,6 +3936,300 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       }
 
       return null;
+    }
+
+    // ── VOICEOVER ──────────────────────────────────────────────────────────
+    if (stage === 'voiceover') {
+      if (voiceoverStep === 'offer') {
+        return (
+          <div>
+            <JaneBubble text="Want to add your voice? A real voiceover usually sells better than music alone — and it lets me caption and clean up the video properly too." />
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              <TapBtn label="Add my voice" primary onClick={fetchVoiceoverScript} />
+              <TapBtn
+                label="Never mind"
+                onClick={() => {
+                  addMsg('user', 'Never mind');
+                  setStage('cleanup');
+                }}
+              />
+            </div>
+          </div>
+        );
+      }
+
+      if (voiceoverStep === 'script') {
+        return (
+          <div>
+            {loadingVoiceoverScript ? (
+              <JaneBubble text="Writing you a script based on your video and brand voice…" />
+            ) : (
+              <>
+                <JaneBubble text="Here's what I'd say — feel free to change it, or ignore it and say your own thing:" />
+                <textarea
+                  value={voiceoverScript}
+                  onChange={(e) => setVoiceoverScript(e.target.value)}
+                  rows={6}
+                  style={{
+                    width: '100%',
+                    marginTop: 10,
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: `1.5px solid ${BORDER}`,
+                    fontSize: 13,
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
+                  }}
+                />
+                <div style={{ marginTop: 10 }}>
+                  <SectionLabel text="Anything specific you want said (price, offer, etc.)? Optional." />
+                  <input
+                    type="text"
+                    value={voiceoverNote}
+                    onChange={(e) => setVoiceoverNote(e.target.value)}
+                    placeholder="e.g. ₦12,000, I deliver around Yaba"
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: 8,
+                      border: `1.5px solid ${BORDER}`,
+                      fontSize: 13,
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                  <TapBtn label="Record" primary onClick={() => setVoiceoverStep('record')} />
+                  <TapBtn
+                    label="Give me different words"
+                    onClick={async () => {
+                      setLoadingVoiceoverScript(true);
+                      const res = await SocialMediaAgentService.generateVoiceoverScript({
+                        source_url: outputUrl || stitchedUrl || '',
+                        purpose: plan?.purpose || 'general',
+                        user_note: voiceoverNote,
+                      });
+                      setVoiceoverScript(res?.responseData?.script || '');
+                      setLoadingVoiceoverScript(false);
+                    }}
+                  />
+                  <TapBtn
+                    label="I'll say my own thing"
+                    onClick={() => {
+                      setVoiceoverScript('');
+                      setVoiceoverStep('record');
+                    }}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        );
+      }
+
+      // record
+      return (
+        <div>
+          <JaneBubble text="Just talk — don't worry about matching the timing or making mistakes. I'll cut them out." />
+          {voiceoverScript && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: '10px 12px',
+                borderRadius: 8,
+                background: '#F9FAFB',
+                border: `1px solid ${BORDER}`,
+                fontSize: 12,
+                color: '#374151',
+                whiteSpace: 'pre-wrap',
+              }}
+            >
+              {voiceoverScript}
+            </div>
+          )}
+
+          {plan?.classification !== 'product' && (
+            <div style={{ marginTop: 12 }}>
+              <SectionLabel text="Original video sound" />
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {[
+                  { label: 'Mute it — just my voice', value: false },
+                  { label: 'Keep it low, under my voice', value: true },
+                ].map((o) => (
+                  <button
+                    key={o.label}
+                    onClick={() => setVoiceoverKeepOriginal(o.value)}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: 9,
+                      border: `1.5px solid ${voiceoverKeepOriginal === o.value ? PINK : BORDER}`,
+                      background: voiceoverKeepOriginal === o.value ? LIGHT_PINK : '#fff',
+                      color: voiceoverKeepOriginal === o.value ? PINK : '#374151',
+                      fontSize: 13,
+                      fontWeight: voiceoverKeepOriginal === o.value ? 600 : 400,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {!voiceoverBlob ? (
+              <>
+                <style>{`
+                  @keyframes recPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(0.7); } }
+                  @keyframes recBar { 0%, 100% { height: 4px; } 50% { height: 16px; } }
+                `}</style>
+                {isRecordingVoice && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 10,
+                      padding: '10px 14px',
+                      borderRadius: 10,
+                      background: '#FEF2F2',
+                      border: '1.5px solid #FCA5A5',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: '50%',
+                        background: '#DC2626',
+                        flexShrink: 0,
+                        animation: 'recPulse 1.2s ease-in-out infinite',
+                      }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 16 }}>
+                      {[0, 1, 2, 3, 4].map((i) => (
+                        <span
+                          key={i}
+                          style={{
+                            width: 3,
+                            height: 4,
+                            borderRadius: 2,
+                            background: '#DC2626',
+                            animation: `recBar 0.9s ease-in-out ${i * 0.12}s infinite`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <span
+                      style={{ fontSize: 13, fontWeight: 700, color: '#DC2626', fontVariantNumeric: 'tabular-nums' }}
+                    >
+                      Recording… {Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, '0')}
+                    </span>
+                  </div>
+                )}
+                <button
+                  onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
+                  style={{
+                    padding: '14px 18px',
+                    borderRadius: 10,
+                    border: `1.5px solid ${isRecordingVoice ? '#DC2626' : PINK}`,
+                    background: isRecordingVoice ? '#FEF2F2' : LIGHT_PINK,
+                    color: isRecordingVoice ? '#DC2626' : PINK,
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {isRecordingVoice ? '⏹ Stop recording' : '🎙 Start recording'}
+                </button>
+                <div style={{ fontSize: 12, color: GRAY, textAlign: 'center' }}>or</div>
+                <button
+                  onClick={() => voiceoverInputRef.current?.click()}
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 9,
+                    border: `1.5px solid ${BORDER}`,
+                    background: '#fff',
+                    color: '#374151',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  + Upload a voice note
+                </button>
+                <input
+                  ref={voiceoverInputRef}
+                  type="file"
+                  accept="audio/*,.ogg,.oga,.m4a,.mp3,.wav,.aac,.opus"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    if (f.size > 50 * 1024 * 1024) {
+                      ToastService.showToast('Voice note must be under 50MB.', ToastTypeEnum.Error);
+                      return;
+                    }
+                    setVoiceoverBlob(f);
+                    setVoiceoverFileName(f.name);
+                    e.target.value = '';
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                {voiceoverPreviewUrl && <audio controls src={voiceoverPreviewUrl} style={{ width: '100%' }} />}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <TapBtn label="Use this voiceover" primary onClick={handleSubmitVoiceover} />
+                  <TapBtn
+                    label="Re-record"
+                    onClick={() => {
+                      setVoiceoverBlob(null);
+                      setVoiceoverFileName('');
+                    }}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          {voiceoverError && <div style={{ marginTop: 10, fontSize: 12, color: '#DC2626' }}>{voiceoverError}</div>}
+        </div>
+      );
+    }
+
+    // ── BRAND OVERLAY EDIT (post-render, compositing-only) ──────────────────
+    if (stage === 'brand_overlay_edit' && plan) {
+      return (
+        <div>
+          <JaneBubble text="Move or change your logo and contact overlay — this recomposites the finished video, not a full re-render." />
+          <AdjustPanel
+            field="brandOverlay"
+            plan={plan}
+            onApply={applyAdjust}
+            onCancel={() => {
+              setAdjustField(null);
+              setStage('preview');
+            }}
+            styleTemplates={styledTemplates}
+            isMobile={isMobile}
+            musicFile={musicFile}
+            onMusicFileChange={setMusicFile}
+            videoSourceUrl={outputUrl}
+            brandLogoUrl={brandLogoUrl}
+            brandName={brandName}
+            cancelLabel="← Back without changes"
+          />
+          <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+            <TapBtn
+              label={isAdjustingBrandOverlay ? 'Applying…' : 'Apply'}
+              primary
+              onClick={handleAdjustBrandOverlay}
+            />
+          </div>
+        </div>
+      );
     }
 
     // ── PUBLISH ────────────────────────────────────────────────────────────

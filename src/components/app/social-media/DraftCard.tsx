@@ -8,8 +8,10 @@ import {
   DenyPayload,
   LogoPlacement,
   SocialMediaAgentService,
+  TikTokPostSettings,
 } from '@/src/api/SocialMediaAgentService';
 import LogoRepositionModal from './LogoRepositionModal';
+import TikTokPostDialog from '../workspace/TikTokPostDialog';
 import { trackEvent } from '@/lib/analytics';
 import posthog from 'posthog-js';
 import { SocialConnectionService } from '@/src/api/SocialConnectionService';
@@ -17,6 +19,7 @@ import { UriHttpClient } from '@/src/configs/http.config';
 import { useRouter } from 'next/navigation';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
+import { downloadUrlFor } from '@/src/utils/cloudinaryDownload.util';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { BrandProfileService } from '@/src/api/BrandProfileService';
 import {
@@ -39,14 +42,11 @@ import {
 } from '@mui/material';
 import { useEffect, useRef, useState } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
-import {
-  MdChevronLeft,
-  MdChevronRight,
-  MdEdit,
-  MdOpenWith,
-} from 'react-icons/md';
+import { MdFileDownload } from 'react-icons/md';
+import { MdChevronLeft, MdChevronRight, MdEdit, MdOpenWith } from 'react-icons/md';
 import DraftEditor from './DraftEditor';
 import CanvasEditor from './canvas-editor/CanvasEditor';
+import { describePublishJob, formatResumeAt, resumeTimeMs } from '@/src/utils/publishJobMessage.util';
 
 interface DraftCardProps {
   draft: ContentDraft;
@@ -65,7 +65,10 @@ const platformChip: Record<string, { icon: ReactElement; color: string; bg: stri
 
 const statusColors: Record<string, { bg: string; color: string }> = {
   draft: { bg: '#F3F4F6', color: '#374151' },
-  pending_approval: { bg: '#FEF3C7', color: '#92400E' },
+  // Real, reachable: /approve's "Save as Draft" option (approval_workflow_
+  // service.py's approve_content) writes this literal status — unlike
+  // pending_approval below it, which only the dead submit_for_approval ever
+  // wrote.
   approved: { bg: '#D1FAE5', color: '#065F46' },
   published: { bg: '#DBEAFE', color: '#1E40AF' },
   denied: { bg: '#FEE2E2', color: '#991B1B' },
@@ -94,6 +97,11 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduledAt, setScheduledAt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [tiktokAutoAddMusicSaving, setTiktokAutoAddMusicSaving] = useState(false);
+  // Post to TikTok screen for an image/carousel draft (TikTok's Content Sharing Guidelines).
+  const [tiktokPhotoDialogOpen, setTiktokPhotoDialogOpen] = useState(false);
+  // Set while the Post to TikTok screen is open for Schedule rather than Publish Now: the picked time.
+  const [tiktokScheduleAt, setTiktokScheduleAt] = useState<string | null>(null);
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null); // null = not yet loaded
   const [connectPromptOpen, setConnectPromptOpen] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -310,6 +318,81 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
     return `${base}${url}`;
   };
 
+  // The pictures a TikTok photo post would carry: each carousel slide, or the single image.
+  const tiktokPhotoUrls = (isCarousel ? slides.map((sl) => sl.image_url) : [draft.image_url])
+    .filter((u): u is string => !!u)
+    .map(resolveUrl);
+
+  // Sends the post once the user has confirmed on the Post to TikTok screen, then
+  // follows the job so they see its status through to the end.
+  const handleTikTokPhotoConfirm = async (settings: TikTokPostSettings) => {
+    setTiktokPhotoDialogOpen(false);
+    const draftId = draft.draft_id ?? draft.id ?? '';
+    setLoading(true);
+    try {
+      const res = await SocialMediaAgentService.publishTikTokPhotoDraft({ draft_id: draftId, tiktok: settings });
+      if (!res.status || !res.responseData) {
+        ToastService.showToast(res.responseMessage || "Couldn't send this to TikTok.", ToastTypeEnum.Error);
+        return;
+      }
+      ToastService.showToast('Sending to TikTok…', ToastTypeEnum.Warning);
+      const jobId = res.responseData.job_id;
+      // Normally ~200s. A job that is waiting its turn (TikTok rate limit, or another post going
+      // out first) is followed until it is due plus a margin, so waiting never reads as a timeout.
+      const POLL_MS = 5000;
+      const WAIT_MARGIN_MS = 3 * 60 * 1000;
+      let deadline = Date.now() + 200_000;
+      let toldAboutWait = false;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, POLL_MS));
+        const poll = await SocialMediaAgentService.getVideoPublishJob(jobId);
+        const job = poll.responseData;
+        if (!job) continue;
+        const msg = describePublishJob(job);
+        if (job.status === 'queued') {
+          const due = resumeTimeMs(job);
+          if (due) deadline = Math.max(deadline, due + WAIT_MARGIN_MS);
+          if (msg.tone === 'waiting' && !toldAboutWait) {
+            toldAboutWait = true;
+            ToastService.showToast(`${msg.title}. ${msg.body}`, ToastTypeEnum.Warning);
+          }
+          continue;
+        }
+        if (job.status === 'published') {
+          ToastService.showToast(`${msg.title}. ${msg.body}`, ToastTypeEnum.Success);
+          posthog.capture('draft_approved', { option: 'immediate', platform: 'tiktok' });
+          onRefresh();
+          return;
+        }
+        // Accepted by TikTok but not yet confirmed: never show this as posted.
+        if (job.status === 'processing' && job.error) {
+          ToastService.showToast(msg.body, ToastTypeEnum.Warning);
+          onRefresh();
+          return;
+        }
+        if (job.status === 'failed') {
+          // A rate limit or cap is a warning, not a red failure, and never a "reconnect" prompt.
+          ToastService.showToast(
+            msg.tone === 'warning' ? `${msg.title}. ${msg.body}` : msg.body,
+            msg.tone === 'error' ? ToastTypeEnum.Error : ToastTypeEnum.Warning
+          );
+          onRefresh();
+          return;
+        }
+      }
+      ToastService.showToast(
+        'TikTok is still processing this post. Check your TikTok profile in a few minutes.',
+        ToastTypeEnum.Warning
+      );
+      onRefresh();
+    } catch (err: unknown) {
+      const detail = (err as { data?: { detail?: string } })?.data?.detail;
+      ToastService.showToast(detail || "Couldn't send this to TikTok. Please try again.", ToastTypeEnum.Error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Retry loading up to 3 times with backoff before showing 'Image unavailable'.
   // Handles the race where the image file isn't yet flushed when the URL first arrives.
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -330,8 +413,14 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
 
   const pc = platformChip[draft.platform] ?? { icon: null, color: '#6B7280', bg: '#F3F4F6' };
   const sc = statusColors[draft.status ?? 'draft'] ?? statusColors.draft;
+  // A daily / app-wide cap is a limit to wait out, not a broken connection or a bug.
+  const isCapFailure = draft.publish_error_kind === 'daily_cap' || draft.publish_error_kind === 'app_cap';
 
-  const handleApprove = async (option: ApprovePayload['schedule_option'], datetime?: string) => {
+  const handleApprove = async (
+    option: ApprovePayload['schedule_option'],
+    datetime?: string,
+    tiktok?: TikTokPostSettings
+  ) => {
     if (loading) return;
     setApproveAnchor(null);
 
@@ -346,6 +435,21 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       }
     }
 
+    // A TikTok image/carousel post goes out through the Post to TikTok screen
+    // (privacy, comments, disclosure, consent) — nothing is sent until the user
+    // presses Post inside it. Scheduling opens the same screen: its choices are saved with the post and
+    // used when the time comes. Saving a draft keeps its own flow.
+    const isTikTokPhoto = draft.platform?.toLowerCase() === 'tiktok' && !draft.video_url;
+    if (option === 'immediate' && isTikTokPhoto) {
+      setTiktokPhotoDialogOpen(true);
+      return;
+    }
+    if (option === 'schedule' && isTikTokPhoto && datetime && !tiktok) {
+      setTiktokScheduleAt(datetime);
+      setTiktokPhotoDialogOpen(true);
+      return;
+    }
+
     setLoading(true);
     try {
       const draftId = draft.draft_id ?? draft.id ?? '';
@@ -353,6 +457,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         draft_ids: [draftId],
         schedule_option: option,
         ...(datetime ? { scheduled_datetime: new Date(datetime).toISOString() } : {}),
+        ...(tiktok ? { tiktok } : {}),
       };
       const response = await SocialMediaAgentService.approveContent(payload);
 
@@ -380,6 +485,19 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         if (option === 'immediate') {
           const approved: ApprovedDraft[] = response.responseData?.approved_drafts ?? [];
           const thisResult = approved.find((a) => a.draft_id === draftId);
+
+          // Held back by a rate limit or another post going out first: not a failure. It stays
+          // scheduled and the backend posts it at resume_at, so say that and stop here.
+          if (thisResult?.publish_result?.queued || thisResult?.publish_result?.publish_status === 'queued') {
+            const at = formatResumeAt(thisResult.publish_result.resume_at);
+            ToastService.showToast(
+              thisResult.publish_result.message || `Queued: this will post${at ? ` around ${at}` : ' shortly'}.`,
+              ToastTypeEnum.Warning
+            );
+            posthog.capture('draft_approved', { option, platform: draft.platform, queued: true });
+            onRefresh();
+            return;
+          }
 
           if (thisResult?.publish_result && !thisResult.publish_result.success) {
             // Agent backend didn't publish — call the platform endpoint directly
@@ -658,6 +776,28 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
     }
   };
 
+  // TikTok single-image/carousel only — see ContentDraft.tiktok_auto_add_music.
+  // TikTok's Content Posting API has no track-selection field for photo posts,
+  // just this on/off toggle that triggers TikTok's own automatic pick.
+  const handleToggleTiktokAutoAddMusic = async (enabled: boolean) => {
+    const draftId = draft.draft_id ?? draft.id ?? '';
+    const previous = draft.tiktok_auto_add_music;
+    setDraft({ ...draft, tiktok_auto_add_music: enabled }); // optimistic
+    setTiktokAutoAddMusicSaving(true);
+    try {
+      const response = await SocialMediaAgentService.setTiktokAutoAddMusic(draftId, enabled);
+      if (!response.status) {
+        setDraft({ ...draft, tiktok_auto_add_music: previous });
+        ToastService.showToast(response.responseMessage || 'Could not save', ToastTypeEnum.Error);
+      }
+    } catch {
+      setDraft({ ...draft, tiktok_auto_add_music: previous });
+      ToastService.showToast('Could not save', ToastTypeEnum.Error);
+    } finally {
+      setTiktokAutoAddMusicSaving(false);
+    }
+  };
+
   return (
     <Box
       sx={{
@@ -687,7 +827,13 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           sx={{ background: pc.bg, color: pc.color, fontWeight: 600, fontSize: '11px', height: 24 }}
         />
         <Chip
-          label={(draft.status ?? draft.approval_status ?? 'pending').replace('_', ' ')}
+          // Live-reported: approval_status is only ever "pending" or
+          // "approved" on the backend (confirmed — no code path writes
+          // anything else), neither a real user-facing state; it used to
+          // leak straight into this label as raw text ("pending"/"approved")
+          // whenever a draft had no real status yet. A draft with no status
+          // is just a draft.
+          label={(draft.status ?? 'draft').replace('_', ' ')}
           size="small"
           sx={{ background: sc.bg, color: sc.color, fontWeight: 600, fontSize: '11px', height: 24 }}
         />
@@ -721,6 +867,30 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         )}
       </Box>
 
+      {/* Waiting on a rate limit or a post ahead of it: not a failure, it posts on its own */}
+      {draft.publish_wait && ['scheduled', 'staging_scheduled'].includes(draft.status ?? '') && (
+        <Box
+          sx={{
+            mt: 1,
+            px: 2,
+            py: 1,
+            background: '#FFFBEB',
+            borderLeft: '3px solid #F59E0B',
+            borderRadius: '0 6px 6px 0',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 1,
+          }}
+        >
+          <span style={{ fontSize: 14 }}>⏳</span>
+          <span style={{ fontSize: 12, color: '#92400E', lineHeight: 1.4 }}>
+            <strong>Waiting to post.</strong>{' '}
+            {draft.publish_wait.message ||
+              `This will post${draft.publish_wait.resume_at ? ` around ${formatResumeAt(draft.publish_wait.resume_at)}` : ' shortly'}.`}
+          </span>
+        </Box>
+      )}
+
       {/* Publish failure banner */}
       {draft.status === 'publish_failed' && (
         <Box
@@ -729,8 +899,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             mt: 1,
             px: 2,
             py: 1,
-            background: '#FEF2F2',
-            borderLeft: '3px solid #EF4444',
+            background: isCapFailure ? '#FFFBEB' : '#FEF2F2',
+            borderLeft: `3px solid ${isCapFailure ? '#F59E0B' : '#EF4444'}`,
             borderRadius: '0 6px 6px 0',
             display: 'flex',
             alignItems: 'flex-start',
@@ -738,8 +908,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           }}
         >
           <span style={{ fontSize: 14 }}>⚠️</span>
-          <span style={{ fontSize: 12, color: '#991B1B', lineHeight: 1.4 }}>
-            <strong>Failed to publish.</strong>{' '}
+          <span style={{ fontSize: 12, color: isCapFailure ? '#92400E' : '#991B1B', lineHeight: 1.4 }}>
+            <strong>{isCapFailure ? 'Posting limit reached.' : 'Failed to publish.'}</strong>{' '}
             {draft.error_message || 'An error occurred. Try approving and re-scheduling.'}
           </span>
         </Box>
@@ -993,6 +1163,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           <video
             src={resolveUrl(draft.video_url)}
             controls
+            controlsList="nodownload"
             playsInline
             style={
               isPortraitReel
@@ -1000,6 +1171,44 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 : { width: '100%', height: 'auto', display: 'block' }
             }
           />
+          {/* Explicit download link — the native video-controls download button
+              (and its right-click context-menu equivalent) can't be renamed away
+              from a leaked internal Cloudinary filename, and neither is reachable
+              at all on mobile the same way, so this is the only reliable way to
+              download on every device. */}
+          <Box
+            component="a"
+            href="#"
+            onClick={async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const signedUrl = await downloadUrlFor(
+                resolveUrl(draft.video_url ?? ''),
+                `Video-${draft.id?.slice(0, 8) || Date.now()}`
+              );
+              const link = document.createElement('a');
+              link.href = signedUrl;
+              link.download = '';
+              link.click();
+            }}
+            sx={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              zIndex: 2,
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              background: 'rgba(0,0,0,0.6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              textDecoration: 'none',
+            }}
+          >
+            <MdFileDownload size={16} />
+          </Box>
         </Box>
       )}
 
@@ -1540,8 +1749,34 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 Move Logo
               </Button>
             )}
-
           </Box>
+        </Box>
+      )}
+
+      {/* TikTok single-image/carousel only — TikTok has no track picker for
+          photo posts, just this on/off toggle for its own automatic pick
+          (see ContentDraft.tiktok_auto_add_music). */}
+      {!editing && draft.platform === 'tiktok' && !isReel && (
+        <Box mt={1}>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12,
+              color: '#374151',
+              cursor: tiktokAutoAddMusicSaving ? 'default' : 'pointer',
+              opacity: tiktokAutoAddMusicSaving ? 0.6 : 1,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={!!draft.tiktok_auto_add_music}
+              disabled={tiktokAutoAddMusicSaving}
+              onChange={(e) => handleToggleTiktokAutoAddMusic(e.target.checked)}
+            />
+            Let TikTok auto-add background music (TikTok picks the track — no way to choose one for photo posts)
+          </label>
         </Box>
       )}
 
@@ -1625,6 +1860,43 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         </Box>
       )}
 
+      {tiktokPhotoDialogOpen && (
+        <TikTokPostDialog
+          media={{ kind: 'photo', urls: tiktokPhotoUrls }}
+          initialTitle={(draft.content ?? '').split('\n')[0].slice(0, 90)}
+          initialDescription={[
+            draft.content,
+            (draft.hashtags ?? []).map((h) => (h.startsWith('#') ? h : `#${h}`)).join(' '),
+          ]
+            .filter(Boolean)
+            .join('\n\n')}
+          scheduledFor={
+            tiktokScheduleAt
+              ? new Date(tiktokScheduleAt).toLocaleString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })
+              : undefined
+          }
+          onClose={() => {
+            setTiktokPhotoDialogOpen(false);
+            setTiktokScheduleAt(null);
+          }}
+          onConfirm={(settings) => {
+            if (!tiktokScheduleAt) {
+              handleTikTokPhotoConfirm(settings);
+              return;
+            }
+            const at = tiktokScheduleAt;
+            setTiktokPhotoDialogOpen(false);
+            setTiktokScheduleAt(null);
+            handleApprove('schedule', at, settings);
+          }}
+        />
+      )}
+
       {/* Approve options popover */}
       <Menu anchorEl={approveAnchor} open={Boolean(approveAnchor)} onClose={() => setApproveAnchor(null)}>
         <MenuItem onClick={() => handleApprove('immediate')}>Publish Now</MenuItem>
@@ -1661,7 +1933,13 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             type="datetime-local"
             fullWidth
             value={scheduledAt}
-            onChange={(e) => setScheduledAt(e.target.value)}
+            onChange={(e) => {
+              setScheduledAt(e.target.value);
+              // See GeneratedContentCard's identical fix: the native picker doesn't
+              // close itself once a full date+time is set, so it sat visually on top
+              // of the Confirm button below until blurred.
+              if (e.target.value) e.target.blur();
+            }}
             slotProps={{
               htmlInput: {
                 min: (() => {
@@ -1865,11 +2143,16 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         <DialogTitle>Edit Image</DialogTitle>
         <DialogContent>
           <Typography fontSize="12px" color="#6B7280" mb={2}>
-            Describe what you want to change. For example: "Change price to ₦5,000", "Make background darker", "Add our
-            phone number"
+            {/* Live-reported (Gloria, staging): same mismatch as
+             * DescribeImageEditControls — the "Text" button pre-fills this
+             * field with the image's actual current text to edit directly,
+             * not a change to describe, so the copy needs to say that. */}
+            {editForceCategory === 'text_edit'
+              ? "This is the text currently on the image — edit it directly: fix a word, change a price, or delete a line you don't want."
+              : 'Describe what you want to change. For example: "Change price to ₦5,000", "Make background darker", "Add our phone number"'}
           </Typography>
           <TextField
-            placeholder="What would you like to change?"
+            placeholder={editForceCategory === 'text_edit' ? 'The image’s text' : 'What would you like to change?'}
             fullWidth
             multiline
             rows={3}

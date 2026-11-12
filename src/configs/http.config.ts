@@ -27,6 +27,9 @@ class UriHttpClient {
     instance.interceptors.request.use(
       (config) => {
         console.log(`🌐 [HTTP Request] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+        if (config.url?.includes('brand-profile') && config.method === 'post') {
+          console.log('📤 [HTTP Request Body - Brand Profile]:', config.data);
+        }
         const tokens = this.getStoredTokens();
         if (tokens?.accessToken) {
           config.headers.Authorization = `Bearer ${tokens.accessToken}`;
@@ -116,6 +119,14 @@ class UriHttpClient {
 
   private static async handleErrorResponse(error: AxiosError) {
     if (error.response) {
+      // Callers receive the response itself (err.data.detail), but many read
+      // it the standard axios way (err.response.data.detail) and so lost the
+      // server's message — e.g. "You've previewed a lot today" became "Could
+      // not write a preview". Point .response back at itself (non-enumerable,
+      // so logging/serialising is unaffected) and both ways work.
+      if (!Object.prototype.hasOwnProperty.call(error.response, 'response')) {
+        Object.defineProperty(error.response, 'response', { value: error.response, enumerable: false });
+      }
       switch (error.response.status) {
         case 401: {
           // A 401 on a JWT-protected endpoint always means the token is
@@ -149,12 +160,14 @@ class UriHttpClient {
           // Don't clear on notification endpoints as expired tokens are handled by polling
           // Don't clear on custom-guides 403 as it might be plan limit
           // Don't clear on billing endpoints — auth errors here are secondary; auth endpoints are authoritative
+          // Don't clear on market-intelligence 403 — a view-only access grant, not an expired session
           const isBrandProfile = error.config?.url?.includes('/brand-profile');
           const isConnectEndpoint = error.config?.url?.includes('/connect');
           const isNotificationEndpoint = error.config?.url?.includes('/notifications');
           const isCustomGuides = error.config?.url?.includes('/custom-guides');
           const isBillingEndpoint = error.config?.url?.includes('/billing');
-          if (!isBrandProfile && !isConnectEndpoint && !isNotificationEndpoint && !isCustomGuides && !isBillingEndpoint) {
+          const isMarketIntelligence = error.config?.url?.includes('/market-intelligence');
+          if (!isBrandProfile && !isConnectEndpoint && !isNotificationEndpoint && !isCustomGuides && !isBillingEndpoint && !isMarketIntelligence) {
             this.clearUserData();
             window.dispatchEvent(new CustomEvent('unauthorized'));
           }

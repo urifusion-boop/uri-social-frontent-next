@@ -29,6 +29,16 @@ type Phase = 'pick' | 'uploading' | 'processing' | 'ready' | 'failed';
 
 interface Props {
   onSaveToDrafts?: () => void;
+  // Jane Ads hand-off: seed the picker with an already-chosen file. Unlike Video
+  // Polish (Reap, which has a hard 2-minute floor baked into that vendor's API —
+  // not something we control), Submagic has no minimum duration at all, so this
+  // is the tool that actually fits "improve my existing short ad clip" — nothing
+  // to bypass here, the normal accept path already works for any length.
+  initialFile?: File;
+  // Shown as an extra action alongside Download once a video is ready, only when
+  // this form was opened from that hand-off — calls back with the finished
+  // video's URL so the caller can resume wherever the video came from.
+  onUseInCampaign?: (url: string) => void;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -46,7 +56,7 @@ const STATUS_PROGRESS: Record<string, number> = {
   completed: 100,
 };
 
-export default function SubmagicProductionForm({ onSaveToDrafts }: Props) {
+export default function SubmagicProductionForm({ onSaveToDrafts, initialFile, onUseInCampaign }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -107,6 +117,13 @@ export default function SubmagicProductionForm({ onSaveToDrafts }: Props) {
       if (duration !== null) setCostEstimate(estimateVideoCost(duration, billingStatus.ratePerMinute));
     });
   };
+
+  // Jane Ads hand-off — the file arrives already chosen, so skip straight past
+  // the picker. Runs once; initialFile never changes for a mounted form.
+  useEffect(() => {
+    if (initialFile) acceptFile(initialFile);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const startPolling = (id: string) => {
     if (pollRef.current) clearInterval(pollRef.current);
@@ -360,6 +377,23 @@ export default function SubmagicProductionForm({ onSaveToDrafts }: Props) {
           >
             Download Video
           </a>
+          {onUseInCampaign && (
+            <button
+              onClick={() => outputUrl && onUseInCampaign(outputUrl)}
+              style={{
+                padding: '11px 18px',
+                borderRadius: 10,
+                border: 'none',
+                background: 'linear-gradient(135deg,#CD1B78,#8E1545)',
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: 'pointer',
+              }}
+            >
+              ↩ Use in my ad
+            </button>
+          )}
           <button
             onClick={handleReset}
             style={{

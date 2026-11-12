@@ -13,7 +13,6 @@ import { InboxKnowledgeEntry, InboxService } from '@/src/api/InboxService';
  * InboxDashboard's own state.
  */
 
-const DEMO_INBOX = process.env.NEXT_PUBLIC_INBOX_DEMO === 'true';
 const TIMEZONE = 'Africa/Lagos';
 
 const FONT = "'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -169,7 +168,7 @@ export default function InboxSettingsPage({
   const [autoDm, setAutoDm] = useState(true);
   const [autoComments, setAutoComments] = useState(false);
   const [timezone, setTimezone] = useState(TIMEZONE);
-  const [settingsLoaded, setSettingsLoaded] = useState(DEMO_INBOX);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const [faqs, setFaqs] = useState<InboxKnowledgeEntry[]>([]);
@@ -179,7 +178,6 @@ export default function InboxSettingsPage({
   const [editingFaq, setEditingFaq] = useState<InboxKnowledgeEntry | null>(null);
 
   useEffect(() => {
-    if (DEMO_INBOX) return;
     let cancelled = false;
     (async () => {
       try {
@@ -211,7 +209,6 @@ export default function InboxSettingsPage({
   }, [openDays, openTime, closeTime, autoReplyEnabled, confidenceThreshold, autoDm, autoComments, alertEmails]);
 
   async function saveAgentSettings() {
-    if (DEMO_INBOX) return;
     setSaveState('saving');
     try {
       await InboxService.saveAgentSettings({
@@ -233,7 +230,7 @@ export default function InboxSettingsPage({
   async function addFaq() {
     const question = newQuestion.trim();
     const answer = newAnswer.trim();
-    if (!question || !answer || DEMO_INBOX) return;
+    if (!question || !answer) return;
     setFaqError('');
     try {
       const id = await InboxService.createKnowledge({ question, answer, approved: true });
@@ -528,7 +525,7 @@ export default function InboxSettingsPage({
         </div>
       </SectionCard>
 
-      {!DEMO_INBOX && (
+      {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-end' }}>
           <span style={{ fontSize: 12, color: saveState === 'error' ? '#C62828' : '#2E7D32' }}>
             {saveState === 'saved'
@@ -556,9 +553,9 @@ export default function InboxSettingsPage({
             {saveState === 'saving' ? 'Saving…' : 'Save hours and auto-reply policy'}
           </button>
         </div>
-      )}
+      }
 
-      {!DEMO_INBOX && (
+      {
         <SectionCard
           title="FAQ answers"
           desc="The facts URI's suggested replies and auto-replies are allowed to use. Only approved answers can be sent automatically — your Brand Playbook is used for drafts, but always reviewed."
@@ -701,7 +698,7 @@ export default function InboxSettingsPage({
             </div>
           </div>
         </SectionCard>
-      )}
+      }
 
       <SectionCard title="Saved replies" desc="Shown in the composer's quick-insert menu.">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

@@ -10,6 +10,10 @@ import {
 } from '@/src/api/GrowthService';
 import { Btn, Card, Chip, errorText, inputStyle } from '../personality/ui';
 import { ACTION_LABELS, CONFIDENCE_TONE, ago, naira, pct } from './format';
+import { GrowthTesting } from './GrowthTesting';
+import { useAdsMode } from './adsMode';
+
+type RecDecision = 'approve' | 'rejected' | 'done' | 'deferred';
 
 export function GrowthCampaign({
   campaignId,
@@ -24,6 +28,7 @@ export function GrowthCampaign({
 }) {
   const [data, setData] = useState<GrowthCampaignDetail | null>(null);
   const [error, setError] = useState('');
+  const { advanced } = useAdsMode();
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -56,12 +61,12 @@ export function GrowthCampaign({
     setBusy('');
   }
 
-  async function act(rec: GrowthRecommendation, kind: 'approve' | 'rejected' | 'done') {
+  async function act(rec: GrowthRecommendation, kind: RecDecision, toNgn?: number) {
     setBusy(rec.id);
     setError('');
     try {
       if (kind === 'approve') {
-        const a = await GrowthService.approve(rec.id);
+        const a = await GrowthService.approve(rec.id, toNgn);
         setNotice(
           a.status === 'executed'
             ? 'Done, and confirmed with the ad platform.'
@@ -70,8 +75,14 @@ export function GrowthCampaign({
               : `The ad platform refused the change: ${a.error ?? 'unknown error'}`
         );
       } else {
-        await GrowthService.decide(rec.id, kind);
-        setNotice(kind === 'done' ? 'Marked done. URI will measure the result.' : 'Dismissed.');
+        await GrowthService.decide(rec.id, kind, '', kind === 'deferred' ? 3 : undefined);
+        setNotice(
+          kind === 'done'
+            ? 'Marked done. URI will measure the result.'
+            : kind === 'deferred'
+              ? 'URI will bring this back in 3 days if the problem is still there.'
+              : 'Dismissed.'
+        );
       }
       await load();
     } catch (e) {
@@ -114,8 +125,12 @@ export function GrowthCampaign({
             ['Conversations', String(t.conversations)],
             ['Cost per conversation', naira(t.cost_per_conversation_ngn)],
             ['Target', data.goal.target_cpl_ngn ? naira(data.goal.target_cpl_ngn) : 'Not set'],
-            ['Click-through', pct(t.ctr, 2)],
-            ['Frequency', t.frequency ? t.frequency.toFixed(1) : '—'],
+            ...(advanced
+              ? [
+                  ['Click-through', pct(t.ctr, 2)],
+                  ['Frequency', t.frequency ? t.frequency.toFixed(1) : '—'],
+                ]
+              : []),
           ].map(([l, v]) => (
             <div key={l} style={{ background: '#fafafa', borderRadius: 10, padding: '10px 12px' }}>
               <div style={{ fontSize: 11.5, color: '#999' }}>{l}</div>
@@ -123,8 +138,23 @@ export function GrowthCampaign({
             </div>
           ))}
         </div>
-        <GoalEditor campaignId={campaignId} target={data.goal.target_cpl_ngn ?? null} onSaved={load} />
+        <GoalEditor
+          campaignId={campaignId}
+          target={data.goal.target_cpl_ngn ?? null}
+          orderTarget={data.goal.target_cost_per_order_ngn ?? null}
+          onSaved={load}
+        />
       </Card>
+
+      {data.testing && (
+        <GrowthTesting
+          detailed={advanced}
+          testing={data.testing}
+          campaignId={campaignId}
+          onChanged={load}
+          adNames={Object.fromEntries((data.controls?.ads ?? []).map((a) => [a.id, a.name]))}
+        />
+      )}
 
       <ChangePanel data={data} canChange={canApprove} onChanged={load} onNotice={setNotice} />
 
@@ -240,8 +270,13 @@ function Diagnosis({
   policy: GrowthPolicy;
   canApprove: boolean;
   busy: string;
-  onAct: (r: GrowthRecommendation, k: 'approve' | 'rejected' | 'done') => void;
+  onAct: (r: GrowthRecommendation, k: RecDecision, toNgn?: number) => void;
 }) {
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const editedAmount = (r: GrowthRecommendation) => {
+    const v = amounts[r.id];
+    return v !== undefined && Number(v) > 0 && Number(v) !== Number(r.parameters?.to_ngn) ? Number(v) : undefined;
+  };
   return (
     <div
       style={{
@@ -279,7 +314,7 @@ function Diagnosis({
         ))}
       </div>
       {recs
-        .filter((r) => ['proposed', 'failed', 'executed', 'unverified', 'done'].includes(r.status))
+        .filter((r) => ['proposed', 'deferred', 'failed', 'executed', 'unverified', 'done'].includes(r.status))
         .map((r) => (
           <div
             key={r.id}
@@ -296,7 +331,11 @@ function Diagnosis({
               <span style={{ fontWeight: 800, fontSize: 13, color: '#AD1457' }}>
                 {ACTION_LABELS[r.action_type] ?? r.action_type}
               </span>
-              {r.status !== 'proposed' && <Chip tone={r.status === 'failed' ? 'amber' : 'green'}>{r.status}</Chip>}
+              {r.status !== 'proposed' && (
+                <Chip tone={r.status === 'failed' ? 'amber' : r.status === 'deferred' ? 'grey' : 'green'}>
+                  {r.status === 'deferred' ? 'reminder set' : r.status}
+                </Chip>
+              )}
             </div>
             <div style={{ fontSize: 12.5, color: '#333' }}>{r.summary}</div>
             <div style={{ fontSize: 11.5, color: '#777' }}>
@@ -304,11 +343,21 @@ function Diagnosis({
               {r.eval_window_days} days.
             </div>
             {r.history?.text && <div style={{ fontSize: 11.5, color: '#0E7490' }}>{r.history.text}</div>}
-            {r.status === 'proposed' && (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {(r.status === 'proposed' || r.status === 'deferred') && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                {r.action_type === 'set_daily_budget' && r.executable && canApprove && (
+                  <input
+                    type="number"
+                    min={0}
+                    value={amounts[r.id] ?? String(r.parameters?.to_ngn ?? '')}
+                    onChange={(e) => setAmounts({ ...amounts, [r.id]: e.target.value })}
+                    style={{ ...inputStyle, width: 110 }}
+                    aria-label="Daily budget to approve"
+                  />
+                )}
                 {r.executable ? (
                   canApprove ? (
-                    <Btn small onClick={() => onAct(r, 'approve')} disabled={busy !== ''}>
+                    <Btn small onClick={() => onAct(r, 'approve', editedAmount(r))} disabled={busy !== ''}>
                       {busy === r.id ? 'Applying…' : policy.mode === 'advisory' ? 'Do it for me' : 'Approve'}
                     </Btn>
                   ) : (
@@ -317,6 +366,11 @@ function Diagnosis({
                 ) : (
                   <Btn small kind="secondary" onClick={() => onAct(r, 'done')} disabled={busy !== ''}>
                     I’ve done this
+                  </Btn>
+                )}
+                {r.status === 'proposed' && (
+                  <Btn small kind="ghost" onClick={() => onAct(r, 'deferred')} disabled={busy !== ''}>
+                    Remind me in 3 days
                   </Btn>
                 )}
                 <Btn small kind="ghost" onClick={() => onAct(r, 'rejected')} disabled={busy !== ''}>
@@ -333,41 +387,57 @@ function Diagnosis({
 function GoalEditor({
   campaignId,
   target,
+  orderTarget,
   onSaved,
 }: {
   campaignId: string;
   target: number | null;
+  orderTarget: number | null;
   onSaved: () => void;
 }) {
   const [value, setValue] = useState(target ? String(target) : '');
+  const [orderValue, setOrderValue] = useState(orderTarget ? String(orderTarget) : '');
   const [saving, setSaving] = useState(false);
+  const input = (v: string, set: (s: string) => void, placeholder: string) => (
+    <input
+      type="number"
+      min={0}
+      value={v}
+      onChange={(e) => set(e.target.value)}
+      style={{ ...inputStyle, width: 120 }}
+      placeholder={placeholder}
+    />
+  );
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 12.5, color: '#555' }}>
-      Target cost per conversation (₦)
-      <input
-        type="number"
-        min={0}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        style={{ ...inputStyle, width: 120 }}
-        placeholder="e.g. 500"
-      />
-      <Btn
-        small
-        kind="ghost"
-        disabled={saving}
-        onClick={async () => {
-          setSaving(true);
-          await GrowthService.setGoal(campaignId, { target_cpl_ngn: Number(value) || null }).catch(() => undefined);
-          setSaving(false);
-          onSaved();
-        }}
-      >
-        {saving ? 'Saving…' : 'Save target'}
-      </Btn>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, color: '#555' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        Target cost per conversation (₦)
+        {input(value, setValue, 'e.g. 500')}
+        Per order (₦)
+        {input(orderValue, setOrderValue, 'e.g. 2000')}
+        <Btn
+          small
+          kind="ghost"
+          disabled={saving}
+          onClick={async () => {
+            setSaving(true);
+            await GrowthService.setGoal(campaignId, {
+              target_cpl_ngn: Number(value) || null,
+              target_cost_per_order_ngn: Number(orderValue) || null,
+            }).catch(() => undefined);
+            setSaving(false);
+            onSaved();
+          }}
+        >
+          {saving ? 'Saving…' : 'Save targets'}
+        </Btn>
+      </div>
       {!target && (
         <span style={{ color: '#999' }}>Without a target, URI compares against this campaign’s own past.</span>
       )}
+      <span style={{ color: '#999' }}>
+        Once you mark enough leads Converted or Lost, ads are judged on cost per order instead of per conversation.
+      </span>
     </div>
   );
 }

@@ -7,6 +7,9 @@ import { BrandKeyDate, BrandProfileData, BrandProfileService, CustomFontEntry } 
 import PlaybookNotifications from './PlaybookNotifications';
 import PlaybookHealth from './PlaybookHealth';
 import { pbSectionId } from './PlaybookPanel';
+import GoogleAdsChooser, { continueWithGoogle, GoogleAdsReturn } from './GoogleAdsChooser';
+import GoogleAdsLinkPanel from './GoogleAdsLinkPanel';
+import GoogleAdsModePicker from './GoogleAdsModePicker';
 import TellJane from './TellJane';
 import type { PlaybookHealthData } from '@/src/api/BrandProfileService';
 import { V3Service } from '@/src/api/V3Service';
@@ -34,17 +37,14 @@ import {
   SocialConnectionService,
 } from '@/src/api/SocialConnectionService';
 import { AvailablePage, SocialAccountService } from '@/src/api/SocialAccountService';
-import { AdFormat, CampaignService } from '@/src/api/CampaignService';
+import { AdFormat, CampaignService, DraftSummary, PlanVariant } from '@/src/api/CampaignService';
 import { AdFormatGalleryCard } from '@/src/components/app/workspace/AdFormatGallery';
 import { useAuth } from '@/src/providers/AuthProvider';
-import { hasActiveSubscription } from '@/src/utils/subscription.util';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ReactNode } from 'react';
 import { FaCheckCircle, FaFacebook, FaGoogle, FaInstagram, FaLinkedin, FaTiktok, FaWhatsapp } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
-import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input';
-import 'react-phone-number-input/style.css';
 import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
 import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
@@ -54,13 +54,17 @@ import CustomGuideV2PreviewCard from '@/src/components/app/social-media/CustomGu
 import { CustomVisualGuide, CustomVisualGuideService } from '@/src/api/CustomVisualGuideService';
 import { CustomVisualGuideV2, CustomVisualGuideV2Service } from '@/src/api/CustomVisualGuideV2Service';
 import BlogGeneratorTab from '@/src/components/app/social-media/BlogGeneratorTab';
+import BusinessPulsePanel from '@/src/components/app/workspace/BusinessPulsePanel';
 import AgencyDashboard from '@/src/components/app/agency/AgencyDashboard';
 import { AgencyService, BrandAccount, getActiveBrandId, setActiveBrandId } from '@/src/api/AgencyService';
 import { getStyle } from '@/src/data/styleLibrary';
 import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
+import ContentWizard from '@/src/components/app/social-media/ContentWizard/ContentWizard';
+import ContentLibraryPage from '@/src/components/app/social-media/ContentLibrary/ContentLibraryPage';
 import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
-import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
+import DescribeVideoGenerator from '@/src/components/app/workspace/DescribeVideoGenerator';
+import VisualEngineV2Panel from '@/src/components/app/workspace/visual-engine-v2/VisualEngineV2Panel';
 import MultiClipComposer from '@/src/components/app/workspace/MultiClipComposer';
 import JaneVideoChat from '@/src/components/app/workspace/JaneVideoChat';
 import VideoEditForm from '@/src/components/app/workspace/VideoEditForm';
@@ -69,9 +73,10 @@ import VideoProductionForm from '@/src/components/app/workspace/VideoProductionF
 import SubmagicProductionForm from '@/src/components/app/workspace/SubmagicProductionForm';
 import ZapCapProductionForm from '@/src/components/app/workspace/ZapCapProductionForm';
 import UploadContentForm from '@/src/components/app/workspace/UploadContentForm';
-import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
-import BusinessPulsePanel from '@/src/components/app/workspace/BusinessPulsePanel';
-import WorkspaceAdWalletBadge from '@/src/components/app/workspace/WorkspaceAdWalletBadge';
+import MarketIntelligencePage from '@/src/components/app/workspace/MarketIntelligencePage';
+import AdminUsersPage from '@/src/components/app/workspace/AdminUsersPage';
+import ListeningCurationPage from '@/src/components/app/workspace/ListeningCurationPage';
+import { hasVideoSeed, takeAdTestSeed } from '@/src/utils/contentSeed';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
@@ -83,17 +88,30 @@ import SyncImageDialog from '@/src/components/app/social-media/SyncImageDialog';
 import ConfirmDialog from '@/src/components/app/workspace/ConfirmDialog';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
-import AdminUsersPage from '@/src/components/app/workspace/AdminUsersPage';
+import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
+import CampaignBuilderPage from '@/src/components/app/workspace/campaign-wizard/CampaignBuilderPage';
+import type { WizardDraft } from '@/src/components/app/workspace/campaign-wizard/wizardDraft';
+import CampaignOverviewPage from '@/src/components/app/workspace/campaign-wizard/CampaignOverviewPage';
+import CampaignGrowthPage from '@/src/components/app/workspace/campaign-wizard/CampaignGrowthPage';
+import CampaignWalletPage from '@/src/components/app/workspace/campaign-wizard/CampaignWalletPage';
+import CampaignRevenuePage from '@/src/components/app/workspace/campaign-wizard/CampaignRevenuePage';
+import CreativesLibraryPage from '@/src/components/app/workspace/CreativesLibraryPage';
+import InboxDashboard from '@/src/components/app/workspace/InboxDashboard';
+import RecordsPanel from '@/src/components/app/workspace/RecordsPanel';
+import { useIsMobile } from '@/src/hooks/useIsMobile';
+import HomePage from '@/src/components/app/workspace/HomePage';
 import EscalationsPage from '@/src/components/app/workspace/EscalationsPage';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
+import WorkspaceAdWalletBadge from '@/src/components/app/workspace/WorkspaceAdWalletBadge';
 import WorkspaceProfileDropdown from '@/src/components/app/workspace/WorkspaceProfileDropdown';
 import TrialBanner from '@/src/components/app/atoms/TrialBanner';
 import TrialEndingBanner from '@/src/components/app/atoms/TrialEndingBanner';
 import TrialExpiredModal from '@/src/components/app/atoms/TrialExpiredModal';
+import { hasActiveSubscription } from '@/src/utils/subscription.util';
 import NotificationBell from '@/src/components/app/atoms/NotificationBell';
 import NotificationsPanel from '@/src/components/app/workspace/NotificationsPanel';
 import { useNotifications } from '@/src/providers/NotificationProvider';
-import { Tooltip } from '@mui/material';
+import { BrandTooltip } from '@/src/components/app/workspace/BrandTooltip';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { AuthService } from '@/src/api/AuthService';
 
@@ -189,14 +207,6 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
         <polyline points="17 6 23 6 23 12" />
       </>
     ),
-    users: (
-      <>
-        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 00-3-3.87" />
-        <path d="M16 3.13a4 4 0 010 7.75" />
-      </>
-    ),
     clock: (
       <>
         <circle cx="12" cy="12" r="10" />
@@ -264,6 +274,14 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
         <path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" />
       </>
     ),
+    help: (
+      <>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </>
+    ),
+    chevronRight: <polyline points="9 18 15 12 9 6" />,
     logout: (
       <>
         <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
@@ -318,50 +336,17 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
   );
 };
 
-/* ── Brand Tooltip ──────────────────────────────────────────────────────── */
-const BrandTooltip = (props: React.ComponentProps<typeof Tooltip>) => (
-  <Tooltip
-    enterTouchDelay={0}
-    leaveTouchDelay={3000}
-    {...props}
-    componentsProps={{
-      ...props.componentsProps,
-      tooltip: {
-        sx: {
-          background: 'linear-gradient(135deg,#1a0a12 0%,#2d0d1e 100%)',
-          color: '#fff',
-          fontSize: 12,
-          fontWeight: 500,
-          lineHeight: 1.45,
-          padding: '8px 12px',
-          borderRadius: '8px',
-          maxWidth: 220,
-          boxShadow: '0 8px 28px rgba(194,24,91,.30),0 2px 8px rgba(0,0,0,.25)',
-          border: '1px solid rgba(194,24,91,.28)',
-          fontFamily: 'var(--wf,sans-serif)',
-        },
-        ...((props.componentsProps?.tooltip as object) ?? {}),
-      },
-      arrow: {
-        sx: {
-          color: '#1a0a12',
-          '&::before': { border: '1px solid rgba(194,24,91,.28)' },
-        },
-        ...((props.componentsProps?.arrow as object) ?? {}),
-      },
-    }}
-  />
-);
-
 /* ── Guided Tour ─────────────────────────────────────────────────────────── */
 type TourStepDef = { target: string; title: string; body: string; radius?: number };
 
 const TOUR_STEPS: TourStepDef[] = [
   {
-    target: 'tour-jane-agent',
-    title: 'Meet URI Agent',
-    body: 'Your AI social manager lives here — always active, briefing you and ready to create content on demand.',
-    radius: 11,
+    // Product-restructure redesign: Home replaced the old chat-first
+    // landing (see PRIMARY_NAV above) — this step now introduces the
+    // dashboard instead of the Jane Agent box that used to sit here.
+    target: 'tnav-home',
+    title: 'Your dashboard',
+    body: 'Quick shortcuts to create content, run campaigns, manage messages, and a look at how your brand is doing.',
   },
   {
     target: 'tnav-schedule',
@@ -378,16 +363,11 @@ const TOUR_STEPS: TourStepDef[] = [
     title: 'Track Your Performance',
     body: 'Monitor reach, engagement, and growth across every connected platform at a glance.',
   },
-  {
-    target: 'tnav-playbook',
-    title: 'Build Your Brand Playbook',
-    body: 'Define your brand voice, content pillars, and guardrails — every AI post will sound exactly like you.',
-  },
-  {
-    target: 'tnav-intel',
-    title: 'Market Intelligence',
-    body: "See what's trending in your industry and tap into keywords your audience is already searching for.",
-  },
+  // The Brand Playbook and Market Intelligence steps that used to live here
+  // pointed at primary-sidebar buttons that no longer exist post-restructure
+  // (PRIMARY_NAV above) — both features still exist and still work, just
+  // without a discoverable home yet, so introducing them here would point
+  // at nothing. Re-add once their real destination in the new nav is built.
   {
     target: 'tour-notification-area',
     title: 'Stay Updated',
@@ -823,7 +803,22 @@ interface PostItem {
 /* ══════════════════════════════════════════════════════════════════════════
    POSTING SCHEDULE PAGE (v3)
 ═══════════════════════════════════════════════════════════════════════════ */
-type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar-v2' | 'video';
+type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar-v2' | 'video' | 'library';
+
+// A chosen (but not yet built) multi-plan audience selection from CampaignsPage —
+// mirrors that file's own PendingVariants type. Threaded through here because it
+// lives in a CampaignsPage-local ref that gets wiped when that page unmounts for
+// the video-quality hand-off and remounts on return.
+type PendingVariants = { variants: PlanVariant[]; variantGroupId: string };
+type VideoPolishHandoff = { file: File; returnThreadId: string; pendingVariants?: PendingVariants };
+
+// A per-page pill switcher lived here briefly — replaced by a single
+// persistent control in the mobile Topbar (search "SECTION SUBNAV DRAWER")
+// that works the same way for every section with a sidebar subNav
+// (Content Studio, Campaign Manager, Performance, Settings, Connected
+// Accounts), not just this one, and reuses the exact same subNav arrays
+// the desktop sidebar renders — one source of truth instead of a second,
+// divergent mobile-only nav.
 
 const ContentManagerPage = ({
   onJane,
@@ -833,6 +828,10 @@ const ContentManagerPage = ({
   janeGenerating,
   onAcceptJaneMessage,
   onDeclineJaneMessage,
+  videoPolishHandoff,
+  onReturnToCampaignFromPolish,
+  initialTab,
+  onOpenSectionNav,
 }: {
   onJane: () => void;
   isMobile?: boolean;
@@ -841,9 +840,21 @@ const ContentManagerPage = ({
   janeGenerating: boolean;
   onAcceptJaneMessage: () => void;
   onDeclineJaneMessage: () => void;
+  // Jane Ads video-quality hand-off — see the note by videoTab's useEffect below.
+  videoPolishHandoff?: VideoPolishHandoff | null;
+  onReturnToCampaignFromPolish?: (url: string) => void;
+  // Product-restructure redesign: lets the new Content Studio contextual
+  // sidebar (PRIMARY_NAV's Content Studio sub-items) land directly on a
+  // specific internal tab instead of always opening on Create — bumping a
+  // counter alongside the tab (see contentStudioNavSeq below) is what makes
+  // re-clicking the SAME sub-item while already on this page still work.
+  initialTab?: { tab: ContentTab; seq: number };
+  // Mobile has no sidebar — each dedicated page's own bold title doubles as
+  // the section switcher trigger here too, same as SubPage's pages.
+  onOpenSectionNav?: () => void;
 }) => {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<ContentTab>('create');
+  const [activeTab, setActiveTab] = useState<ContentTab>(initialTab?.tab ?? 'create');
   const activeTabRef = useRef<ContentTab>('create');
   const [drafts, setDrafts] = useState<ContentDraft[]>([]);
   const [savedDrafts, setSavedDrafts] = useState<ContentDraft[]>([]);
@@ -900,7 +911,44 @@ const ContentManagerPage = ({
   const [loadingV3Status, setLoadingV3Status] = useState(true);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [createMode, setCreateMode] = useState<'generate' | 'upload'>('generate');
+  // The 4-step wizard is now the only Generate Content experience — this
+  // compared-side-by-side-behind-a-toggle phase
+  // (/Users/apple/.claude/plans/lovely-prancing-seahorse.md) is over. The old
+  // classic ContentGeneratorForm block below is kept in place, not deleted,
+  // as a safety net — `contentWizardEnabled` is always true now, so it's
+  // unreachable rather than removed.
+  const contentWizardEnabled = true;
   const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'>('chat');
+  // The Generate tab is Describe It (DescribeVideoGenerator.tsx): a free-text brief with optional
+  // reference images, then script -> scene images -> outcome-routed video. The older upload-first
+  // generator is no longer offered; only its Saved Video Drafts list is kept (see below), because
+  // that is where a saved video is posted from. Bumped when Describe It saves a draft so the list
+  // shows it straight away.
+  // Jane Ads hand-off (upload a video in a campaign -> optionally improve its
+  // quality here -> come back to that exact thread). Lands on JaneVideoChat
+  // ('chat', already the default tab) — confirmed this is the tool actually in
+  // use; Video Polish (Reap) and Submagic were both considered and ruled out
+  // (Reap has a hard 2-minute minimum baked into that vendor's API; Submagic
+  // isn't the tool this product actually uses for video production).
+  useEffect(() => {
+    if (videoPolishHandoff) {
+      setActiveTab('video');
+      setVideoTab('chat');
+    }
+  }, [videoPolishHandoff]);
+  // A Listening opportunity card recommended as a video lands here with its
+  // brief pre-filled on Describe It — the honest "one click" for video,
+  // since (unlike text) there's no single server-side call that produces a
+  // finished video; the real flow is storyboard -> frames -> render, and the
+  // owner reviews each step. Checked once on mount only.
+  useEffect(() => {
+    // Peek only — DescribeVideoGenerator does the real (destructive) read
+    // itself once it mounts; taking it here would clear it first.
+    if (hasVideoSeed()) {
+      setActiveTab('video');
+      setVideoTab('generate');
+    }
+  }, []);
   const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
   // Keep JaneVideoChat mounted after first visit so in-progress sessions survive tab switches
   const [janeEverMounted, setJaneEverMounted] = useState(false);
@@ -980,7 +1028,8 @@ const ContentManagerPage = ({
           schedule_option: 'schedule',
           scheduled_datetime: datetime,
         });
-        const ok = response.status === true;
+        // The backend answers status:true and lists a draft it did not accept in errors[].
+        const ok = response.status === true && !response.responseData?.errors?.length;
         setScheduleProgress((prev) => ({ ...prev, [id]: ok }));
         if (ok) {
           succeeded++;
@@ -1167,6 +1216,11 @@ const ContentManagerPage = ({
   }, []);
 
   useEffect(() => {
+    if (initialTab) setActiveTab(initialTab.tab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTab?.seq]);
+
+  useEffect(() => {
     activeTabRef.current = activeTab;
     if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     pollAttemptsRef.current = 0;
@@ -1242,9 +1296,13 @@ const ContentManagerPage = ({
   // callback's identity — an unmemoized version here recreated it on every
   // WorkspaceDashboard re-render, silently restarting/breaking that poll.
   const handleGenerated = useCallback(() => {
-    setActiveTab('drafts');
-    fetchDrafts();
-  }, [fetchDrafts]);
+    // Content Library replaced the old Drafts tab as the one place to review
+    // generated content (see the dropped-tabs note below) — this still sent
+    // people to that old, now-hidden tab instead, so "Done" from the wizard
+    // (and Calendar/Auto-generate's own generate flows, which share this
+    // same callback) looked like it ignored the redesign entirely.
+    setActiveTab('library');
+  }, []);
   const handleRefreshDrafts = useCallback(() => {
     if (activeTabRef.current === 'drafts') fetchDrafts();
   }, [fetchDrafts]);
@@ -1253,30 +1311,26 @@ const ContentManagerPage = ({
     router.push('/workspace/?tab=connections');
   };
 
+  // Drafts / Saved / Scheduled dropped from this visible row — Content
+  // Library's own filter tabs (All/Drafts/Scheduled/Published/Archived)
+  // already cover the exact same states in one table. The
+  // underlying 'drafts' tab view is untouched and still real — programmatic
+  // redirects (e.g. "Save to Drafts" from the video flow) still land on it
+  // correctly, it just no longer has its own pill in this row. Calendar DOES
+  // belong here though: "already reachable from the Content Studio sidebar"
+  // was only ever true on desktop — that sidebar is desktop-only, and this
+  // row is the one thing that also renders on mobile.
   const tabs: { key: ContentTab; label: string; count?: number; tooltip: string }[] = [
     { key: 'create', label: 'Create', tooltip: 'Generate new AI-powered posts for your social platforms' },
     {
-      key: 'drafts',
-      label: 'Drafts',
-      count: drafts.length,
-      tooltip: 'Review and edit AI-generated posts awaiting your approval',
-    },
-    {
-      key: 'saved',
-      label: 'Saved',
-      count: savedDrafts.length,
-      tooltip: "Posts you've saved for later — ready to publish when you are",
-    },
-    {
-      key: 'scheduled',
-      label: 'Scheduled',
-      count: scheduled.length,
-      tooltip: 'Posts approved and queued to go live at a specific time',
+      key: 'library',
+      label: 'Library',
+      tooltip: 'Manage, approve, schedule and track all your content in one table',
     },
     {
       key: 'calendar-v2',
       label: 'Calendar',
-      tooltip: 'A 30-day content plan with ad-opportunity detection and creative-diversity validation',
+      tooltip: 'A 30-day content plan tailored to your brand',
     },
     {
       key: 'auto',
@@ -1290,143 +1344,285 @@ const ContentManagerPage = ({
     },
   ];
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f8f7f5' }}>
-      {/* Header */}
-      <div
+  // The wizard and the Content Library are both self-contained,
+  // dedicated-page experiences in their own approved designs (own compact
+  // header, no surrounding tab bar) — showing them inside the classic
+  // Content Manager chrome stacked two headers on top of each other and
+  // squeezed the real page into leftover space.
+  const wizardActive = activeTab === 'create' && createMode === 'generate' && contentWizardEnabled;
+  const libraryActive = activeTab === 'library';
+  const calendarV2Active = activeTab === 'calendar-v2';
+  const autoActive = activeTab === 'auto';
+  const videoActive = activeTab === 'video';
+  const dedicatedPageActive = wizardActive || libraryActive || calendarV2Active || autoActive || videoActive;
+
+  // Mobile has no sidebar — each dedicated page's own bold title doubles as
+  // the section switcher trigger here, same fix as SubPage's pages (and the
+  // same reason it moved there: a small chip up in the Topbar read as
+  // nothing happening when tapped; the page's own title is the one thing
+  // actually visible and obviously "this page" to tap on instead).
+  const DedicatedTitle = ({ children }: { children: ReactNode }) =>
+    isMobile && onOpenSectionNav ? (
+      <button
+        onClick={onOpenSectionNav}
         style={{
-          padding: isMobile ? '10px 12px 0' : '20px 24px 0',
-          background: '#fff',
-          borderBottom: '1px solid #edecea',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          border: 'none',
+          background: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          font: 'inherit',
+          color: 'inherit',
         }}
       >
+        <h2 style={{ fontSize: 15, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>{children}</h2>
+        <I n="chevronRight" s={12} c="#C2185B" />
+      </button>
+    ) : (
+      <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
+        {children}
+      </h2>
+    );
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        background: dedicatedPageActive ? 'linear-gradient(180deg, #FCE4EC 0%, #FBF8F7 40%, #FAFAF8 100%)' : '#f8f7f5',
+      }}
+    >
+      {/* Header */}
+      {wizardActive ? (
         <div
           style={{
+            padding: isMobile ? '10px 12px' : '16px 24px',
+            background: '#fff',
+            borderBottom: '1px solid #edecea',
+          }}
+        >
+          <DedicatedTitle>Create Content</DedicatedTitle>
+          <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
+            Turn your ideas into high-performing content with AI.
+          </p>
+        </div>
+      ) : libraryActive ? (
+        <div
+          style={{
+            padding: isMobile ? '10px 12px' : '16px 24px',
+            background: '#fff',
+            borderBottom: '1px solid #edecea',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            marginBottom: isMobile ? 10 : 16,
+            flexWrap: 'wrap',
+            gap: 10,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {!isMobile && (
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  background: 'linear-gradient(135deg,#880E4F,#E91E63)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <I n="calendar" s={17} c="#fff" />
-              </div>
-            )}
-            <div>
-              <h2 style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
-                Content Manager
-              </h2>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <DedicatedTitle>Content Library</DedicatedTitle>
+            <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
+              Manage, approve, schedule and track all your content.
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveTab('create')}
+            style={{
+              border: 'none',
+              borderRadius: 10,
+              padding: '9px 16px',
+              background: 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)',
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            + Create Content
+          </button>
+        </div>
+      ) : calendarV2Active ? (
+        <div
+          style={{
+            padding: isMobile ? '10px 12px' : '16px 24px',
+            background: '#fff',
+            borderBottom: '1px solid #edecea',
+          }}
+        >
+          <DedicatedTitle>Content Calendar</DedicatedTitle>
+          <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
+            A 30-day plan tailored to your brand — ad-ready posts, exact copy, built in.
+          </p>
+        </div>
+      ) : autoActive ? (
+        <div
+          style={{
+            padding: isMobile ? '10px 12px' : '16px 24px',
+            background: '#fff',
+            borderBottom: '1px solid #edecea',
+          }}
+        >
+          <DedicatedTitle>Auto-Generate</DedicatedTitle>
+          <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
+            Jane keeps a steady stream of on-brand drafts flowing — no manual prompting needed.
+          </p>
+        </div>
+      ) : videoActive ? (
+        <div
+          style={{
+            padding: isMobile ? '10px 12px' : '16px 24px',
+            background: '#fff',
+            borderBottom: '1px solid #edecea',
+          }}
+        >
+          <DedicatedTitle>🎬 Video</DedicatedTitle>
+          <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
+            Generate branded video Reels from storyboards or edit your own footage.
+          </p>
+        </div>
+      ) : (
+        <div
+          style={{
+            padding: isMobile ? '10px 12px 0' : '20px 24px 0',
+            background: '#fff',
+            borderBottom: '1px solid #edecea',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: isMobile ? 10 : 16,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {!isMobile && (
-                <p style={{ fontSize: 11.5, color: '#999', margin: 0 }}>Create, review and schedule your posts</p>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    background: 'linear-gradient(135deg,#880E4F,#E91E63)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <I n="calendar" s={17} c="#fff" />
+                </div>
+              )}
+              <div>
+                <h2
+                  style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}
+                >
+                  Content Manager
+                </h2>
+                {!isMobile && (
+                  <p style={{ fontSize: 11.5, color: '#999', margin: 0 }}>Create, review and schedule your posts</p>
+                )}
+              </div>
+            </div>
+            {/* Quick stats */}
+            <div style={{ display: 'flex', gap: isMobile ? 10 : 12 }}>
+              {drafts.length > 0 && (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: '#C2185B', lineHeight: 1 }}>
+                    {drafts.length}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#aaa', fontWeight: 600 }}>DRAFTS</div>
+                </div>
+              )}
+              {scheduled.length > 0 && (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: '#0a66c2', lineHeight: 1 }}>
+                    {scheduled.length}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#aaa', fontWeight: 600 }}>SCHEDULED</div>
+                </div>
               )}
             </div>
           </div>
-          {/* Quick stats */}
-          <div style={{ display: 'flex', gap: isMobile ? 10 : 12 }}>
-            {drafts.length > 0 && (
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: '#C2185B', lineHeight: 1 }}>
-                  {drafts.length}
-                </div>
-                <div style={{ fontSize: 10, color: '#aaa', fontWeight: 600 }}>DRAFTS</div>
-              </div>
-            )}
-            {scheduled.length > 0 && (
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: '#0a66c2', lineHeight: 1 }}>
-                  {scheduled.length}
-                </div>
-                <div style={{ fontSize: 10, color: '#aaa', fontWeight: 600 }}>SCHEDULED</div>
-              </div>
-            )}
+
+          {/* Tab bar */}
+          <div
+            className="tab-scroll"
+            style={
+              {
+                display: 'flex',
+                gap: 2,
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+              } as React.CSSProperties
+            }
+          >
+            {tabs.map((t) => {
+              const active = activeTab === t.key;
+              const icons: Record<ContentTab, string> = {
+                create: 'plus',
+                drafts: 'edit',
+                saved: 'bookmark',
+                scheduled: 'clock',
+                'calendar-v2': 'calendar',
+                auto: 'sparkle',
+                video: 'video',
+                library: 'file',
+              };
+              return (
+                <BrandTooltip key={t.key} title={t.tooltip} placement="bottom" arrow>
+                  <button
+                    onClick={() => setActiveTab(t.key)}
+                    style={{
+                      padding: isMobile ? '8px 10px 9px' : '9px 14px 10px',
+                      border: 'none',
+                      background: 'none',
+                      cursor: 'pointer',
+                      fontSize: isMobile ? 12 : 13,
+                      fontWeight: active ? 700 : 500,
+                      fontFamily: 'var(--wf)',
+                      color: active ? '#C2185B' : '#777',
+                      borderBottom: active ? '2.5px solid #C2185B' : '2.5px solid transparent',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: isMobile ? 4 : 6,
+                      whiteSpace: 'nowrap',
+                      transition: 'color .15s',
+                      outline: 'none',
+                    }}
+                  >
+                    <I n={icons[t.key]} s={13} c={active ? '#C2185B' : '#aaa'} />
+                    {t.label}
+                    {t.count != null && t.count > 0 && (
+                      <span
+                        style={{
+                          background: active ? '#C2185B' : '#ede9e8',
+                          color: active ? '#fff' : '#777',
+                          borderRadius: 20,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: '1px 7px',
+                          lineHeight: '16px',
+                          minWidth: 18,
+                          textAlign: 'center',
+                        }}
+                      >
+                        {t.count}
+                      </span>
+                    )}
+                  </button>
+                </BrandTooltip>
+              );
+            })}
           </div>
         </div>
-
-        {/* Tab bar */}
-        <div
-          className="tab-scroll"
-          style={
-            {
-              display: 'flex',
-              gap: 2,
-              overflowX: 'auto',
-              WebkitOverflowScrolling: 'touch',
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-            } as React.CSSProperties
-          }
-        >
-          {tabs.map((t) => {
-            const active = activeTab === t.key;
-            const icons: Record<ContentTab, string> = {
-              create: 'plus',
-              drafts: 'edit',
-              saved: 'bookmark',
-              scheduled: 'clock',
-              'calendar-v2': 'calendar',
-              auto: 'sparkle',
-              video: 'video',
-            };
-            return (
-              <BrandTooltip key={t.key} title={t.tooltip} placement="bottom" arrow>
-                <button
-                  onClick={() => setActiveTab(t.key)}
-                  style={{
-                    padding: isMobile ? '8px 10px 9px' : '9px 14px 10px',
-                    border: 'none',
-                    background: 'none',
-                    cursor: 'pointer',
-                    fontSize: isMobile ? 12 : 13,
-                    fontWeight: active ? 700 : 500,
-                    fontFamily: 'var(--wf)',
-                    color: active ? '#C2185B' : '#777',
-                    borderBottom: active ? '2.5px solid #C2185B' : '2.5px solid transparent',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: isMobile ? 4 : 6,
-                    whiteSpace: 'nowrap',
-                    transition: 'color .15s',
-                    outline: 'none',
-                  }}
-                >
-                  <I n={icons[t.key]} s={13} c={active ? '#C2185B' : '#aaa'} />
-                  {t.label}
-                  {t.count != null && t.count > 0 && (
-                    <span
-                      style={{
-                        background: active ? '#C2185B' : '#ede9e8',
-                        color: active ? '#fff' : '#777',
-                        borderRadius: 20,
-                        fontSize: 10,
-                        fontWeight: 700,
-                        padding: '1px 7px',
-                        lineHeight: '16px',
-                        minWidth: 18,
-                        textAlign: 'center',
-                      }}
-                    >
-                      {t.count}
-                    </span>
-                  )}
-                </button>
-              </BrandTooltip>
-            );
-          })}
-        </div>
-      </div>
+      )}
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px' : '20px 24px' }}>
@@ -1442,43 +1638,73 @@ const ContentManagerPage = ({
             )}
             {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
 
-            {/* Create mode switcher */}
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {(
-                  [
-                    { key: 'generate', label: '✨ Generate Content' },
-                    { key: 'upload', label: '📤 Upload Content' },
-                  ] as { key: 'generate' | 'upload'; label: string }[]
-                ).map((mode) => (
-                  <button
-                    key={mode.key}
-                    onClick={() => setCreateMode(mode.key)}
-                    style={{
-                      flex: isMobile ? 1 : undefined,
-                      padding: isMobile ? '8px 10px' : '8px 18px',
-                      borderRadius: 10,
-                      border: createMode === mode.key ? 'none' : '1.5px solid #E5E7EB',
-                      background:
-                        createMode === mode.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
-                      color: createMode === mode.key ? '#fff' : '#6B7280',
-                      fontSize: isMobile ? 12.5 : 13,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {mode.label}
-                  </button>
-                ))}
+            {/* Create mode switcher — hidden while the wizard is active (the
+                only Generate Content experience now); shows in Upload
+                Content mode so you can switch back to Generate. */}
+            {!wizardActive && (
+              <div
+                style={{
+                  marginBottom: 20,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                }}
+              >
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {(
+                    [
+                      { key: 'generate', label: '✨ Generate Content' },
+                      { key: 'upload', label: '📤 Upload Content' },
+                    ] as { key: 'generate' | 'upload'; label: string }[]
+                  ).map((mode) => (
+                    <button
+                      key={mode.key}
+                      onClick={() => setCreateMode(mode.key)}
+                      style={{
+                        flex: isMobile ? 1 : undefined,
+                        padding: isMobile ? '8px 10px' : '8px 18px',
+                        borderRadius: 10,
+                        border: createMode === mode.key ? 'none' : '1.5px solid #E5E7EB',
+                        background:
+                          createMode === mode.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
+                        color: createMode === mode.key ? '#fff' : '#6B7280',
+                        fontSize: isMobile ? 12.5 : 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {createMode === 'generate' && (
+            {createMode === 'generate' && contentWizardEnabled && (
               <>
-                {/* V3 prompt system toggle - Hidden on main branch (develop-only feature) */}
-                {false && !loadingV3Status && (
+                {janeMessage && (
+                  <JaneWelcomeCard
+                    message={janeMessage}
+                    onAccept={onAcceptJaneMessage}
+                    onDecline={onDeclineJaneMessage}
+                    isGenerating={janeGenerating}
+                  />
+                )}
+                <ContentWizard
+                  onGenerated={handleGenerated}
+                  requireEmailVerification={requireEmailVerification}
+                  onSwitchToVideo={() => setActiveTab('video')}
+                />
+              </>
+            )}
+
+            {createMode === 'generate' && !contentWizardEnabled && (
+              <>
+                {!loadingV3Status && (
                   <div
                     style={{
                       marginBottom: 16,
@@ -1557,13 +1783,9 @@ const ContentManagerPage = ({
           </>
         )}
 
-        {/* JaneVideoChat keep-alive: mounted once, hidden with CSS when not active */}
-        {janeEverMounted && (
-          <div style={{ display: isJaneActive ? undefined : 'none' }}>
-            <JaneVideoChat onSaveToDrafts={() => setActiveTab('drafts')} isMobile={isMobile} />
-          </div>
-        )}
-
+        {/* The Generate Videos / Edit Videos switcher sits ABOVE the Jane chat. The chat is kept mounted in
+            the block below (so a session survives tab switches), which used to render first and
+            push these buttons underneath it whenever Edit Videos was selected. */}
         {activeTab === 'video' && (
           <>
             {/* 5 sub-tabs — horizontal scroll on mobile instead of wrapping,
@@ -1586,12 +1808,13 @@ const ContentManagerPage = ({
             >
               {(
                 [
-                  // All sub-tabs hidden for now — videoTab defaults to 'chat'
-                  // so Ask Jane still renders as the content, just without a
-                  // now-pointless single-button nav bar above it. Same
-                  // hide/un-hide pattern as the Video tab itself.
-                  // { key: 'chat', label: '✦ Ask Jane' },
-                  // { key: 'generate', label: '🎬 Generate' },
+                  // Produce/Zapcap/Compose stay hidden — still the legitimately
+                  // redundant tools the Jul 31 2026 decision folded into Edit Videos (the Jane chat).
+                  // Generate (storyboard -> frames -> outcome-routed video, see
+                  // VideoStoryboardGenerator.tsx) is real, working, and no longer
+                  // needs the URL-param side door it had before — un-hidden here.
+                  { key: 'generate', label: '🎬 Generate Videos' },
+                  { key: 'chat', label: '✦ Edit Videos' },
                   // { key: 'produce', label: '✨ Produce' },
                   // { key: 'zapcap', label: '⚡ Produce my video' },
                   // { key: 'compose', label: '🎞 Compose' },
@@ -1618,7 +1841,30 @@ const ContentManagerPage = ({
                 </button>
               ))}
             </div>
-            {videoTab === 'generate' && <VideoStoryboardGenerator />}
+          </>
+        )}
+
+        {/* JaneVideoChat keep-alive: mounted once, hidden with CSS when not active */}
+        {janeEverMounted && (
+          <div style={{ display: isJaneActive ? undefined : 'none' }}>
+            <JaneVideoChat
+              onSaveToDrafts={() => setActiveTab('library')}
+              isMobile={isMobile}
+              // Both undefined outside the Jane Ads hand-off, so this chat's
+              // normal flow renders exactly as it always has.
+              initialFile={videoPolishHandoff?.file}
+              onUseInCampaign={videoPolishHandoff ? onReturnToCampaignFromPolish : undefined}
+            />
+          </div>
+        )}
+
+        {activeTab === 'video' && (
+          <>
+            {videoTab === 'generate' && (
+              <>
+                <DescribeVideoGenerator onGoToDrafts={() => setActiveTab('library')} />
+              </>
+            )}
             {videoTab === 'produce' && (
               <VideoProductionForm
                 sourceUrl={pendingProduceUrl}
@@ -1628,17 +1874,17 @@ const ContentManagerPage = ({
                 }}
                 onSaveToDrafts={() => {
                   setPendingProduceUrl(null);
-                  setActiveTab('drafts');
+                  setActiveTab('library');
                 }}
               />
             )}
-            {videoTab === 'submagic' && <SubmagicProductionForm onSaveToDrafts={() => setActiveTab('drafts')} />}
+            {videoTab === 'submagic' && <SubmagicProductionForm onSaveToDrafts={() => setActiveTab('library')} />}
             {videoTab === 'zapcap' && (
               <ZapCapProductionForm
                 sourceUrl={pendingProduceUrl}
                 onSaveToDrafts={() => {
                   setPendingProduceUrl(null);
-                  setActiveTab('drafts');
+                  setActiveTab('library');
                 }}
               />
             )}
@@ -1652,6 +1898,8 @@ const ContentManagerPage = ({
             )}
           </>
         )}
+
+        {activeTab === 'library' && <ContentLibraryPage />}
 
         {activeTab === 'drafts' && (
           <>
@@ -1948,7 +2196,13 @@ const ContentManagerPage = ({
                       <input
                         type="datetime-local"
                         value={scheduleAllAt}
-                        onChange={(e) => setScheduleAllAt(e.target.value)}
+                        onChange={(e) => {
+                          setScheduleAllAt(e.target.value);
+                          // The native picker doesn't close itself once a full
+                          // date+time is set, so it sat visually on top of whatever
+                          // button sits below it until blurred.
+                          if (e.target.value) e.target.blur();
+                        }}
                         min={(() => {
                           const d = new Date(Date.now() + 5 * 60 * 1000);
                           const pad = (n: number) => String(n).padStart(2, '0');
@@ -2160,51 +2414,63 @@ const ContentManagerPage = ({
         )}
       </div>
 
-      {/* Jane footer bar */}
-      <div
-        style={{
-          padding: '10px 24px 14px',
-          borderTop: '1px solid #edecea',
-          background: '#fff',
-          display: 'flex',
-          gap: 7,
-          alignItems: 'center',
-        }}
-      >
-        <JaneAvatar size={26} />
-        <input
-          placeholder="Ask Jane about your content..."
+      {/* Jane footer bar — classic chrome only. This input never actually sent
+          what you typed: it has no value/onChange, and onJane() (bound to
+          goWorkspace) takes no message argument — Enter/Send just silently
+          drops whatever was typed and jumps to the old chat page instead.
+          Harmless as a "jump to Jane" shortcut on the classic tabs, but on a
+          dedicated page (Library/Calendar/Auto/Video, each with its own real,
+          working Jane chat already in view) it sat there looking like a
+          working second input and wasn't one — confirmed as exactly what
+          "not responsive" meant on the Video tab specifically. Hidden here
+          the same way these pages already get their own compact header
+          instead of the classic one, for the same reason. */}
+      {!dedicatedPageActive && (
+        <div
           style={{
-            flex: 1,
-            padding: '9px 13px',
-            borderRadius: 9,
-            border: '1.5px solid #e5e3df',
-            fontSize: 13,
-            fontFamily: 'var(--wf)',
-            outline: 'none',
-            background: '#fafaf8',
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') onJane();
-          }}
-        />
-        <button
-          onClick={onJane}
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: 7,
-            border: 'none',
-            background: '#C2185B',
-            cursor: 'pointer',
+            padding: '10px 24px 14px',
+            borderTop: '1px solid #edecea',
+            background: '#fff',
             display: 'flex',
+            gap: 7,
             alignItems: 'center',
-            justifyContent: 'center',
           }}
         >
-          <I n="send" s={13} c="#fff" />
-        </button>
-      </div>
+          <JaneAvatar size={26} />
+          <input
+            placeholder="Ask Jane about your content..."
+            style={{
+              flex: 1,
+              padding: '9px 13px',
+              borderRadius: 9,
+              border: '1.5px solid #e5e3df',
+              fontSize: 13,
+              fontFamily: 'var(--wf)',
+              outline: 'none',
+              background: '#fafaf8',
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onJane();
+            }}
+          />
+          <button
+            onClick={onJane}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 7,
+              border: 'none',
+              background: '#C2185B',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <I n="send" s={13} c="#fff" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -2274,19 +2540,62 @@ const SubPage = ({
   desc,
   children,
   onJane,
+  isMobile,
+  onOpenSectionNav,
 }: {
   title: string;
   icon: string;
   desc: string;
   children: ReactNode;
   onJane: () => void;
+  // Mobile has no sidebar — this page's own bold title is the one thing on
+  // screen a tap there would obviously land on, so that's where the section
+  // switcher (Content Studio / Campaign Manager / Performance / Settings /
+  // Connected Accounts) lives now, not a small chip competing with the logo,
+  // credits and avatar up in the Topbar. Both optional: desktop passes
+  // neither and gets the plain, non-interactive title it always had.
+  isMobile?: boolean;
+  onOpenSectionNav?: () => void;
 }) => (
   <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
     <div style={{ padding: '18px 24px 14px', borderBottom: '1px solid #edecea' }}>
-      <h2 style={{ fontSize: 17, fontWeight: 800, color: '#111', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <I n={icon} s={18} c="#C2185B" />
-        {title}
-      </h2>
+      {isMobile && onOpenSectionNav ? (
+        <button
+          onClick={onOpenSectionNav}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            border: 'none',
+            background: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            font: 'inherit',
+            color: 'inherit',
+          }}
+        >
+          <h2
+            style={{
+              fontSize: 17,
+              fontWeight: 800,
+              color: '#111',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              margin: 0,
+            }}
+          >
+            <I n={icon} s={18} c="#C2185B" />
+            {title}
+          </h2>
+          <I n="chevronRight" s={13} c="#C2185B" />
+        </button>
+      ) : (
+        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#111', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <I n={icon} s={18} c="#C2185B" />
+          {title}
+        </h2>
+      )}
       <p style={{ fontSize: 12.5, color: '#999', marginTop: 2 }}>{desc}</p>
     </div>
     <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>{children}</div>
@@ -2398,14 +2707,20 @@ const PLATFORMS = [
     label: 'TikTok',
     color: '#010101',
     bg: '#F0F0F0',
-    // Direct (FILE_UPLOAD) OAuth exists (tiktok_direct_service.py,
-    // /connect/tiktok-direct/*) but is hidden here for now — it's blocked on
-    // TikTok's redirect_uri review, and a real customer's Outstand-mediated
-    // connect surfaced a more pressing bug (no local finalize step) that
-    // needs fixing before adding a second connect path back into the UI.
+    // TikTok can be connected two ways, offered side by side on this card (see the
+    // two buttons below): through Outstand ('outstand_oauth', the default flow here),
+    // or directly with TikTok login ('tiktok_direct_oauth', /connect/tiktok-direct/*,
+    // with the pending->finalize step on return). Posting follows whichever is
+    // connected — a direct connection posts with the Content Posting API itself,
+    // an Outstand one posts through Outstand — and both go through the Post to
+    // TikTok screen.
     flow: 'outstand_oauth',
-    tooltip: 'Connect your TikTok account to publish videos directly from your saved video drafts',
+    tooltip:
+      'Connect your TikTok account to publish images and videos. Choose how: through Outstand, or directly with TikTok login. Posts are sent the way the account is connected.',
   },
+  // Ad platforms grouped together at the end (not interleaved with the organic
+  // ones above) so the page can show them under their own "Ad Accounts" heading
+  // — see the render loop's isAdPlatform check.
   {
     id: 'facebook_ads',
     label: 'Facebook Ads',
@@ -2415,33 +2730,26 @@ const PLATFORMS = [
     tooltip:
       "The Facebook Page Jane's ad campaigns actually run from — separate from the Facebook connection above, which is only for organic posts. Requires its own ads-permission grant.",
   },
-  // Google Ads connection card hidden here for now — the flow/backend still
-  // exist untouched (jane_ads/google_ads_connection.py, /jane-ads/google/*),
-  // this only removes it from the Connections page's visible platform list.
-  // {
-  //   id: 'google_ads',
-  //   label: 'Google Ads',
-  //   color: '#4285F4',
-  //   bg: '#E8F0FE',
-  //   flow: 'google_ads_direct',
-  //   tooltip:
-  //     "The Google Ads account Jane's Search campaigns run from — separate from any other Google connection. Links to (or creates) an account under URI's manager account.",
-  // },
+  {
+    id: 'google_ads',
+    label: 'Google Ads',
+    color: '#4285F4',
+    bg: '#E8F0FE',
+    flow: 'google_ads_direct',
+    tooltip:
+      'Where Jane runs your Google ads (Search, Display, YouTube & Discover). Run by URI: nothing to connect, you pay only from your URI wallet. Or use your own Google Ads account: Google bills you for the ad spend and URI charges only its fee.',
+  },
 ];
 
-// Real phone validation via libphonenumber-js (Google's own metadata for every
-// country) instead of a hand-maintained list/regex — covers every country's
-// actual numbering rules (length, valid prefixes), not just "starts with +".
-const validateWhatsappPhone = (raw: string): string | null => {
-  const cleaned = raw.trim();
-  if (!cleaned) return 'Enter a phone number to connect.';
-  if (!isValidPhoneNumber(cleaned)) {
-    return "That doesn't look like a valid phone number for the selected country — double-check the digits.";
-  }
-  return null;
-};
-
-const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
+const ConnectionsPage = ({
+  onJane,
+  isMobile,
+  onOpenSectionNav,
+}: {
+  onJane: () => void;
+  isMobile?: boolean;
+  onOpenSectionNav?: () => void;
+}) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [statuses, setStatuses] = useState<Record<string, PlatformStatus>>({});
@@ -2458,13 +2766,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   // instagram, tiktok — the platforms that can have more than one page/
   // account connected at once).
   const [expandedAccountLists, setExpandedAccountLists] = useState<Set<string>>(new Set());
-  // E.164 string (e.g. "+2348012345678") or undefined while empty — the shape
-  // react-phone-number-input's <PhoneInput> value/onChange expects.
-  const [waPhone, setWaPhone] = useState<string | undefined>(undefined);
+  const [waPhone, setWaPhone] = useState('');
   const [waExpanded, setWaExpanded] = useState(false);
   const [waError, setWaError] = useState('');
-  const [liPages, setLiPages] = useState<LinkedInPagesData | null>(null);
-  const [liPagesLoading, setLiPagesLoading] = useState(false);
   // The number Jane's ads route leads to (GET/PUT /jane-ads/whatsapp) — distinct
   // from waPhone above, which is the daily-push notification number. Previously
   // only settable reactively, buried inside a campaign chat prompt when a launch
@@ -2474,6 +2778,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const [adsWaSaving, setAdsWaSaving] = useState(false);
   const [adsWaError, setAdsWaError] = useState('');
   const [adsWaLoaded, setAdsWaLoaded] = useState(false);
+  const [liPages, setLiPages] = useState<LinkedInPagesData | null>(null);
+  const [liPagesLoading, setLiPagesLoading] = useState(false);
   // Google Ads account-selection panel (needs_account_selection state) — the extra
   // step Meta's ads connection doesn't have: after OAuth, the brand still has to
   // link an existing Google Ads account or create one fresh under URI's MCC.
@@ -2549,6 +2855,10 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     }
   };
 
+  // Spinner on the first load only. Every later refresh (after connecting,
+  // choosing an option, saving a number...) updates the cards in place —
+  // swapping the whole list for a spinner on each click read as a page reload.
+  const statusesLoadedRef = useRef(false);
   // After a Facebook/Instagram connect: ask Meta to start delivering the Page's messages and,
   // when it refuses, say why and what to do — a connection that looks fine but receives
   // nothing is the worst outcome.
@@ -2562,7 +2872,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   };
 
   const loadStatuses = async () => {
-    setLoading(true);
+    if (!statusesLoadedRef.current) setLoading(true);
     try {
       const [li, x, wa, fbIg, fbAds, gAds] = await Promise.all([
         withTimeout(SocialConnectionService.linkedinStatus()),
@@ -2573,6 +2883,41 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         withTimeout(CampaignService.getGoogleConnectionStatus()),
       ]);
       const next: Record<string, PlatformStatus> = {};
+      if (fbAds) {
+        // "linked" here means an ads-scoped Page connection actually exists — not
+        // necessarily fully READY (e.g. ads_no_whatsapp/expired still show the Page
+        // name, just with their own state reason below).
+        next.facebook_ads = {
+          linked: !['none', 'content_only'].includes(fbAds.state),
+          account_name: fbAds.page_name || undefined,
+          meta_connection_state: fbAds.state,
+        };
+      }
+      if (gAds) {
+        // Same "linked = anything beyond nothing at all" convention as facebook_ads —
+        // the card's own state-specific subtext (see the render below) carries the
+        // detail for every state short of fully ready.
+        // Two ways to run Google ads: by URI (nothing to connect) or in the brand's
+        // own account. "Linked" means the chosen way is ready.
+        const googleMode = gAds.mode === 'own' ? 'own' : 'uri';
+        next.google_ads = {
+          linked: googleMode === 'uri' ? !!gAds.uri_managed : gAds.state !== 'none',
+          account_name:
+            googleMode === 'uri' ? (gAds.uri_managed ? 'Run by URI' : undefined) : gAds.account_name || undefined,
+          google_mode: googleMode,
+          google_uri_managed: !!gAds.uri_managed,
+          google_connection_state: gAds.state,
+          google_customer_id: gAds.customer_id || undefined,
+          google_whatsapp_number: gAds.whatsapp_number || undefined,
+          google_can_create_account: gAds.can_create_account,
+          google_manager_id: gAds.manager_customer_id || undefined,
+          google_link_detail: gAds.detail || undefined,
+          google_created_by_uri: !!gAds.created_by_uri,
+          google_currency: gAds.currency_code || undefined,
+          google_signin_verified: gAds.signin_verified,
+          google_finishing: !!gAds.finishing,
+        };
+      }
       next.linkedin = li?.responseData ?? { linked: false };
       if (next.linkedin.linked) loadLinkedInPages();
       next.x = x?.responseData ?? { linked: false };
@@ -2621,29 +2966,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         next.instagram = { linked: false };
         next.tiktok = { linked: false };
       }
-      if (fbAds) {
-        // "linked" here means an ads-scoped Page connection actually exists — not
-        // necessarily fully READY (e.g. ads_no_whatsapp/expired still show the Page
-        // name, just with their own state reason below).
-        next.facebook_ads = {
-          linked: !['none', 'content_only'].includes(fbAds.state),
-          account_name: fbAds.page_name || undefined,
-          meta_connection_state: fbAds.state,
-        };
-      }
-      if (gAds) {
-        // Same "linked = anything beyond nothing at all" convention as facebook_ads —
-        // the card's own state-specific subtext (see the render below) carries the
-        // detail for every state short of fully ready.
-        next.google_ads = {
-          linked: gAds.state !== 'none',
-          account_name: gAds.account_name || undefined,
-          google_connection_state: gAds.state,
-          google_customer_id: gAds.customer_id || undefined,
-          google_whatsapp_number: gAds.whatsapp_number || undefined,
-        };
-      }
       setStatuses(next);
+      statusesLoadedRef.current = true;
     } finally {
       setLoading(false);
     }
@@ -2652,6 +2976,21 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   useEffect(() => {
     loadStatuses();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // This page's own sub-nav ("Social Accounts"/"Ad Accounts") and Campaign
+  // Manager's "Ad Accounts" entry both land here with ?anchor=social|ads —
+  // without this, they'd all just open this whole organic+ads connections
+  // page at its first card (LinkedIn) regardless of which group was meant.
+  // Waits for loading to clear so the section it's scrolling to actually
+  // exists on the page yet.
+  useEffect(() => {
+    if (loading) return;
+    const anchor = searchParams?.get('anchor');
+    if (anchor !== 'social' && anchor !== 'ads') return;
+    document
+      .getElementById(anchor === 'ads' ? 'connections-section-ads' : 'connections-section-social')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [loading, searchParams]);
 
   useEffect(() => {
     CampaignService.getWhatsapp().then((number) => {
@@ -2754,6 +3093,30 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
             }
           })
           .catch(() => ToastService.showToast('Facebook connection failed. Please try again.', ToastTypeEnum.Error));
+      }
+    } else if (connected === 'tiktok_direct') {
+      const ttOpenId = searchParams.get('tt_open_id') ?? '';
+      const accountName = searchParams.get('account_name')
+        ? decodeURIComponent(searchParams.get('account_name')!)
+        : 'TikTok';
+      router.replace('/workspace/?tab=connections');
+      if (ttOpenId) {
+        SocialAccountService.finalizeTikTokDirect(ttOpenId)
+          .then((res) => {
+            if (res.status) {
+              ToastService.showToast(`${accountName} connected!`, ToastTypeEnum.Success);
+              posthog.capture('social_account_connected', { platform: 'tiktok', account_name: accountName });
+              try {
+                sessionStorage.removeItem('social_connections_cache');
+              } catch {
+                /* noop */
+              }
+              loadStatuses();
+            } else {
+              ToastService.showToast('TikTok connection failed. Please try again.', ToastTypeEnum.Error);
+            }
+          })
+          .catch(() => ToastService.showToast('TikTok connection failed. Please try again.', ToastTypeEnum.Error));
       }
     } else if (connected === 'facebook_ads') {
       // Ads-scoped grant (Per-Brand Page Connection plan) — separate from facebook_direct
@@ -2903,6 +3266,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           /* noop */
         }
         loadStatuses();
+        warnIfInboxBlocked();
       } else {
         ToastService.showToast(
           res.responseMessage || 'Could not connect those accounts. Please try again.',
@@ -2988,15 +3352,44 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       redirectOrWarn(`${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`, id);
       return;
     }
+    if (flow === 'facebook_direct_oauth') {
+      setConnecting(id);
+      // Meta's own sign-in, through URI's app: the Page is connected directly and its posts go
+      // straight to Facebook. Meta returns here (?connected=facebook_direct) and the effect above
+      // finishes the connection.
+      localStorage.setItem('outstand_connect_platform', id);
+      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
+      window.location.href = `${apiBase}/social-media/connect/facebook-direct/initiate?source=settings`;
+      return;
+    }
+    if (flow === 'tiktok_direct_oauth') {
+      setConnecting(id);
+      // Direct TikTok Login Kit flow (FILE_UPLOAD posting, bypasses Outstand) —
+      // same full-page redirect shape as Instagram/Facebook direct above.
+      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
+      window.location.href = `${apiBase}/social-media/connect/tiktok-direct/initiate?source=settings`;
+      return;
+    }
     if (flow === 'facebook_ads_oauth') {
       setConnecting(id);
+      // Ads-scoped grant (Per-Brand Page Connection plan) — separate from the
+      // organic Facebook connection above; requesting ads_management etc.
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
       window.location.href = `${apiBase}/social-media/connect/facebook-ads/initiate?source=settings`;
       return;
     }
     if (flow === 'google_ads_direct') {
+      const googleSigninVerified = statuses.google_ads?.google_signin_verified === true;
       setConnecting(id);
+      // No OAuth redirect: Google Ads API calls authenticate as URI's own admin
+      // identity, never the brand's own Google login (Google's agency/MCC model —
+      // see the backend's google_ads_connection.py module docstring), so there's
+      // nothing for the brand to personally authorize. Synchronous call straight
+      // to the account-selection state.
+      // One click: straight to Google sign-in, where they pick their Ads account by
+      // name. If that can't open, fall back to the panel below (enter a Customer ID).
       try {
+        if (googleSigninVerified && (await continueWithGoogle())) return;
         await CampaignService.connectGoogleAds();
         await loadStatuses();
       } catch {
@@ -3029,31 +3422,27 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   };
 
   const handleWhatsappSubmit = async () => {
-    if (!waPhone) return;
+    if (!waPhone.trim()) return;
     setWaError('');
-    const validationError = validateWhatsappPhone(waPhone);
-    if (validationError) {
-      setWaError(validationError);
-      return;
-    }
     setConnecting('whatsapp');
     try {
-      const res = await SocialConnectionService.whatsappConnect(waPhone);
+      const res = await SocialConnectionService.whatsappConnect(waPhone.trim());
       const detail = (res as unknown as { detail?: string }).detail;
       if (res.status) {
-        const phone = res.responseData?.phone ?? waPhone;
+        const phone = res.responseData?.phone ?? waPhone.trim();
         saveWaCache(phone);
         setWaExpanded(false);
-        setWaPhone(undefined);
+        setWaPhone('');
         setStatuses((prev) => ({ ...prev, whatsapp: { linked: true, phone } }));
+      } else if (
+        detail?.toLowerCase().includes('already linked') ||
+        detail?.toLowerCase().includes('already connected')
+      ) {
+        saveWaCache(waPhone.trim());
+        setWaExpanded(false);
+        setWaPhone('');
+        setStatuses((prev) => ({ ...prev, whatsapp: { linked: true, phone: waPhone.trim() } }));
       } else {
-        // POST /whatsapp/connect only returns a "linked" conflict when the
-        // number belongs to a DIFFERENT account — resubmitting your own
-        // already-linked number succeeds normally (res.status true) instead
-        // of hitting this branch at all. So there's no case here that
-        // should be treated as success; this used to match on "already
-        // linked"/"already connected" and silently show Connected for a
-        // number that was actually rejected and never linked to this user.
         setWaError(detail || res.responseMessage || 'Failed to connect. Please try again.');
       }
     } catch (err) {
@@ -3061,9 +3450,13 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       const errData = (err as { data?: { detail?: string; responseMessage?: string } } | null)?.data;
       const errDetail = errData?.detail ?? errData?.responseMessage ?? '';
       const lower = errDetail.toLowerCase();
-      // Same reasoning as above — a "different account" conflict is a real
-      // rejection, never a stand-in for "you're already connected".
-      if (lower.includes('invalid') || lower.includes('not a valid') || lower.includes('format')) {
+      if (lower.includes('already linked') || lower.includes('already connected') || lower.includes('already in use')) {
+        // Treat as a successful connection — number was already registered
+        saveWaCache(waPhone.trim());
+        setWaExpanded(false);
+        setWaPhone('');
+        setStatuses((prev) => ({ ...prev, whatsapp: { linked: true, phone: waPhone.trim() } }));
+      } else if (lower.includes('invalid') || lower.includes('not a valid') || lower.includes('format')) {
         setWaError('Invalid phone number. Use international format, e.g. +2348012345678.');
       } else if (errDetail) {
         setWaError(errDetail);
@@ -3218,6 +3611,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         icon="share"
         desc="Manage your social media platform connections"
         onJane={onJane}
+        isMobile={isMobile}
+        onOpenSectionNav={onOpenSectionNav}
       >
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0', gap: 14 }}>
           <div
@@ -3242,6 +3637,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       icon="share"
       desc="Manage your social media platform connections"
       onJane={onJane}
+      isMobile={isMobile}
+      onOpenSectionNav={onOpenSectionNav}
     >
       {/* Facebook page selection after OAuth callback */}
       {igPendingToken && (
@@ -3757,175 +4154,312 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {/* WhatsApp connect isn't in use right now — hidden in production only,
              left visible in dev/staging so it can still be tested there. */}
-          {PLATFORMS.filter((p) => !(p.id === 'whatsapp' && IS_PRODUCTION)).map((p) => {
+          {PLATFORMS.filter((p) => !((p.id === 'whatsapp' || p.id === 'google_ads') && IS_PRODUCTION)).map((p) => {
             const s = statuses[p.id];
             const linked = s?.linked ?? false;
             const isBusy = disconnecting === p.id || connecting === p.id;
+            const adsExpired = p.id === 'facebook_ads' && s?.meta_connection_state === 'expired';
             return (
-              <div key={p.id}>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 14,
-                    padding: '14px 16px',
-                    borderRadius: 12,
-                    border: `1.5px solid ${linked ? p.color + '44' : '#edecea'}`,
-                    background: linked ? p.bg : '#fff',
-                    transition: 'all .15s',
-                  }}
-                >
-                  <div
+              // Two real section headings, not just an invisible scroll target —
+              // PLATFORMS is ordered organic-then-ads (see its own comment) so
+              // 'linkedin'/'facebook_ads' are exactly where each group starts.
+              // Connected Accounts' own sub-nav (and Campaign Manager's Ad
+              // Accounts entry) scrolls straight to the one it means.
+              <React.Fragment key={p.id}>
+                {p.id === 'linkedin' && (
+                  <h3
+                    id="connections-section-social"
                     style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 11,
-                      background: linked ? '#fff' : p.bg,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                      boxShadow: '0 1px 4px rgba(0,0,0,.06)',
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      color: '#999',
+                      textTransform: 'uppercase',
+                      letterSpacing: '.04em',
+                      margin: '4px 0 2px',
                     }}
                   >
-                    {PLATFORM_ICON[p.id]}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ fontSize: 13.5, fontWeight: 700, color: '#111' }}>{p.label}</span>
-                      <BrandTooltip title={p.tooltip} arrow placement="right">
-                        <span style={{ display: 'inline-flex', cursor: 'help' }}>
-                          <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10" />
-                            <path d="M12 16v-4M12 8h.01" />
-                          </svg>
-                        </span>
-                      </BrandTooltip>
+                    Social Accounts
+                  </h3>
+                )}
+                {p.id === 'facebook_ads' && (
+                  <h3
+                    id="connections-section-ads"
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      color: '#999',
+                      textTransform: 'uppercase',
+                      letterSpacing: '.04em',
+                      margin: '14px 0 2px',
+                    }}
+                  >
+                    Ad Accounts
+                  </h3>
+                )}
+                <div id={`platform-card-${p.id}`}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 14,
+                      padding: '14px 16px',
+                      borderRadius: 12,
+                      border: `1.5px solid ${adsExpired ? '#E8A5A5' : linked ? p.color + '44' : '#edecea'}`,
+                      background: adsExpired ? '#FFF5F5' : linked ? p.bg : '#fff',
+                      transition: 'all .15s',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 11,
+                        background: linked ? '#fff' : p.bg,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        boxShadow: '0 1px 4px rgba(0,0,0,.06)',
+                      }}
+                    >
+                      {PLATFORM_ICON[p.id]}
                     </div>
-                    {linked ? (
-                      <div style={{ fontSize: 11.5, color: '#555', marginTop: 1 }}>
-                        {s?.account_name || s?.username || s?.phone || 'Connected'}
-                        {p.id === 'facebook_ads' && s?.meta_connection_state === 'ads_no_whatsapp' && (
-                          <span style={{ color: '#a15c00' }}> — WhatsApp not linked yet</span>
-                        )}
-                        {p.id === 'facebook_ads' && s?.meta_connection_state === 'expired' && (
-                          <span style={{ color: '#c62828' }}> — needs reconnecting</span>
-                        )}
-                        {/* Meta refused to give URI advertising access to the Page.
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ fontSize: 13.5, fontWeight: 700, color: '#111' }}>{p.label}</span>
+                        <BrandTooltip title={p.tooltip} arrow placement="right">
+                          <span style={{ display: 'inline-flex', cursor: 'help' }}>
+                            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2">
+                              <circle cx="12" cy="12" r="10" />
+                              <path d="M12 16v-4M12 8h.01" />
+                            </svg>
+                          </span>
+                        </BrandTooltip>
+                      </div>
+                      {linked ? (
+                        <div style={{ fontSize: 11.5, color: '#555', marginTop: 1 }}>
+                          {s?.account_name || s?.username || s?.phone || 'Connected'}
+                          {p.id === 'facebook_ads' && s?.meta_connection_state === 'ads_no_whatsapp' && (
+                            <span style={{ color: '#a15c00' }}> — WhatsApp not linked yet</span>
+                          )}
+                          {adsExpired && (
+                            <div style={{ color: '#c62828', marginTop: 3, lineHeight: 1.45 }}>
+                              Your connection has expired. Reconnect so your ads run from this Page and its messages
+                              reach your inbox. Until you do, you can&rsquo;t launch new ads.
+                            </div>
+                          )}
+                          {/* Meta refused to give URI advertising access to the Page.
                             Reconnecting re-runs the identical grant and is refused
                             identically — one client tried several times. Name the
                             thing the client can actually change: their own role. */}
-                        {p.id === 'facebook_ads' && s?.meta_connection_state === 'page_not_shared' && (
-                          <span style={{ color: '#c62828' }}>
-                            {' '}
-                            — you don&rsquo;t have full admin access to this Page. Ask whoever manages it to make you an
-                            admin, then reconnect.
-                          </span>
-                        )}
-                        {p.id === 'google_ads' && s?.google_connection_state === 'needs_account_selection' && (
-                          <span style={{ color: '#4285F4' }}> — choose or create your Ads account below</span>
-                        )}
-                        {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_pending' && (
-                          <span style={{ color: '#a15c00' }}> — waiting for you to accept the link in Google Ads</span>
-                        )}
-                        {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_refused' && (
-                          <span style={{ color: '#c62828' }}> — already linked to another manager</span>
-                        )}
-                        {p.id === 'google_ads' &&
-                          s?.google_connection_state === 'ready' &&
-                          !s?.google_whatsapp_number && (
-                            <span style={{ color: '#a15c00' }}> — add a WhatsApp number below</span>
+                          {p.id === 'facebook_ads' && s?.meta_connection_state === 'page_not_shared' && (
+                            <span style={{ color: '#c62828' }}>
+                              {' '}
+                              — you don&rsquo;t have full admin access to this Page. Ask whoever manages it to make you
+                              an admin, then reconnect.
+                            </span>
                           )}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 11.5, color: '#bbb', marginTop: 1 }}>
-                        {p.id === 'facebook_ads'
-                          ? 'No ads Page connected yet'
-                          : p.id === 'google_ads'
-                            ? 'No ads account connected yet'
-                            : 'Not connected'}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        background: linked ? '#4caf50' : '#ddd',
-                        boxShadow: linked ? '0 0 6px rgba(76,175,80,.5)' : 'none',
-                      }}
-                    />
-                    {p.comingSoon ? (
-                      <span
+                          {p.id === 'google_ads' && s?.google_mode === 'uri' && (
+                            <span style={{ color: '#1a7f37' }}>
+                              {' '}
+                              — nothing to connect; you pay only from your URI wallet
+                            </span>
+                          )}
+                          {p.id === 'google_ads' &&
+                            s?.google_mode === 'own' &&
+                            s?.google_connection_state === 'needs_account_selection' && (
+                              <span style={{ color: '#4285F4' }}> — choose or create your Ads account below</span>
+                            )}
+                          {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_pending' && (
+                            <span style={{ color: '#a15c00' }}>
+                              {' '}
+                              — waiting for you to accept the link in Google Ads
+                            </span>
+                          )}
+                          {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_refused' && (
+                            <span style={{ color: '#c62828' }}> — Google would not link this account</span>
+                          )}
+                          {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_declined' && (
+                            <span style={{ color: '#c62828' }}> — link request declined or removed</span>
+                          )}
+                          {p.id === 'google_ads' &&
+                            s?.google_connection_state === 'ready' &&
+                            !s?.google_whatsapp_number && (
+                              <span style={{ color: '#a15c00' }}> — add a WhatsApp number below</span>
+                            )}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 11.5, color: '#bbb', marginTop: 1 }}>
+                          {p.id === 'facebook_ads'
+                            ? 'No ads Page connected yet'
+                            : p.id === 'google_ads'
+                              ? s?.google_mode === 'own'
+                                ? 'Your Google Ads account isn’t connected yet'
+                                : 'Google ads run by URI are being set up'
+                              : 'Not connected'}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div
                         style={{
-                          padding: '5px 12px',
-                          borderRadius: 7,
-                          border: '1px solid #E5E7EB',
-                          background: '#F9FAFB',
-                          fontSize: 11.5,
-                          color: '#9CA3AF',
-                          fontWeight: 600,
-                          fontFamily: 'var(--wf)',
-                          letterSpacing: 0.2,
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: adsExpired ? '#c62828' : linked ? '#4caf50' : '#ddd',
+                          boxShadow: adsExpired
+                            ? '0 0 6px rgba(198,40,40,.4)'
+                            : linked
+                              ? '0 0 6px rgba(76,175,80,.5)'
+                              : 'none',
                         }}
-                      >
-                        Coming Soon
-                      </span>
-                    ) : linked && (p.id === 'facebook' || p.id === 'instagram' || p.id === 'tiktok') ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {(s?.accounts?.length ?? 0) > 0 && (
+                      />
+                      {p.comingSoon ? (
+                        <span
+                          style={{
+                            padding: '5px 12px',
+                            borderRadius: 7,
+                            border: '1px solid #E5E7EB',
+                            background: '#F9FAFB',
+                            fontSize: 11.5,
+                            color: '#9CA3AF',
+                            fontWeight: 600,
+                            fontFamily: 'var(--wf)',
+                            letterSpacing: 0.2,
+                          }}
+                        >
+                          Coming Soon
+                        </span>
+                      ) : linked && p.id === 'facebook_ads' ? (
+                        // No disconnect endpoint exists for this ads-scoped connection —
+                        // the meaningful action here is reconnecting (e.g. after
+                        // 'expired'), which just re-runs the same OAuth grant and
+                        // overwrites it.
+                        <button
+                          type="button"
+                          onClick={() => handleConnect(p.id, p.flow)}
+                          disabled={isBusy}
+                          style={{
+                            padding: '5px 12px',
+                            borderRadius: 7,
+                            border: adsExpired ? '1px solid #C2185B' : '1px solid #edecea',
+                            background: adsExpired ? '#C2185B' : '#fff',
+                            fontSize: 12,
+                            color: adsExpired ? '#fff' : '#888',
+                            fontWeight: adsExpired ? 700 : 400,
+                            cursor: 'pointer',
+                            fontFamily: 'var(--wf)',
+                            opacity: isBusy ? 0.5 : 1,
+                          }}
+                        >
+                          Reconnect
+                        </button>
+                      ) : p.id === 'google_ads' && (linked || s?.google_mode !== 'own') ? (
+                        // No button here on purpose — Google Ads has no per-brand token
+                        // to expire (it authenticates as URI's own admin identity, see
+                        // the backend's google_ads_connection.py) and no disconnect
+                        // endpoint exists. Whatever action is relevant for the current
+                        // sub-state (choose/create account, check link status) is
+                        // already surfaced by the panels below the card.
+                        <></>
+                      ) : linked && (p.id === 'facebook' || p.id === 'instagram' || p.id === 'tiktok') ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {(s?.accounts?.length ?? 0) > 0 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedAccountLists((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(p.id)) next.delete(p.id);
+                                  else next.add(p.id);
+                                  return next;
+                                })
+                              }
+                              aria-label={
+                                expandedAccountLists.has(p.id) ? 'Collapse connected pages' : 'Show connected pages'
+                              }
+                              style={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: 6,
+                                border: '1px solid #edecea',
+                                background: '#fff',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              <svg
+                                width={12}
+                                height={12}
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="#888"
+                                strokeWidth="2.5"
+                                style={{
+                                  transform: expandedAccountLists.has(p.id) ? 'rotate(180deg)' : 'none',
+                                  transition: 'transform .15s',
+                                }}
+                              >
+                                <path d="M6 9l6 6 6-6" />
+                              </svg>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() =>
-                              setExpandedAccountLists((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(p.id)) next.delete(p.id);
-                                else next.add(p.id);
-                                return next;
+                              setConfirmAction({
+                                title: `Disconnect all ${p.label} accounts?`,
+                                message: `This disconnects every ${p.label} page/account currently connected. You can reconnect them later, but any scheduled posts tied to them may be affected.`,
+                                confirmText: 'Disconnect All',
+                                run: () => handleDisconnectAllPlatform(p.id),
                               })
                             }
-                            aria-label={
-                              expandedAccountLists.has(p.id) ? 'Collapse connected pages' : 'Show connected pages'
-                            }
+                            disabled={isBusy}
                             style={{
-                              width: 24,
-                              height: 24,
-                              borderRadius: 6,
+                              padding: '5px 12px',
+                              borderRadius: 7,
                               border: '1px solid #edecea',
                               background: '#fff',
+                              fontSize: 12,
+                              color: '#888',
                               cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flexShrink: 0,
+                              fontFamily: 'var(--wf)',
+                              opacity: isBusy ? 0.5 : 1,
+                              whiteSpace: 'nowrap',
                             }}
                           >
-                            <svg
-                              width={12}
-                              height={12}
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="#888"
-                              strokeWidth="2.5"
-                              style={{
-                                transform: expandedAccountLists.has(p.id) ? 'rotate(180deg)' : 'none',
-                                transition: 'transform .15s',
-                              }}
-                            >
-                              <path d="M6 9l6 6 6-6" />
-                            </svg>
+                            {disconnecting === `${p.id}:all` ? (
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <span
+                                  style={{
+                                    width: 10,
+                                    height: 10,
+                                    border: '2px solid #ccc',
+                                    borderTopColor: '#888',
+                                    borderRadius: '50%',
+                                    display: 'inline-block',
+                                    animation: 'spin 0.7s linear infinite',
+                                  }}
+                                />
+                                Disconnecting...
+                              </span>
+                            ) : (
+                              'Disconnect All'
+                            )}
                           </button>
-                        )}
+                        </div>
+                      ) : linked ? (
                         <button
                           type="button"
                           onClick={() =>
                             setConfirmAction({
-                              title: `Disconnect all ${p.label} accounts?`,
-                              message: `This disconnects every ${p.label} page/account currently connected. You can reconnect them later, but any scheduled posts tied to them may be affected.`,
-                              confirmText: 'Disconnect All',
-                              run: () => handleDisconnectAllPlatform(p.id),
+                              title: `Disconnect ${p.label}?`,
+                              message: `This disconnects your ${p.label} account. You can reconnect it again at any time.`,
+                              confirmText: 'Disconnect',
+                              run: () => handleDisconnect(p.id),
                             })
                           }
                           disabled={isBusy}
@@ -3939,10 +4473,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                             cursor: 'pointer',
                             fontFamily: 'var(--wf)',
                             opacity: isBusy ? 0.5 : 1,
-                            whiteSpace: 'nowrap',
                           }}
                         >
-                          {disconnecting === `${p.id}:all` ? (
+                          {disconnecting === p.id ? (
                             <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                               <span
                                 style={{
@@ -3958,131 +4491,235 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                               Disconnecting...
                             </span>
                           ) : (
-                            'Disconnect All'
+                            'Disconnect'
                           )}
                         </button>
-                      </div>
-                    ) : linked && p.id === 'facebook_ads' ? (
-                      // No disconnect endpoint exists for this ads-scoped connection —
-                      // the meaningful action here is reconnecting (e.g. after
-                      // 'expired'), which just re-runs the same OAuth grant and
-                      // overwrites it.
-                      <button
-                        type="button"
-                        onClick={() => handleConnect(p.id, p.flow)}
-                        disabled={isBusy}
-                        style={{
-                          padding: '5px 12px',
-                          borderRadius: 7,
-                          border: '1px solid #edecea',
-                          background: '#fff',
-                          fontSize: 12,
-                          color: '#888',
-                          cursor: 'pointer',
-                          fontFamily: 'var(--wf)',
-                          opacity: isBusy ? 0.5 : 1,
-                        }}
-                      >
-                        Reconnect
-                      </button>
-                    ) : linked && p.id === 'google_ads' ? (
-                      // No button here on purpose — Google Ads has no per-brand token
-                      // to expire (it authenticates as URI's own admin identity, see
-                      // the backend's google_ads_connection.py) and no disconnect
-                      // endpoint exists. Whatever action is relevant for the current
-                      // sub-state (choose/create account, check link status) is
-                      // already surfaced by the panels below the card.
-                      <></>
-                    ) : linked ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setConfirmAction({
-                            title: `Disconnect ${p.label}?`,
-                            message: `This disconnects your ${p.label} account. You can reconnect it again at any time.`,
-                            confirmText: 'Disconnect',
-                            run: () => handleDisconnect(p.id),
-                          })
-                        }
-                        disabled={isBusy}
-                        style={{
-                          padding: '5px 12px',
-                          borderRadius: 7,
-                          border: '1px solid #edecea',
-                          background: '#fff',
-                          fontSize: 12,
-                          color: '#888',
-                          cursor: 'pointer',
-                          fontFamily: 'var(--wf)',
-                          opacity: isBusy ? 0.5 : 1,
-                        }}
-                      >
-                        {disconnecting === p.id ? (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <span
+                      ) : p.id === 'facebook' ? (
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleConnect('facebook', 'outstand_oauth')}
+                            disabled={isBusy}
+                            title="Connect through Outstand. Posts are sent through Outstand."
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: 7,
+                              border: '1px solid #edecea',
+                              background: '#fff',
+                              fontSize: 12,
+                              color: '#333',
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                              fontFamily: 'var(--wf)',
+                              opacity: isBusy ? 0.5 : 1,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {connecting === p.id ? 'Connecting...' : 'Connect via Outstand'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleConnect('facebook', 'facebook_direct_oauth')}
+                            disabled={isBusy}
+                            title="Log in with Meta directly. Posts are sent straight to your Facebook Page."
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: 7,
+                              border: 'none',
+                              background: p.color,
+                              fontSize: 12,
+                              color: '#fff',
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                              fontFamily: 'var(--wf)',
+                              opacity: isBusy ? 0.5 : 1,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {connecting === p.id ? 'Connecting...' : 'Connect with Meta'}
+                          </button>
+                        </div>
+                      ) : p.id === 'tiktok' ? (
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleConnect('tiktok', 'outstand_oauth')}
+                            disabled={isBusy}
+                            title="Connect through Outstand. Posts are sent through Outstand."
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: 7,
+                              border: '1px solid #edecea',
+                              background: '#fff',
+                              fontSize: 12,
+                              color: '#333',
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                              fontFamily: 'var(--wf)',
+                              opacity: isBusy ? 0.5 : 1,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {connecting === p.id ? 'Connecting...' : 'Connect via Outstand'}
+                          </button>
+                          {!IS_PRODUCTION && (
+                            <button
+                              type="button"
+                              onClick={() => handleConnect('tiktok', 'tiktok_direct_oauth')}
+                              disabled={isBusy}
+                              title="Log in with TikTok directly. Posts are sent straight to TikTok."
                               style={{
-                                width: 10,
-                                height: 10,
-                                border: '2px solid #ccc',
-                                borderTopColor: '#888',
-                                borderRadius: '50%',
-                                display: 'inline-block',
-                                animation: 'spin 0.7s linear infinite',
+                                padding: '5px 12px',
+                                borderRadius: 7,
+                                border: 'none',
+                                background: p.color,
+                                fontSize: 12,
+                                color: '#fff',
+                                cursor: 'pointer',
+                                fontWeight: 600,
+                                fontFamily: 'var(--wf)',
+                                opacity: isBusy ? 0.5 : 1,
+                                whiteSpace: 'nowrap',
                               }}
-                            />
-                            Disconnecting...
-                          </span>
-                        ) : (
-                          'Disconnect'
-                        )}
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleConnect(p.id, p.flow)}
-                        disabled={isBusy}
-                        style={{
-                          padding: '5px 14px',
-                          borderRadius: 7,
-                          border: 'none',
-                          background: p.color,
-                          fontSize: 12,
-                          color: '#fff',
-                          cursor: 'pointer',
-                          fontWeight: 600,
-                          fontFamily: 'var(--wf)',
-                          opacity: isBusy ? 0.5 : 1,
-                        }}
-                      >
-                        {connecting === p.id ? (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <span
-                              style={{
-                                width: 10,
-                                height: 10,
-                                border: '2px solid rgba(255,255,255,0.4)',
-                                borderTopColor: '#fff',
-                                borderRadius: '50%',
-                                display: 'inline-block',
-                                animation: 'spin 0.7s linear infinite',
-                              }}
-                            />
-                            Connecting...
-                          </span>
-                        ) : (
-                          'Connect'
-                        )}
-                      </button>
-                    )}
+                            >
+                              {connecting === p.id ? 'Connecting...' : 'Connect with TikTok login'}
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleConnect(p.id, p.flow)}
+                          disabled={isBusy}
+                          style={{
+                            padding: '5px 14px',
+                            borderRadius: 7,
+                            border: 'none',
+                            background: p.color,
+                            fontSize: 12,
+                            color: '#fff',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontFamily: 'var(--wf)',
+                            opacity: isBusy ? 0.5 : 1,
+                          }}
+                        >
+                          {connecting === p.id ? (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <span
+                                style={{
+                                  width: 10,
+                                  height: 10,
+                                  border: '2px solid rgba(255,255,255,0.4)',
+                                  borderTopColor: '#fff',
+                                  borderRadius: '50%',
+                                  display: 'inline-block',
+                                  animation: 'spin 0.7s linear infinite',
+                                }}
+                              />
+                              Connecting...
+                            </span>
+                          ) : (
+                            'Connect'
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-                {(p.id === 'facebook' || p.id === 'instagram' || p.id === 'tiktok') &&
-                  linked &&
-                  expandedAccountLists.has(p.id) &&
-                  (s?.accounts?.length ?? 0) > 0 && (
+                  {(p.id === 'facebook' || p.id === 'instagram' || p.id === 'tiktok') &&
+                    linked &&
+                    expandedAccountLists.has(p.id) &&
+                    (s?.accounts?.length ?? 0) > 0 && (
+                      <div
+                        style={{
+                          padding: '8px',
+                          background: '#fafafa',
+                          borderRadius: '0 0 12px 12px',
+                          border: '1.5px solid #edecea',
+                          borderTop: 'none',
+                          marginTop: -8,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 4,
+                        }}
+                      >
+                        {(s?.accounts ?? []).map((account, idx) => {
+                          const accountKey = account.outstand_account_id || account.id || String(idx);
+                          const rowBusy = disconnecting === `${p.id}:${accountKey}`;
+                          return (
+                            <div
+                              key={accountKey}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 10,
+                                padding: '8px 10px',
+                                borderRadius: 8,
+                                background: '#fff',
+                                border: '1px solid #edecea',
+                              }}
+                            >
+                              <span style={{ fontSize: 12.5, color: '#333', fontWeight: 500, minWidth: 0 }}>
+                                {account.account_name || account.username || 'Connected page'}
+                                {(p.id === 'tiktok' || p.id === 'facebook') && (
+                                  <span style={{ color: '#888', fontWeight: 400 }}>
+                                    {' · '}
+                                    {account.connected_via?.startsWith(`${p.id}_direct`)
+                                      ? p.id === 'tiktok'
+                                        ? 'TikTok login'
+                                        : 'Meta login'
+                                      : 'via Outstand'}
+                                  </span>
+                                )}
+                                {/* is_active is only ever explicitly false when Outstand itself
+                                  has flagged this connection unhealthy — undefined/null means
+                                  Outstand didn't report a status at all and must not be shown
+                                  as a problem (see social_account_service.get_user_connections). */}
+                                {account.is_active === false && (
+                                  <span style={{ color: '#c62828', fontWeight: 700 }}> — needs reconnecting</span>
+                                )}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setConfirmAction({
+                                    title: 'Disconnect this account?',
+                                    message: `This disconnects "${account.account_name || account.username || 'this account'}" from ${p.label}. You can reconnect it again at any time.`,
+                                    confirmText: 'Disconnect',
+                                    run: () => handleDisconnectAccount(p.id, account),
+                                  })
+                                }
+                                disabled={rowBusy}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: 6,
+                                  border: '1px solid #edecea',
+                                  background: '#fff',
+                                  fontSize: 11.5,
+                                  color: '#888',
+                                  cursor: 'pointer',
+                                  fontFamily: 'var(--wf)',
+                                  opacity: rowBusy ? 0.5 : 1,
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {rowBusy ? 'Disconnecting...' : 'Disconnect'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  {(p.id === 'facebook_ads' || p.id === 'google_ads') && adsWaLoaded && (
+                    // The number Jane's ads route to on WhatsApp — separate from
+                    // whether a Facebook Page is connected above: launches always
+                    // work via a wa.me link, so this is settable and visible on its
+                    // own instead of only surfacing reactively inside a campaign
+                    // chat when a launch already failed asking for it.
                     <div
                       style={{
-                        padding: '8px',
+                        padding: '12px 16px',
                         background: '#fafafa',
                         borderRadius: '0 0 12px 12px',
                         border: '1.5px solid #edecea',
@@ -4090,528 +4727,263 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         marginTop: -8,
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 4,
+                        gap: 6,
                       }}
                     >
-                      {(s?.accounts ?? []).map((account, idx) => {
-                        const accountKey = account.outstand_account_id || account.id || String(idx);
-                        const rowBusy = disconnecting === `${p.id}:${accountKey}`;
-                        return (
-                          <div
-                            key={accountKey}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: 10,
-                              padding: '8px 10px',
-                              borderRadius: 8,
-                              background: '#fff',
-                              border: '1px solid #edecea',
-                            }}
-                          >
-                            <span style={{ fontSize: 12.5, color: '#333', fontWeight: 500, minWidth: 0 }}>
-                              {account.account_name || account.username || 'Connected page'}
-                              {/* is_active is only ever explicitly false when Outstand itself
-                                  has flagged this connection unhealthy — undefined/null means
-                                  Outstand didn't report a status at all and must not be shown
-                                  as a problem (see social_account_service.get_user_connections). */}
-                              {account.is_active === false && (
-                                <span style={{ color: '#c62828', fontWeight: 700 }}> — needs reconnecting</span>
-                              )}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setConfirmAction({
-                                  title: 'Disconnect this account?',
-                                  message: `This disconnects "${account.account_name || account.username || 'this account'}" from ${p.label}. You can reconnect it again at any time.`,
-                                  confirmText: 'Disconnect',
-                                  run: () => handleDisconnectAccount(p.id, account),
-                                })
-                              }
-                              disabled={rowBusy}
-                              style={{
-                                padding: '4px 10px',
-                                borderRadius: 6,
-                                border: '1px solid #edecea',
-                                background: '#fff',
-                                fontSize: 11.5,
-                                color: '#888',
-                                cursor: 'pointer',
-                                fontFamily: 'var(--wf)',
-                                opacity: rowBusy ? 0.5 : 1,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {rowBusy ? 'Disconnecting...' : 'Disconnect'}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                {(p.id === 'facebook_ads' || p.id === 'google_ads') && adsWaLoaded && (
-                  // The number Jane's ads route to on WhatsApp — separate from
-                  // whether a Facebook Page is connected above: launches always
-                  // work via a wa.me link, so this is settable and visible on its
-                  // own instead of only surfacing reactively inside a campaign
-                  // chat when a launch already failed asking for it.
-                  <div
-                    style={{
-                      padding: '12px 16px',
-                      background: '#fafafa',
-                      borderRadius: '0 0 12px 12px',
-                      border: '1.5px solid #edecea',
-                      borderTop: 'none',
-                      marginTop: -8,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 6,
-                    }}
-                  >
-                    <div style={{ fontSize: 11.5, fontWeight: 700, color: '#666' }}>Ads WhatsApp number</div>
-                    <div style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>
-                      Where leads from your ads land — not the number above.
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input
-                        type="tel"
-                        value={adsWaInput}
-                        onChange={(e) => setAdsWaInput(e.target.value)}
-                        placeholder="e.g. 0803 123 4567"
-                        style={{
-                          flex: 1,
-                          padding: '8px 12px',
-                          borderRadius: 8,
-                          border: '1.5px solid #e0e0e0',
-                          fontSize: 12.5,
-                          fontFamily: 'var(--wf)',
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={saveAdsWhatsapp}
-                        disabled={adsWaSaving || !adsWaInput.trim() || adsWaInput.trim() === adsWaNumber}
-                        style={{
-                          padding: '8px 16px',
-                          borderRadius: 8,
-                          border: 'none',
-                          background: '#C2185B',
-                          color: '#fff',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          fontFamily: 'var(--wf)',
-                          cursor: 'pointer',
-                          opacity: adsWaSaving || !adsWaInput.trim() || adsWaInput.trim() === adsWaNumber ? 0.5 : 1,
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {adsWaSaving ? 'Saving...' : 'Save'}
-                      </button>
-                    </div>
-                    {adsWaError && <div style={{ fontSize: 11.5, color: '#e53935' }}>{adsWaError}</div>}
-                    {!adsWaNumber && !adsWaError && (
-                      <div style={{ fontSize: 11.5, color: '#a15c00' }}>
-                        Not set yet — Jane will ask for this the first time you build an ad.
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: '#666' }}>Ads WhatsApp number</div>
+                      <div style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>
+                        Where leads from your ads land — not the number above.
                       </div>
-                    )}
-                    {/* Shown UNCONDITIONALLY, not only when we detect a mismatch, because we
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          type="tel"
+                          value={adsWaInput}
+                          onChange={(e) => setAdsWaInput(e.target.value)}
+                          placeholder="e.g. 0803 123 4567"
+                          style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            borderRadius: 8,
+                            border: '1.5px solid #e0e0e0',
+                            fontSize: 12.5,
+                            fontFamily: 'var(--wf)',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={saveAdsWhatsapp}
+                          disabled={adsWaSaving || !adsWaInput.trim() || adsWaInput.trim() === adsWaNumber}
+                          style={{
+                            padding: '8px 16px',
+                            borderRadius: 8,
+                            border: 'none',
+                            background: '#C2185B',
+                            color: '#fff',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            fontFamily: 'var(--wf)',
+                            cursor: 'pointer',
+                            opacity: adsWaSaving || !adsWaInput.trim() || adsWaInput.trim() === adsWaNumber ? 0.5 : 1,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {adsWaSaving ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                      {adsWaError && <div style={{ fontSize: 11.5, color: '#e53935' }}>{adsWaError}</div>}
+                      {!adsWaNumber && !adsWaError && (
+                        <div style={{ fontSize: 11.5, color: '#a15c00' }}>
+                          Not set yet — Jane will ask for this the first time you build an ad.
+                        </div>
+                      )}
+                      {/* Shown UNCONDITIONALLY, not only when we detect a mismatch, because we
                         cannot detect one: reading whether a number is linked to a Page needs
                         whatsapp_business_management, a scope our token doesn't hold, so
                         whatsapp_linked_to_page is almost always null. Kept as plain helper
                         text in the muted colour — it's a requirement to state, not a problem
                         with what the user has entered. */}
-                    {adsWaNumber && s?.whatsapp_linked_to_page !== true && (
-                      <div style={{ fontSize: 11, color: '#999', lineHeight: 1.5 }}>
-                        Must match the WhatsApp number linked to your {s?.account_name || 'Facebook'} Page in Meta.{' '}
-                        {s?.whatsapp_link_url && (
-                          <a
-                            href={s.whatsapp_link_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ color: '#C2185B' }}
-                          >
-                            Check in Meta
-                          </a>
-                        )}
-                      </div>
-                    )}
-                    {adsWaNumber && s?.whatsapp_linked_to_page === true && (
-                      <div style={{ fontSize: 11.5, color: '#1a7f37' }}>
-                        Linked to your {s?.account_name || 'Facebook'} Page — ads can receive messages and report
-                        conversations.
-                      </div>
-                    )}
-                  </div>
-                )}
-                {p.id === 'google_ads' && s?.google_connection_state === 'needs_account_selection' && (
-                  <div
-                    style={{
-                      padding: '12px 16px',
-                      background: '#f7faff',
-                      borderRadius: '0 0 12px 12px',
-                      border: '1.5px solid #4285F444',
-                      borderTop: 'none',
-                    }}
-                  >
-                    {googleAccountChoice === 'none' ? (
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setGoogleAccountError('');
-                            setGoogleAccountChoice('existing');
-                          }}
-                          style={{
-                            padding: '6px 12px',
-                            borderRadius: 7,
-                            border: '1px solid #4285F4',
-                            background: '#fff',
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: '#4285F4',
-                            cursor: 'pointer',
-                            fontFamily: 'var(--wf)',
-                          }}
-                        >
-                          I already have a Google Ads account
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setGoogleAccountError('');
-                            setGoogleAccountChoice('create');
-                          }}
-                          style={{
-                            padding: '6px 12px',
-                            borderRadius: 7,
-                            border: 'none',
-                            background: '#4285F4',
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: '#fff',
-                            cursor: 'pointer',
-                            fontFamily: 'var(--wf)',
-                          }}
-                        >
-                          Create one for me
-                        </button>
-                      </div>
-                    ) : googleAccountChoice === 'existing' ? (
-                      <div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <input
-                            type="text"
-                            placeholder="e.g. 123-456-7890"
-                            value={googleCustomerIdInput}
-                            onChange={(e) => setGoogleCustomerIdInput(e.target.value)}
-                            style={{
-                              flex: 1,
-                              padding: '7px 10px',
-                              borderRadius: 7,
-                              border: `1.5px solid ${googleAccountError ? '#c62828' : '#4285F444'}`,
-                              fontSize: 12.5,
-                              fontFamily: 'var(--wf)',
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={handleGoogleLinkExisting}
-                            disabled={googleAccountSubmitting || !googleCustomerIdInput.trim()}
-                            style={{
-                              padding: '7px 14px',
-                              borderRadius: 7,
-                              border: 'none',
-                              background: '#4285F4',
-                              color: '#fff',
-                              fontSize: 12,
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              fontFamily: 'var(--wf)',
-                              opacity: googleAccountSubmitting ? 0.6 : 1,
-                            }}
-                          >
-                            {googleAccountSubmitting ? 'Sending...' : 'Send link request'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setGoogleAccountChoice('none');
-                              setGoogleAccountError('');
-                            }}
-                            style={{
-                              padding: '7px 10px',
-                              borderRadius: 7,
-                              border: '1px solid #edecea',
-                              background: '#fff',
-                              color: '#888',
-                              fontSize: 12,
-                              cursor: 'pointer',
-                              fontFamily: 'var(--wf)',
-                            }}
-                          >
-                            Cancel
-                          </button>
+                      {adsWaNumber && s?.whatsapp_linked_to_page !== true && (
+                        <div style={{ fontSize: 11, color: '#999', lineHeight: 1.5 }}>
+                          {p.id === 'google_ads'
+                            ? 'This is the number people message when they tap your Google ad.'
+                            : `Must match the WhatsApp number linked to your ${s?.account_name || 'Facebook'} Page in Meta.`}{' '}
+                          {s?.whatsapp_link_url && (
+                            <a
+                              href={s.whatsapp_link_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: '#C2185B' }}
+                            >
+                              Check in Meta
+                            </a>
+                          )}
                         </div>
-                        {googleAccountError && (
-                          <div style={{ fontSize: 11.5, color: '#c62828', marginTop: 6 }}>{googleAccountError}</div>
-                        )}
-                      </div>
-                    ) : (
-                      <div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <input
-                            type="text"
-                            placeholder="Business name for the new account"
-                            value={googleAccountNameInput}
-                            onChange={(e) => setGoogleAccountNameInput(e.target.value)}
-                            style={{
-                              flex: 1,
-                              padding: '7px 10px',
-                              borderRadius: 7,
-                              border: `1.5px solid ${googleAccountError ? '#c62828' : '#4285F444'}`,
-                              fontSize: 12.5,
-                              fontFamily: 'var(--wf)',
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={handleGoogleCreateAccount}
-                            disabled={googleAccountSubmitting || !googleAccountNameInput.trim()}
-                            style={{
-                              padding: '7px 14px',
-                              borderRadius: 7,
-                              border: 'none',
-                              background: '#4285F4',
-                              color: '#fff',
-                              fontSize: 12,
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              fontFamily: 'var(--wf)',
-                              opacity: googleAccountSubmitting ? 0.6 : 1,
-                            }}
-                          >
-                            {googleAccountSubmitting ? 'Creating...' : 'Create account'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setGoogleAccountChoice('none');
-                              setGoogleAccountError('');
-                            }}
-                            style={{
-                              padding: '7px 10px',
-                              borderRadius: 7,
-                              border: '1px solid #edecea',
-                              background: '#fff',
-                              color: '#888',
-                              fontSize: 12,
-                              cursor: 'pointer',
-                              fontFamily: 'var(--wf)',
-                            }}
-                          >
-                            Cancel
-                          </button>
+                      )}
+                      {adsWaNumber && s?.whatsapp_linked_to_page === true && (
+                        <div style={{ fontSize: 11.5, color: '#1a7f37' }}>
+                          Linked to your {s?.account_name || 'Facebook'} Page — ads can receive messages and report
+                          conversations.
                         </div>
-                        {googleAccountError && (
-                          <div style={{ fontSize: 11.5, color: '#c62828', marginTop: 6 }}>{googleAccountError}</div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-                {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_pending' && (
-                  <div
-                    style={{
-                      padding: '10px 16px',
-                      background: '#fffaf0',
-                      borderRadius: '0 0 12px 12px',
-                      border: '1.5px solid #4285F444',
-                      borderTop: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 10,
-                    }}
-                  >
-                    <span style={{ fontSize: 12, color: '#a15c00' }}>
-                      Waiting for you to accept the link request in Google Ads.
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => loadStatuses()}
+                      )}
+                    </div>
+                  )}
+                  {p.id === 'google_ads' && <GoogleAdsReturn onChanged={loadStatuses} />}
+                  {p.id === 'google_ads' && (
+                    <div
                       style={{
-                        padding: '5px 10px',
-                        borderRadius: 7,
-                        border: '1px solid #edecea',
-                        background: '#fff',
-                        fontSize: 11.5,
-                        color: '#4285F4',
-                        cursor: 'pointer',
-                        fontFamily: 'var(--wf)',
-                        whiteSpace: 'nowrap',
+                        padding: '12px 14px 4px',
+                        background: '#F7FAFF',
+                        border: '1.5px solid #1A73E833',
+                        borderTop: 'none',
+                        borderBottom: 'none',
                       }}
                     >
-                      Check again
-                    </button>
-                  </div>
-                )}
-                {p.id === 'linkedin' && linked && liPages && liPages.pages.length > 0 && (
-                  <div
-                    style={{
-                      padding: '10px 16px',
-                      background: '#f9fbff',
-                      borderRadius: '0 0 12px 12px',
-                      border: '1.5px solid #0A66C244',
-                      borderTop: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                    }}
-                  >
-                    <span style={{ fontSize: 12, color: '#555', whiteSpace: 'nowrap' }}>Posting as</span>
-                    <select
-                      title="LinkedIn posting target"
-                      value={liPages.active_author_urn}
-                      disabled={liPagesLoading}
-                      onChange={async (e) => {
-                        const urn = e.target.value;
-                        setLiPagesLoading(true);
-                        try {
-                          await SocialConnectionService.linkedinSelectPage(urn);
-                          setLiPages((prev) => (prev ? { ...prev, active_author_urn: urn } : prev));
-                        } catch {
-                          /* noop */
-                        } finally {
-                          setLiPagesLoading(false);
-                        }
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: '5px 10px',
-                        borderRadius: 7,
-                        border: '1.5px solid #0A66C244',
-                        fontSize: 12,
-                        fontFamily: 'var(--wf)',
-                        background: '#fff',
-                        color: '#111',
-                        cursor: 'pointer',
-                        outline: 'none',
-                        opacity: liPagesLoading ? 0.5 : 1,
-                      }}
-                    >
-                      <option value={liPages.personal_profile.urn}>{liPages.personal_profile.name} (Personal)</option>
-                      {liPages.pages.map((page) => (
-                        <option key={page.urn} value={page.urn}>
-                          {page.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                {p.id === 'whatsapp' && waExpanded && !linked && (
-                  <div
-                    style={{
-                      padding: '12px 16px',
-                      background: '#f9f9f9',
-                      borderRadius: '0 0 12px 12px',
-                      border: '1.5px solid #25D36644',
-                      borderTop: 'none',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 8,
-                    }}
-                  >
-                    <div className="wa-phone-input">
-                      <PhoneInput
-                        international
-                        defaultCountry="NG"
-                        value={waPhone}
-                        onChange={(value: string | undefined) => {
-                          setWaPhone(value);
-                          setWaError('');
-                        }}
-                        disabled={connecting === 'whatsapp'}
-                        placeholder="Enter phone number"
-                        numberInputProps={{
-                          onKeyDown: (e: React.KeyboardEvent) => e.key === 'Enter' && handleWhatsappSubmit(),
-                          'aria-label': 'WhatsApp phone number',
-                        }}
+                      <GoogleAdsModePicker
+                        mode={s?.google_mode === 'uri' ? 'uri' : 'own'}
+                        uriReady={!!s?.google_uri_managed}
+                        ownReady={s?.google_connection_state === 'ready'}
+                        onChanged={loadStatuses}
                       />
                     </div>
-                    {waError && <div style={{ fontSize: 12, color: '#e53935' }}>{waError}</div>}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        type="button"
-                        onClick={handleWhatsappSubmit}
-                        disabled={!waPhone || connecting === 'whatsapp'}
+                  )}
+                  {p.id === 'google_ads' &&
+                    s?.google_mode === 'own' &&
+                    s?.google_connection_state === 'needs_account_selection' && (
+                      <GoogleAdsChooser
+                        onChanged={loadStatuses}
+                        canCreate={s?.google_can_create_account}
+                        signinVerified={s?.google_signin_verified}
+                      />
+                    )}
+                  {p.id === 'google_ads' &&
+                    s?.google_mode === 'own' &&
+                    linked &&
+                    s?.google_connection_state !== 'needs_account_selection' && (
+                      <GoogleAdsLinkPanel
+                        state={s?.google_connection_state ?? ''}
+                        customerId={s?.google_customer_id}
+                        accountName={s?.account_name}
+                        managerId={s?.google_manager_id}
+                        detail={s?.google_link_detail}
+                        createdByUri={s?.google_created_by_uri}
+                        currency={s?.google_currency}
+                        signinVerified={s?.google_signin_verified}
+                        finishing={s?.google_finishing}
+                        onChanged={loadStatuses}
+                      />
+                    )}
+                  {p.id === 'linkedin' && linked && liPages && liPages.pages.length > 0 && (
+                    <div
+                      style={{
+                        padding: '10px 16px',
+                        background: '#f9fbff',
+                        borderRadius: '0 0 12px 12px',
+                        border: '1.5px solid #0A66C244',
+                        borderTop: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                      }}
+                    >
+                      <span style={{ fontSize: 12, color: '#555', whiteSpace: 'nowrap' }}>Posting as</span>
+                      <select
+                        title="LinkedIn posting target"
+                        value={liPages.active_author_urn}
+                        disabled={liPagesLoading}
+                        onChange={async (e) => {
+                          const urn = e.target.value;
+                          setLiPagesLoading(true);
+                          try {
+                            await SocialConnectionService.linkedinSelectPage(urn);
+                            setLiPages((prev) => (prev ? { ...prev, active_author_urn: urn } : prev));
+                          } catch {
+                            /* noop */
+                          } finally {
+                            setLiPagesLoading(false);
+                          }
+                        }}
                         style={{
-                          padding: '7px 16px',
+                          flex: 1,
+                          padding: '5px 10px',
                           borderRadius: 7,
-                          border: 'none',
-                          background: '#25D366',
-                          color: '#fff',
+                          border: '1.5px solid #0A66C244',
                           fontSize: 12,
-                          fontWeight: 600,
-                          cursor: 'pointer',
                           fontFamily: 'var(--wf)',
-                          opacity: !waPhone || connecting === 'whatsapp' ? 0.5 : 1,
-                        }}
-                      >
-                        {connecting === 'whatsapp' ? 'Connecting...' : 'Connect WhatsApp'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setWaExpanded(false);
-                          setWaError('');
-                        }}
-                        style={{
-                          padding: '7px 12px',
-                          borderRadius: 7,
-                          border: '1px solid #edecea',
                           background: '#fff',
-                          color: '#888',
-                          fontSize: 12,
+                          color: '#111',
                           cursor: 'pointer',
-                          fontFamily: 'var(--wf)',
+                          outline: 'none',
+                          opacity: liPagesLoading ? 0.5 : 1,
                         }}
                       >
-                        Cancel
-                      </button>
+                        <option value={liPages.personal_profile.urn}>{liPages.personal_profile.name} (Personal)</option>
+                        {liPages.pages.map((page) => (
+                          <option key={page.urn} value={page.urn}>
+                            {page.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                  {p.id === 'whatsapp' && waExpanded && !linked && (
+                    <div
+                      style={{
+                        padding: '12px 16px',
+                        background: '#f9f9f9',
+                        borderRadius: '0 0 12px 12px',
+                        border: '1.5px solid #25D36644',
+                        borderTop: 'none',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                      }}
+                    >
+                      <input
+                        type="tel"
+                        placeholder="+1 234 567 8900"
+                        value={waPhone}
+                        onChange={(e) => setWaPhone(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleWhatsappSubmit()}
+                        aria-label="WhatsApp phone number"
+                        style={{
+                          padding: '9px 13px',
+                          borderRadius: 8,
+                          border: '1.5px solid #25D366',
+                          fontSize: 13,
+                          fontFamily: 'var(--wf)',
+                          outline: 'none',
+                          background: '#fff',
+                        }}
+                      />
+                      {waError && <div style={{ fontSize: 12, color: '#e53935' }}>{waError}</div>}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={handleWhatsappSubmit}
+                          disabled={!waPhone.trim() || connecting === 'whatsapp'}
+                          style={{
+                            padding: '7px 16px',
+                            borderRadius: 7,
+                            border: 'none',
+                            background: '#25D366',
+                            color: '#fff',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            fontFamily: 'var(--wf)',
+                            opacity: !waPhone.trim() || connecting === 'whatsapp' ? 0.5 : 1,
+                          }}
+                        >
+                          {connecting === 'whatsapp' ? 'Connecting...' : 'Connect WhatsApp'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWaExpanded(false);
+                            setWaError('');
+                          }}
+                          style={{
+                            padding: '7px 12px',
+                            borderRadius: 7,
+                            border: '1px solid #edecea',
+                            background: '#fff',
+                            color: '#888',
+                            fontSize: 12,
+                            cursor: 'pointer',
+                            fontFamily: 'var(--wf)',
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </React.Fragment>
             );
           })}
         </div>
       )}
-      <style jsx>{`
-        .wa-phone-input :global(.PhoneInput) {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .wa-phone-input :global(.PhoneInputCountry) {
-          padding: 0 8px;
-          border-radius: 8px;
-          border: 1.5px solid #25d366;
-          background: #fff;
-        }
-        .wa-phone-input :global(.PhoneInputInput) {
-          flex: 1;
-          min-width: 0;
-          padding: 9px 13px;
-          border-radius: 8px;
-          border: 1.5px solid #25d366;
-          font-size: 13px;
-          font-family: var(--wf);
-          outline: none;
-          background: #fff;
-        }
-      `}</style>
       <ConfirmDialog
         isOpen={!!confirmAction}
         title={confirmAction?.title || ''}
@@ -4627,63 +4999,6 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
 };
 
 /* ── Subpages ────────────────────────────────────────────────────────────── */
-const MessagesPage = ({ onJane }: { onJane: () => void }) => (
-  <SubPage
-    title="Customer Messages"
-    icon="inbox"
-    desc="DMs, comments, and mentions across all platforms"
-    onJane={onJane}
-  >
-    {(
-      [
-        { u: '@coffeelover_ng', p: 'Instagram', t: 'When will the new content launch?', tm: '12m' },
-        { u: '@jakethebaker', p: 'X', t: 'Your latest post was fire! 🔥', tm: '1h' },
-        { u: 'Adaeze Okonkwo', p: 'LinkedIn', t: 'Would love to discuss a partnership.', tm: '3h' },
-        { u: '@morning_fan', p: 'Instagram', t: 'Do you ship to Abuja?', tm: '5h' },
-      ] as { u: string; p: string; t: string; tm: string }[]
-    ).map((m, i) => (
-      <div
-        key={i}
-        style={{
-          display: 'flex',
-          gap: 10,
-          padding: '13px 15px',
-          borderRadius: 11,
-          border: '1px solid #edecea',
-          background: '#fff',
-          marginBottom: 7,
-          cursor: 'pointer',
-        }}
-      >
-        <div
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: '50%',
-            background: '#f5f4f0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#888' }}>
-            {(m.u[0] === '@' ? m.u[1] : m.u[0]).toUpperCase()}
-          </span>
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 700 }}>{m.u}</span>
-            <span style={{ fontSize: 11, color: '#bbb' }}>via {m.p}</span>
-            <span style={{ marginLeft: 'auto', fontSize: 11, color: '#bbb' }}>{m.tm}</span>
-          </div>
-          <p style={{ fontSize: 12.5, color: '#555', margin: 0 }}>{m.t}</p>
-        </div>
-      </div>
-    ))}
-  </SubPage>
-);
-
 const PLATFORM_COLORS: Record<string, string> = {
   instagram: '#E1306C',
   facebook: '#1877F2',
@@ -4847,7 +5162,15 @@ const CalPerfSection = ({ data }: { data: CalendarPerformanceData }) => {
   );
 };
 
-const PerformancePage = ({ onJane }: { onJane: () => void }) => {
+const PerformancePage = ({
+  onJane,
+  isMobile,
+  onOpenSectionNav,
+}: {
+  onJane: () => void;
+  isMobile?: boolean;
+  onOpenSectionNav?: () => void;
+}) => {
   const [view, setView] = useState<'posts' | 'accounts' | 'intel'>('posts');
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -4937,6 +5260,8 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
             : 'Industry keyword trends powered by Google'
       }
       onJane={onJane}
+      isMobile={isMobile}
+      onOpenSectionNav={onOpenSectionNav}
     >
       {/* View toggle */}
       <div
@@ -5526,7 +5851,17 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
   );
 };
 
-const IntelPage = ({ onJane, embedded }: { onJane: () => void; embedded?: boolean }) => {
+const IntelPage = ({
+  onJane,
+  embedded,
+  isMobile,
+  onOpenSectionNav,
+}: {
+  onJane: () => void;
+  embedded?: boolean;
+  isMobile?: boolean;
+  onOpenSectionNav?: () => void;
+}) => {
   const [trends, setTrends] = useState<TrendsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -5728,6 +6063,8 @@ const IntelPage = ({ onJane, embedded }: { onJane: () => void; embedded?: boolea
           : 'Industry keyword trends powered by Google'
       }
       onJane={onJane}
+      isMobile={isMobile}
+      onOpenSectionNav={onOpenSectionNav}
     >
       {content}
     </SubPage>
@@ -6280,10 +6617,14 @@ const PlaybookPage = ({
   onJane,
   profile,
   onProfileUpdate,
+  isMobile,
+  onOpenSectionNav,
 }: {
   onJane: () => void;
   profile: BrandProfileData | null;
   onProfileUpdate: (p: BrandProfileData) => void;
+  isMobile?: boolean;
+  onOpenSectionNav?: () => void;
 }) => {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -6376,9 +6717,17 @@ const PlaybookPage = ({
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
   const logoInputRef = useRef<HTMLInputElement>(null);
+  // These three hold whichever tab (activeStyleTab) is currently being
+  // edited — 'default' loads/saves the flat fields exactly as before;
+  // any other key loads/saves that platform's slot in the *_by_platform
+  // maps instead. Switching tabs swaps what's in these three, via
+  // loadStyleTab below — the picker component itself (StylePickerGallery)
+  // and its change handlers don't need to know a platform dimension
+  // exists at all.
   const [styleSelections, setStyleSelections] = useState<string[]>([]);
   const [selectedCustomGuides, setSelectedCustomGuides] = useState<string[]>([]);
   const [selectedCustomGuidesV2, setSelectedCustomGuidesV2] = useState<string[]>([]);
+  const [activeStyleTab, setActiveStyleTab] = useState<string>('default');
   const [fontStyle, setFontStyle] = useState<string>('');
   const [primaryFont, setPrimaryFont] = useState<string>('');
   const [secondaryFont, setSecondaryFont] = useState<string>('');
@@ -6442,28 +6791,108 @@ const PlaybookPage = ({
     }
   }, [profile?.logo_size]);
 
-  // Auto-save custom guide selections
+  // Loads whichever tab's saved data into the three visible state vars —
+  // 'default' reads the flat fields, any platform key reads that platform's
+  // slot in the *_by_platform maps (empty/unset reads as "no override yet",
+  // not an error). Called on tab switch and when entering edit mode.
+  const loadStyleTab = (tabKey: string, src?: BrandProfileData | null) => {
+    const p2 = src ?? profile;
+    if (tabKey === 'default') {
+      setStyleSelections([...(p2?.style_selections ?? [])]);
+      setSelectedCustomGuides(p2?.selected_custom_guides ?? []);
+      setSelectedCustomGuidesV2(p2?.selected_custom_guides_v2 ?? []);
+    } else {
+      setStyleSelections([...(p2?.style_selections_by_platform?.[tabKey] ?? [])]);
+      setSelectedCustomGuides(p2?.selected_custom_guides_by_platform?.[tabKey] ?? []);
+      setSelectedCustomGuidesV2(p2?.selected_custom_guides_v2_by_platform?.[tabKey] ?? []);
+    }
+  };
+
+  const handleStyleTabSwitch = (tabKey: string) => {
+    setActiveStyleTab(tabKey);
+    loadStyleTab(tabKey);
+  };
+
+  // Auto-save custom guide selections — writes to the flat fields when the
+  // Default tab is active (unchanged behaviour), or into that platform's
+  // slot in the *_by_platform maps otherwise. Either way this is a full
+  // profile object (built from ...profile), so BrandProfileService.save
+  // round-trips every other field back unchanged — only the tab actually
+  // being edited's own fields carry a real change.
   const handleCustomGuideChange = async (guideIds: string[]) => {
     setSelectedCustomGuides(guideIds);
+    if (!profile) return;
 
-    // Auto-save to backend
-    if (profile) {
-      try {
-        const updatedProfile = {
+    const isDefault = activeStyleTab === 'default';
+    const updatedProfile: BrandProfileData = isDefault
+      ? { ...profile, selected_custom_guides: guideIds, style_rotation_index: 0 }
+      : {
           ...profile,
-          selected_custom_guides: guideIds,
-          style_rotation_index: 0, // Reset rotation when guides change
+          selected_custom_guides_by_platform: {
+            ...(profile.selected_custom_guides_by_platform ?? {}),
+            [activeStyleTab]: guideIds,
+          },
+          style_rotation_index_by_platform: {
+            ...(profile.style_rotation_index_by_platform ?? {}),
+            [activeStyleTab]: 0,
+          },
         };
-        const response = await BrandProfileService.save(updatedProfile);
-        if (response.status) {
-          onProfileUpdate({ ...profile, selected_custom_guides: guideIds, style_rotation_index: 0 });
-          console.log('🎨 Custom guides auto-saved:', guideIds);
-        } else {
-          console.error('🎨 Auto-save failed:', response);
-        }
-      } catch (error) {
-        console.error('🎨 Error auto-saving custom guides:', error);
+    try {
+      const response = await BrandProfileService.save(updatedProfile);
+      if (response.status) {
+        onProfileUpdate(updatedProfile);
+        console.log(`🎨 Custom guides auto-saved [${activeStyleTab}]:`, guideIds);
+      } else {
+        console.error('🎨 Auto-save failed:', response);
       }
+    } catch (error) {
+      console.error('🎨 Error auto-saving custom guides:', error);
+    }
+  };
+
+  // Auto-save library style selections — mirrors handleCustomGuideChange below
+  // exactly. Added because style_selections was the one visual-style field with
+  // NO auto-save: it only ever persisted via the main Save button, which also
+  // calls setEditing(false) on success — so switching tabs (handleStyleTabSwitch
+  // calls loadStyleTab, which overwrites this same shared styleSelections state
+  // from `profile`) silently discarded whatever was picked-but-not-yet-saved for
+  // the tab being left. Live-reported: "I have to click save, then click edit
+  // before picking another platform, otherwise the previous one doesn't save."
+  // Auto-saving on every pick, same as the two custom-guide handlers already do,
+  // means `profile` is always current by the time a tab switch happens.
+  const handleStyleSelectionChange = async (slugs: string[]) => {
+    setStyleSelections(slugs);
+    if (!profile) return;
+
+    const isDefault = activeStyleTab === 'default';
+    const updatedProfile: BrandProfileData = isDefault
+      ? {
+          ...profile,
+          style_selections: slugs,
+          style_prompt_fragments: slugs.map((slug) => getStyle(slug)?.promptFragment ?? ''),
+          style_rotation_index: 0,
+        }
+      : {
+          ...profile,
+          style_selections_by_platform: {
+            ...(profile.style_selections_by_platform ?? {}),
+            [activeStyleTab]: slugs,
+          },
+          style_rotation_index_by_platform: {
+            ...(profile.style_rotation_index_by_platform ?? {}),
+            [activeStyleTab]: 0,
+          },
+        };
+    try {
+      const response = await BrandProfileService.save(updatedProfile);
+      if (response.status) {
+        onProfileUpdate(response.responseData ?? updatedProfile);
+        console.log(`🎨 Style selections auto-saved [${activeStyleTab}]:`, slugs);
+      } else {
+        console.error('🎨 Style selection auto-save failed:', response);
+      }
+    } catch (error) {
+      console.error('🎨 Error auto-saving style selections:', error);
     }
   };
 
@@ -6489,29 +6918,36 @@ const PlaybookPage = ({
     }
   };
 
-  // Auto-save V2 custom guide selections — mirrors handleCustomGuideChange (V1)
-  // above so both versions behave consistently instead of V2 silently only
-  // updating local state until the separate main Save button is clicked.
+  // Auto-save V2 custom guide selections — mirrors handleCustomGuideChange
+  // (V1) above, same tab-aware save target.
   const handleCustomGuideV2Change = async (guideIds: string[]) => {
     setSelectedCustomGuidesV2(guideIds);
+    if (!profile) return;
 
-    if (profile) {
-      try {
-        const updatedProfile = {
+    const isDefault = activeStyleTab === 'default';
+    const updatedProfile: BrandProfileData = isDefault
+      ? { ...profile, selected_custom_guides_v2: guideIds, style_rotation_index: 0 }
+      : {
           ...profile,
-          selected_custom_guides_v2: guideIds,
-          style_rotation_index: 0,
+          selected_custom_guides_v2_by_platform: {
+            ...(profile.selected_custom_guides_v2_by_platform ?? {}),
+            [activeStyleTab]: guideIds,
+          },
+          style_rotation_index_by_platform: {
+            ...(profile.style_rotation_index_by_platform ?? {}),
+            [activeStyleTab]: 0,
+          },
         };
-        const response = await BrandProfileService.save(updatedProfile);
-        if (response.status) {
-          onProfileUpdate({ ...profile, selected_custom_guides_v2: guideIds, style_rotation_index: 0 });
-          console.log('🎨 V2 custom guides auto-saved:', guideIds);
-        } else {
-          console.error('🎨 V2 auto-save failed:', response);
-        }
-      } catch (error) {
-        console.error('🎨 Error auto-saving V2 custom guides:', error);
+    try {
+      const response = await BrandProfileService.save(updatedProfile);
+      if (response.status) {
+        onProfileUpdate(updatedProfile);
+        console.log(`🎨 V2 custom guides auto-saved [${activeStyleTab}]:`, guideIds);
+      } else {
+        console.error('🎨 V2 auto-save failed:', response);
       }
+    } catch (error) {
+      console.error('🎨 Error auto-saving V2 custom guides:', error);
     }
   };
 
@@ -6656,9 +7092,8 @@ const PlaybookPage = ({
     setLogoPosition(profile.logo_position ?? 'bottom_right');
     setLogoSize((profile.logo_size ?? 'small') as 'small' | 'medium' | 'large');
     setLogoError('');
-    setStyleSelections([...(profile.style_selections ?? [])]);
-    setSelectedCustomGuides(profile.selected_custom_guides ?? []);
-    setSelectedCustomGuidesV2(profile.selected_custom_guides_v2 ?? []);
+    setActiveStyleTab('default');
+    loadStyleTab('default', profile);
     setFontStyle(profile.font_style ?? '');
     setPrimaryFont(profile.primary_font ?? '');
     setSecondaryFont(profile.secondary_font ?? '');
@@ -6682,6 +7117,35 @@ const PlaybookPage = ({
 
     setSaving(true);
     try {
+      // Library styles (style_selections) are only ever persisted here, on
+      // the main Save button — unlike custom guides, nothing auto-saves
+      // them. So which slot they land in has to follow the active tab the
+      // same way the auto-save handlers above do: the flat fields for
+      // Default, or that platform's entry in the *_by_platform maps
+      // otherwise, leaving every other platform's own override untouched.
+      const isDefaultStyleTab = activeStyleTab === 'default';
+      const visualStyleFields: Partial<BrandProfileData> = isDefaultStyleTab
+        ? {
+            style_selections: styleSelections,
+            style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
+            selected_custom_guides: selectedCustomGuides,
+            selected_custom_guides_v2: selectedCustomGuidesV2,
+          }
+        : {
+            style_selections_by_platform: {
+              ...(profile?.style_selections_by_platform ?? {}),
+              [activeStyleTab]: styleSelections,
+            },
+            selected_custom_guides_by_platform: {
+              ...(profile?.selected_custom_guides_by_platform ?? {}),
+              [activeStyleTab]: selectedCustomGuides,
+            },
+            selected_custom_guides_v2_by_platform: {
+              ...(profile?.selected_custom_guides_v2_by_platform ?? {}),
+              [activeStyleTab]: selectedCustomGuidesV2,
+            },
+          };
+
       const updated: BrandProfileData = {
         ...profile,
         brand_name: brandName,
@@ -6747,10 +7211,7 @@ const PlaybookPage = ({
         logo_url: logoUrl || null,
         logo_position: logoPosition,
         logo_size: logoSize,
-        style_selections: styleSelections,
-        style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
-        selected_custom_guides: selectedCustomGuides,
-        selected_custom_guides_v2: selectedCustomGuidesV2,
+        ...visualStyleFields,
         font_style: fontStyle,
         font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
         primary_font: primaryFont,
@@ -6830,6 +7291,20 @@ const PlaybookPage = ({
     'Website Traffic',
   ];
   const ALL_PLATFORMS = ['Instagram', 'Facebook', 'X / Twitter', 'LinkedIn', 'TikTok', 'Pinterest', 'YouTube'];
+  // Per-platform Visual Style tabs — 'default' is the brand-wide fallback
+  // (the flat style_selections/selected_custom_guides(_v2) fields, unchanged
+  // behaviour for anyone who never touches the other tabs). The other four
+  // keys match ContentGeneratorForm.tsx's PLATFORMS list exactly — those are
+  // the literal `platform` values _generate_image_bg receives, so a tab here
+  // only ever has an effect if it uses the same key that generation itself
+  // will look up.
+  const STYLE_PLATFORM_TABS: { key: string; label: string }[] = [
+    { key: 'default', label: 'Default' },
+    { key: 'facebook', label: 'Facebook' },
+    { key: 'instagram', label: 'Instagram' },
+    { key: 'twitter', label: 'Twitter / X' },
+    { key: 'linkedin', label: 'LinkedIn' },
+  ];
   const ALL_LANGS = ['English', 'Yoruba', 'Pidgin', 'French', 'Hausa', 'Igbo', 'Swahili', 'Other'];
   const ALL_REGIONS = [
     'Nigeria',
@@ -6846,7 +7321,14 @@ const PlaybookPage = ({
   return (
     <PbUsedInContext.Provider value={{ usedIn: health?.used_in ?? {}, sections: health?.sections ?? {} }}>
       <PbEditContext.Provider value={{ onEdit: editAt, onEditSection: jumpToSection, hideEmpty }}>
-        <SubPage title="Brand Playbook" icon="book" desc="Everything URI Agent knows about your brand" onJane={onJane}>
+        <SubPage
+          title="Brand Playbook"
+          icon="book"
+          desc="Everything URI Agent knows about your brand"
+          onJane={onJane}
+          isMobile={isMobile}
+          onOpenSectionNav={onOpenSectionNav}
+        >
           {/* Action bar. Reading: a quiet row (not sticky, so it never covers a
             section). Editing: a slim floating save bar that stays in reach. */}
           <div
@@ -8701,33 +9183,133 @@ const PlaybookPage = ({
               Up to 3 styles — Uri rotates through them when generating images.
             </div>
             {!editing ? (
-              // Custom guides (V1 or V2) take priority over library styles at
-              // generation time — if either is selected, the library styles below
-              // are never actually used, so show the guides here instead, not the
-              // stale library-style cards from before a guide was selected.
-              (p?.selected_custom_guides_v2?.length ?? 0) > 0 || (p?.selected_custom_guides?.length ?? 0) > 0 ? (
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  {previewGuidesV2.map((g) => (
-                    <CustomGuideV2PreviewCard key={g.id} guide={g} compact />
-                  ))}
-                  {previewGuidesV1.map((g) => (
-                    <CustomGuidePreviewCard key={g.id} guide={g} compact />
-                  ))}
-                </div>
-              ) : p?.style_selections && p.style_selections.length > 0 ? (
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  {p.style_selections.map((slug) => {
-                    const s = getStyle(slug);
-                    if (!s) return null;
-                    const [from, to] = s.gradient;
-                    return <PlaybookStyleCard key={slug} s={s} from={from} to={to} />;
-                  })}
-                </div>
-              ) : (
-                <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
-              )
+              <>
+                {/* Custom guides (V1 or V2) take priority over library styles at
+                generation time — if either is selected, the library styles below
+                are never actually used, so show the guides here instead, not the
+                stale library-style cards from before a guide was selected. This
+                is always the Default (brand-wide fallback) — see the summary
+                line below for which platforms, if any, use something else. */}
+                {(p?.selected_custom_guides_v2?.length ?? 0) > 0 || (p?.selected_custom_guides?.length ?? 0) > 0 ? (
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {previewGuidesV2.map((g) => (
+                      <CustomGuideV2PreviewCard key={g.id} guide={g} compact />
+                    ))}
+                    {previewGuidesV1.map((g) => (
+                      <CustomGuidePreviewCard key={g.id} guide={g} compact />
+                    ))}
+                  </div>
+                ) : p?.style_selections && p.style_selections.length > 0 ? (
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {p.style_selections.map((slug) => {
+                      const s = getStyle(slug);
+                      if (!s) return null;
+                      const [from, to] = s.gradient;
+                      return <PlaybookStyleCard key={slug} s={s} from={from} to={to} />;
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
+                )}
+                {(() => {
+                  const customizedPlatforms = STYLE_PLATFORM_TABS.filter(
+                    (t) =>
+                      t.key !== 'default' &&
+                      ((p?.style_selections_by_platform?.[t.key]?.length ?? 0) > 0 ||
+                        (p?.selected_custom_guides_by_platform?.[t.key]?.length ?? 0) > 0 ||
+                        (p?.selected_custom_guides_v2_by_platform?.[t.key]?.length ?? 0) > 0)
+                  );
+                  if (customizedPlatforms.length === 0) return null;
+                  return (
+                    <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+                      {customizedPlatforms.map((t) => t.label).join(', ')} — using a different style than the Default
+                      shown above. Edit to see or change.
+                    </div>
+                  );
+                })()}
+              </>
             ) : (
               <div>
+                {/* Per-platform tabs — 'default' is the brand-wide fallback used
+                by any platform below that has nothing of its own. Switching
+                tabs swaps what styleSelections/selectedCustomGuides(V2) hold
+                (see loadStyleTab) — everything below (the badge, the
+                gallery) is already reading whichever tab is active, no
+                further wiring needed. */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                  {STYLE_PLATFORM_TABS.map((tab) => {
+                    const hasOverride =
+                      tab.key !== 'default' &&
+                      ((profile?.style_selections_by_platform?.[tab.key]?.length ?? 0) > 0 ||
+                        (profile?.selected_custom_guides_by_platform?.[tab.key]?.length ?? 0) > 0 ||
+                        (profile?.selected_custom_guides_v2_by_platform?.[tab.key]?.length ?? 0) > 0);
+                    return (
+                      <div key={tab.key} style={{ position: 'relative' }}>
+                        <PbChip
+                          label={tab.label}
+                          active={activeStyleTab === tab.key}
+                          onClick={() => handleStyleTabSwitch(tab.key)}
+                        />
+                        {hasOverride && (
+                          <span
+                            title={`${tab.label} has its own style, different from your Default`}
+                            style={{
+                              position: 'absolute',
+                              top: -3,
+                              right: -3,
+                              width: 8,
+                              height: 8,
+                              borderRadius: 99,
+                              background: '#C2185B',
+                              border: '1.5px solid #fff',
+                            }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: 12, color: '#888', marginBottom: 10, lineHeight: 1.5 }}>
+                  {activeStyleTab === 'default' ? (
+                    'Your Default — used for any platform below that hasn’t been customized.'
+                  ) : (
+                    <>
+                      {styleSelections.length > 0 ||
+                      selectedCustomGuides.length > 0 ||
+                      selectedCustomGuidesV2.length > 0 ? (
+                        <>
+                          {STYLE_PLATFORM_TABS.find((t) => t.key === activeStyleTab)?.label} uses its own style below,
+                          instead of your Default.{' '}
+                          <button
+                            onClick={() => {
+                              setStyleSelections([]);
+                              handleCustomGuideChange([]);
+                              handleCustomGuideV2Change([]);
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#C2185B',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              textDecoration: 'underline',
+                              padding: 0,
+                              fontSize: 12,
+                            }}
+                          >
+                            Remove override, use Default instead
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          Not customized — {STYLE_PLATFORM_TABS.find((t) => t.key === activeStyleTab)?.label} currently
+                          uses your Default. Pick styles or guides below to use something different just for{' '}
+                          {STYLE_PLATFORM_TABS.find((t) => t.key === activeStyleTab)?.label}.
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                   <span
                     style={{
@@ -8773,7 +9355,7 @@ const PlaybookPage = ({
                 <StylePickerGallery
                   industry={industry || p?.industry || 'general_other'}
                   selected={styleSelections}
-                  onChange={setStyleSelections}
+                  onChange={handleStyleSelectionChange}
                   selectedCustomGuides={selectedCustomGuides}
                   onCustomGuideChange={handleCustomGuideChange}
                   selectedCustomGuidesV2={selectedCustomGuidesV2}
@@ -9143,19 +9725,142 @@ const PlaybookPage = ({
             )}
           </PbSection>
 
-          {/* V3 Enhanced Prompts - Hidden on main branch (develop-only feature) */}
-          {false && (
-            <PbSection title="Enhanced Image Prompts (V3)">
-              <div style={{ marginBottom: 12, fontSize: 12.5, color: '#888', lineHeight: 1.6 }}>
-                Our new 10-block prompt system for richer, more detailed images. Includes expanded aesthetic vocabulary,
-                better African representation, enhanced product preservation, and 100+ safety rules.
+          {/* V3 Enhanced Prompts */}
+          <PbSection title="Enhanced Image Prompts (V3)">
+            <div style={{ marginBottom: 12, fontSize: 12.5, color: '#888', lineHeight: 1.6 }}>
+              Our new 10-block prompt system for richer, more detailed images. Includes expanded aesthetic vocabulary,
+              better African representation, enhanced product preservation, and 100+ safety rules.
+            </div>
+            {!editing ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div
+                  style={{
+                    background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
+                    color: p?.use_v3_prompts ? '#fff' : '#6b7280',
+                    borderRadius: 8,
+                    padding: '8px 16px',
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  {p?.use_v3_prompts ? (
+                    <>
+                      <span>✨</span>
+                      <span>V3 Enabled</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>V2 Standard</span>
+                    </>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, color: '#666' }}>
+                  {p?.use_v3_prompts
+                    ? 'Using V3 10-block architecture with enhanced vocabulary'
+                    : 'Using V2 6-section prompt system'}
+                </div>
               </div>
-              {!editing ? (
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <button
+                  onClick={async () => {
+                    const newValue = !(p?.use_v3_prompts ?? false);
+                    try {
+                      const response = await V3Service.toggleV3(newValue);
+                      if (response.status && response.responseData) {
+                        if (onProfileUpdate && p) {
+                          onProfileUpdate({ ...p, use_v3_prompts: newValue });
+                        }
+                        ToastService.showToast(
+                          newValue ? '✨ V3 Enhanced Prompts Enabled!' : 'Switched to V2 Standard Prompts',
+                          ToastTypeEnum.Success
+                        );
+                        posthog.capture('v3_toggle_changed', { enabled: newValue, location: 'playbook' });
+                      } else {
+                        throw new Error(response.responseMessage || 'Failed to toggle V3');
+                      }
+                    } catch (error) {
+                      console.error('[Playbook] V3 toggle failed:', error);
+                      ToastService.showToast('Failed to update V3 setting. Please try again.', ToastTypeEnum.Error);
+                    }
+                  }}
+                  style={{
+                    background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
+                    color: p?.use_v3_prompts ? '#fff' : '#111',
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '12px 20px',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    transition: 'all 0.2s',
+                    alignSelf: 'flex-start',
+                  }}
+                >
+                  {p?.use_v3_prompts ? (
+                    <>
+                      <span>✨</span>
+                      <span>V3 Enabled</span>
+                      <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Enable V3</span>
+                      <span style={{ fontSize: 11, opacity: 0.7 }}>(Recommended)</span>
+                    </>
+                  )}
+                </button>
+                <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
+                  {p?.use_v3_prompts
+                    ? 'V3 is active. All future image generations will use the enhanced 10-block prompt system.'
+                    : 'Enable V3 for richer prompts with better quality, cultural sensitivity, and product preservation.'}
+                </div>
+              </div>
+            )}
+            {p?.use_v3_prompts && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 12,
+                  background: '#F7F7FD',
+                  border: '1px solid #E0DEF7',
+                  borderRadius: 8,
+                  fontSize: 11.5,
+                  color: '#555',
+                  lineHeight: 1.6,
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: 6, color: '#C2185B' }}>✨ V3 Enhancements Active:</div>
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  <li>10-block prompt architecture (vs. 6-section)</li>
+                  <li>400+ aesthetic vocabulary terms (vs. ~150)</li>
+                  <li>11-dimensional style system with parametric control</li>
+                  <li>100+ context-aware safety & exclusion rules</li>
+                  <li>Enhanced African realism vocabulary for authentic representation</li>
+                  <li>Improved product preservation with forensic analysis</li>
+                </ul>
+              </div>
+            )}
+          </PbSection>
+
+          {/* Canvas Editor Toggle */}
+          <PbSection title="Canvas Editor (Beta)">
+            <p style={{ fontSize: 13.5, color: '#555', lineHeight: 1.6, marginBottom: 16 }}>
+              Enable advanced post editing with drag-drop layers, text editing, and multi-format export
+            </p>
+            {p && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                   <div
                     style={{
-                      background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
-                      color: p?.use_v3_prompts ? '#fff' : '#6b7280',
+                      background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
+                      color: p?.canvas_editor_enabled ? '#fff' : '#6b7280',
                       borderRadius: 8,
                       padding: '8px 16px',
                       fontSize: 12.5,
@@ -9165,237 +9870,110 @@ const PlaybookPage = ({
                       gap: 8,
                     }}
                   >
-                    {p?.use_v3_prompts ? (
-                      <>
-                        <span>✨</span>
-                        <span>V3 Enabled</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>V2 Standard</span>
-                      </>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#666' }}>
-                    {p?.use_v3_prompts
-                      ? 'Using V3 10-block architecture with enhanced vocabulary'
-                      : 'Using V2 6-section prompt system'}
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <button
-                    onClick={async () => {
-                      const newValue = !(p?.use_v3_prompts ?? false);
-                      try {
-                        const response = await V3Service.toggleV3(newValue);
-                        if (response.status && response.responseData) {
-                          if (onProfileUpdate && p) {
-                            onProfileUpdate({ ...p, use_v3_prompts: newValue });
-                          }
-                          ToastService.showToast(
-                            newValue ? '✨ V3 Enhanced Prompts Enabled!' : 'Switched to V2 Standard Prompts',
-                            ToastTypeEnum.Success
-                          );
-                          posthog.capture('v3_toggle_changed', { enabled: newValue, location: 'playbook' });
-                        } else {
-                          throw new Error(response.responseMessage || 'Failed to toggle V3');
-                        }
-                      } catch (error) {
-                        console.error('[Playbook] V3 toggle failed:', error);
-                        ToastService.showToast('Failed to update V3 setting. Please try again.', ToastTypeEnum.Error);
-                      }
-                    }}
-                    style={{
-                      background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
-                      color: p?.use_v3_prompts ? '#fff' : '#111',
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '12px 20px',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      transition: 'all 0.2s',
-                      alignSelf: 'flex-start',
-                    }}
-                  >
-                    {p?.use_v3_prompts ? (
-                      <>
-                        <span>✨</span>
-                        <span>V3 Enabled</span>
-                        <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Enable V3</span>
-                        <span style={{ fontSize: 11, opacity: 0.7 }}>(Recommended)</span>
-                      </>
-                    )}
-                  </button>
-                  <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
-                    {p?.use_v3_prompts
-                      ? 'V3 is active. All future image generations will use the enhanced 10-block prompt system.'
-                      : 'Enable V3 for richer prompts with better quality, cultural sensitivity, and product preservation.'}
-                  </div>
-                </div>
-              )}
-              {p?.use_v3_prompts && (
-                <div
-                  style={{
-                    marginTop: 12,
-                    padding: 12,
-                    background: '#F7F7FD',
-                    border: '1px solid #E0DEF7',
-                    borderRadius: 8,
-                    fontSize: 11.5,
-                    color: '#555',
-                    lineHeight: 1.6,
-                  }}
-                >
-                  <div style={{ fontWeight: 600, marginBottom: 6, color: '#C2185B' }}>✨ V3 Enhancements Active:</div>
-                  <ul style={{ margin: 0, paddingLeft: 18 }}>
-                    <li>10-block prompt architecture (vs. 6-section)</li>
-                    <li>400+ aesthetic vocabulary terms (vs. ~150)</li>
-                    <li>11-dimensional style system with parametric control</li>
-                    <li>100+ context-aware safety & exclusion rules</li>
-                    <li>Enhanced African realism vocabulary for authentic representation</li>
-                    <li>Improved product preservation with forensic analysis</li>
-                  </ul>
-                </div>
-              )}
-            </PbSection>
-          )}
-
-          {/* Canvas Editor Toggle - Hidden on main branch (develop-only feature) */}
-          {false && (
-            <PbSection title="Canvas Editor (Beta)">
-              <p style={{ fontSize: 13.5, color: '#555', lineHeight: 1.6, marginBottom: 16 }}>
-                Enable advanced post editing with drag-drop layers, text editing, and multi-format export
-              </p>
-              {p && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                    <div
-                      style={{
-                        background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
-                        color: p?.canvas_editor_enabled ? '#fff' : '#6b7280',
-                        borderRadius: 8,
-                        padding: '8px 16px',
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 8,
-                      }}
-                    >
-                      {p?.canvas_editor_enabled ? (
-                        <>
-                          <span>✨</span>
-                          <span>Canvas Enabled</span>
-                        </>
-                      ) : (
-                        <span>Disabled</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={async () => {
-                      const newValue = !(p?.canvas_editor_enabled ?? false);
-                      console.log('🎨 Canvas Editor Toggle:', {
-                        currentValue: p?.canvas_editor_enabled,
-                        newValue,
-                        profileData: p,
-                      });
-                      try {
-                        const updatedProfile = { ...p, canvas_editor_enabled: newValue };
-                        console.log('🎨 Saving profile:', updatedProfile);
-                        const response = await BrandProfileService.save(updatedProfile);
-                        console.log('🎨 Save response:', response);
-                        if (response.status) {
-                          onProfileUpdate({ ...p, canvas_editor_enabled: newValue });
-                          ToastService.showToast(
-                            newValue ? '✨ Canvas Editor Enabled!' : 'Canvas Editor Disabled',
-                            ToastTypeEnum.Success
-                          );
-                          posthog.capture('canvas_editor_toggle', { enabled: newValue });
-                        } else {
-                          console.error('🎨 Save failed - response.status is false:', response);
-                          ToastService.showToast(
-                            'Failed to save: ' + (response.responseMessage || 'Unknown error'),
-                            ToastTypeEnum.Error
-                          );
-                        }
-                      } catch (error) {
-                        console.error('🎨 Canvas Editor save error:', error);
-                        ToastService.showToast('Failed to update Canvas Editor setting', ToastTypeEnum.Error);
-                      }
-                    }}
-                    style={{
-                      background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
-                      color: p?.canvas_editor_enabled ? '#fff' : '#111',
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '12px 20px',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      transition: 'all 0.2s',
-                      alignSelf: 'flex-start',
-                    }}
-                  >
                     {p?.canvas_editor_enabled ? (
                       <>
                         <span>✨</span>
                         <span>Canvas Enabled</span>
-                        <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
                       </>
                     ) : (
-                      <>
-                        <span>Enable Canvas Editor</span>
-                        <span style={{ fontSize: 11, opacity: 0.7 }}>(Beta)</span>
-                      </>
+                      <span>Disabled</span>
                     )}
-                  </button>
-                  <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
-                    {p?.canvas_editor_enabled
-                      ? 'Canvas Editor is active. Generated posts will have editable layers for text, logo, and background.'
-                      : 'Enable Canvas Editor to edit posts with drag-drop layers and export to multiple aspect ratios.'}
                   </div>
                 </div>
-              )}
-              {p?.canvas_editor_enabled && (
-                <div
+
+                <button
+                  onClick={async () => {
+                    const newValue = !(p?.canvas_editor_enabled ?? false);
+                    console.log('🎨 Canvas Editor Toggle:', {
+                      currentValue: p?.canvas_editor_enabled,
+                      newValue,
+                      profileData: p,
+                    });
+                    try {
+                      const updatedProfile = { ...p, canvas_editor_enabled: newValue };
+                      console.log('🎨 Saving profile:', updatedProfile);
+                      const response = await BrandProfileService.save(updatedProfile);
+                      console.log('🎨 Save response:', response);
+                      if (response.status) {
+                        onProfileUpdate({ ...p, canvas_editor_enabled: newValue });
+                        ToastService.showToast(
+                          newValue ? '✨ Canvas Editor Enabled!' : 'Canvas Editor Disabled',
+                          ToastTypeEnum.Success
+                        );
+                        posthog.capture('canvas_editor_toggle', { enabled: newValue });
+                      } else {
+                        console.error('🎨 Save failed - response.status is false:', response);
+                        ToastService.showToast(
+                          'Failed to save: ' + (response.responseMessage || 'Unknown error'),
+                          ToastTypeEnum.Error
+                        );
+                      }
+                    } catch (error) {
+                      console.error('🎨 Canvas Editor save error:', error);
+                      ToastService.showToast('Failed to update Canvas Editor setting', ToastTypeEnum.Error);
+                    }
+                  }}
                   style={{
-                    marginTop: 12,
-                    padding: 12,
-                    background: '#FFF7ED',
-                    border: '1px solid #FED7AA',
+                    background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
+                    color: p?.canvas_editor_enabled ? '#fff' : '#111',
+                    border: 'none',
                     borderRadius: 8,
-                    fontSize: 11.5,
-                    color: '#555',
-                    lineHeight: 1.6,
+                    padding: '12px 20px',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    transition: 'all 0.2s',
+                    alignSelf: 'flex-start',
                   }}
                 >
-                  <div style={{ fontWeight: 600, marginBottom: 6, color: '#EA580C' }}>✨ Canvas Editor Features:</div>
-                  <ul style={{ margin: 0, paddingLeft: 18 }}>
-                    <li>Edit text content, fonts, colors, and positions</li>
-                    <li>Drag & drop repositioning for all layers</li>
-                    <li>Undo/redo support (50 operations)</li>
-                    <li>Export to multiple formats (1:1, 9:16, 4:5, 16:9)</li>
-                    <li>Layer management (show/hide, delete, reorder)</li>
-                    <li>Visual editing without regenerating (saves credits)</li>
-                  </ul>
+                  {p?.canvas_editor_enabled ? (
+                    <>
+                      <span>✨</span>
+                      <span>Canvas Enabled</span>
+                      <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Enable Canvas Editor</span>
+                      <span style={{ fontSize: 11, opacity: 0.7 }}>(Beta)</span>
+                    </>
+                  )}
+                </button>
+                <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
+                  {p?.canvas_editor_enabled
+                    ? 'Canvas Editor is active. Generated posts will have editable layers for text, logo, and background.'
+                    : 'Enable Canvas Editor to edit posts with drag-drop layers and export to multiple aspect ratios.'}
                 </div>
-              )}
-            </PbSection>
-          )}
+              </div>
+            )}
+            {p?.canvas_editor_enabled && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 12,
+                  background: '#FFF7ED',
+                  border: '1px solid #FED7AA',
+                  borderRadius: 8,
+                  fontSize: 11.5,
+                  color: '#555',
+                  lineHeight: 1.6,
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: 6, color: '#EA580C' }}>✨ Canvas Editor Features:</div>
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  <li>Edit text content, fonts, colors, and positions</li>
+                  <li>Drag & drop repositioning for all layers</li>
+                  <li>Undo/redo support (50 operations)</li>
+                  <li>Export to multiple formats (1:1, 9:16, 4:5, 16:9)</li>
+                  <li>Layer management (show/hide, delete, reorder)</li>
+                  <li>Visual editing without regenerating (saves credits)</li>
+                </ul>
+              </div>
+            )}
+          </PbSection>
         </SubPage>
       </PbEditContext.Provider>
     </PbUsedInContext.Provider>
@@ -9545,14 +10123,19 @@ const SettingsPage = ({
   brandName,
   onNavChange,
   onBillingTabChange,
+  isMobile,
+  onOpenSectionNav,
 }: {
   onJane: () => void;
   brandName: string;
   onNavChange: (nav: string) => void;
   onBillingTabChange: (tab: 'overview' | 'credits' | 'payments' | 'plans') => void;
+  isMobile?: boolean;
+  onOpenSectionNav?: () => void;
 }) => {
   const { userDetails } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -9614,10 +10197,30 @@ const SettingsPage = ({
     }
   };
 
+  // Settings' new sub-nav (Account/Security/Brand Profile) lands here with
+  // ?anchor=X — those three are sections of this one page, not separate
+  // destinations, same "scroll straight to it" fix as Connected Accounts'
+  // Social/Ad Accounts sections.
+  useEffect(() => {
+    const anchor = searchParams?.get('anchor');
+    if (!anchor) return;
+    document.getElementById(`settings-section-${anchor}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [searchParams]);
+
   return (
-    <SubPage title="Settings" icon="settings" desc="Manage your account and brand preferences" onJane={onJane}>
+    <SubPage
+      title="Settings"
+      icon="settings"
+      desc="Manage your account and brand preferences"
+      onJane={onJane}
+      isMobile={isMobile}
+      onOpenSectionNav={onOpenSectionNav}
+    >
       {/* Account Section */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+      <div
+        id="settings-section-account"
+        style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}
+      >
         <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
           <I n="settings" s={16} c="#C2185B" />
           Account Settings
@@ -9637,7 +10240,10 @@ const SettingsPage = ({
       </div>
 
       {/* Security Section */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+      <div
+        id="settings-section-security"
+        style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}
+      >
         <div
           style={{
             display: 'flex',
@@ -9856,14 +10462,27 @@ const SettingsPage = ({
       </div>
 
       {/* Brand Settings */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+      <div
+        id="settings-section-brand"
+        style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
             <I n="book" s={16} c="#C2185B" />
             Brand Profile
           </h3>
           <button
-            onClick={() => router.push('/social-media/brand-setup/')}
+            // Live-reported (Gloria, staging), twice now: this used to push to
+            // /social-media/brand-setup/ (the first-run onboarding wizard,
+            // which redirects straight back to /workspace/ once onboarding
+            // is done — always true here), then to a ?edit=1 bypass on that
+            // same page. Both were the wrong destination: "edit your brand"
+            // means Brand Playbook (voice, content pillars, formats,
+            // guardrails, audience — the actual onboarding-wizard fields,
+            // all with their own inline editing there already), not this
+            // card's few identity fields. Matches the "Open Brand Playbook"
+            // button just below.
+            onClick={() => onNavChange('playbook')}
             style={{
               padding: '6px 12px',
               borderRadius: 7,
@@ -9883,6 +10502,43 @@ const SettingsPage = ({
           <div style={{ fontSize: 11, color: '#999', marginBottom: 4, fontWeight: 600 }}>BRAND NAME</div>
           <div style={{ fontSize: 13.5, color: '#333', fontWeight: 500 }}>{brandName || 'Not set'}</div>
         </div>
+      </div>
+
+      {/* Brand Playbook — moved here from the Content Studio sidebar: it sets
+          voice, visual style and content guidelines for the AI once, not a
+          content-creation task you'd reach for while writing a post. */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <I n="book" s={16} c="#C2185B" />
+          Brand Playbook
+        </h3>
+        <p style={{ fontSize: 12, color: '#999', margin: '0 0 14px' }}>
+          Set your brand voice, visual style, and content guidelines for the AI.
+        </p>
+        <button
+          onClick={() => onNavChange('playbook')}
+          style={{
+            width: '100%',
+            padding: '12px 14px',
+            borderRadius: 9,
+            border: '1px solid #e5e3df',
+            background: '#fff',
+            cursor: 'pointer',
+            fontFamily: 'var(--wf)',
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#333',
+            textAlign: 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span>Open Brand Playbook</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M6 12L10 8L6 4" stroke="#999" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
       </div>
 
       {/* V3 Enhanced Prompts */}
@@ -10110,125 +10766,281 @@ const STATUS_MSGS = [
   'Generating content ideas...',
 ];
 
-const getNav = (isAdminUser: boolean, isSupportUser: boolean) => {
-  const baseNav = [
-    {
-      id: 'workspace',
-      icon: 'home',
-      label: 'Workspace',
-      tooltip: "Your AI command centre — chat with URI Agent and see today's briefing",
-    },
-    // Customer Messages tab hidden on prod per request.
-    // {
-    //   id: 'messages',
-    //   icon: 'inbox',
-    //   label: 'Customer Messages',
-    //   tooltip: 'Reply to DMs and comments across Instagram, Facebook, WhatsApp and TikTok — all in one inbox',
-    // },
-    {
-      id: 'schedule',
-      icon: 'calendar',
-      label: 'Create Content',
-      tooltip: 'Generate, review, and schedule social media posts across all your platforms',
-    },
-    {
-      id: 'connections',
-      icon: 'share',
-      label: 'Connected Accounts',
-      tooltip: 'Link your Facebook, Instagram, LinkedIn, and X accounts to publish directly',
-    },
-    {
-      id: 'performance',
-      icon: 'chart',
-      label: 'Performance',
-      tooltip: 'Posts, accounts, and market intel — all your insights in one place',
-    },
-    {
-      id: 'campaigns',
-      icon: 'megaphone',
-      label: 'Campaigns',
-      tooltip: 'Tell Jane what to promote — she plans, designs, and runs it for you',
-    },
-    // Blog tab hidden on main branch (develop-only feature)
-    // {
-    //   id: 'blog',
-    //   icon: 'book',
-    //   label: 'Blog',
-    //   tooltip: 'Generate SEO-optimized blog posts and manage your drafts',
-    // },
-    {
-      id: 'playbook',
-      icon: 'book',
-      label: 'Brand Playbook',
-      tooltip: 'Set your brand voice, visual style, and content guidelines for the AI',
-    },
-    // Business Pulse moved inside Brand Playbook — no longer its own destination.
-    {
-      id: 'settings',
-      icon: 'settings',
-      label: 'Settings',
-      tooltip: 'Manage your profile, preferences, and account integrations',
-    },
-    {
-      id: 'billing',
-      icon: 'trending',
-      label: 'Billing',
-      tooltip: 'View your plan, content credits, and billing history',
-    },
-  ];
+const NAV = [
+  {
+    id: 'workspace',
+    icon: 'home',
+    label: 'Workspace',
+    tooltip: "Your AI command centre — chat with URI Agent and see today's briefing",
+  },
+  {
+    id: 'messages',
+    icon: 'inbox',
+    label: 'Customer Messages',
+    tooltip: 'Reply to DMs and comments across Instagram, Facebook, WhatsApp and TikTok — all in one inbox',
+  },
+  {
+    id: 'schedule',
+    icon: 'calendar',
+    label: 'Create Content',
+    tooltip: 'Generate, review, and schedule social media posts across all your platforms',
+  },
+  {
+    id: 'connections',
+    icon: 'share',
+    label: 'Connected Accounts',
+    tooltip: 'Link your Facebook, Instagram, LinkedIn, and X accounts to publish directly',
+  },
+  {
+    id: 'performance',
+    icon: 'chart',
+    label: 'Performance',
+    tooltip: 'Posts, accounts, and market intel — all your insights in one place',
+  },
+  {
+    id: 'market-intelligence',
+    icon: 'eye',
+    label: 'Market Intelligence',
+    tooltip: "What customers want, what stops them buying, and what's changing in your market — with evidence",
+  },
+  {
+    id: 'campaigns',
+    icon: 'megaphone',
+    label: 'Campaigns',
+    tooltip: 'Tell Jane what to promote — she plans, designs, and runs it for you',
+  },
+  {
+    id: 'blog',
+    icon: 'book',
+    label: 'Blog',
+    tooltip: 'Generate SEO-optimized blog posts and manage your drafts',
+  },
+  {
+    id: 'playbook',
+    icon: 'book',
+    label: 'Brand Playbook',
+    tooltip: 'Set your brand voice, visual style, and content guidelines for the AI',
+  },
+  {
+    id: 'settings',
+    icon: 'settings',
+    label: 'Settings',
+    tooltip: 'Manage your profile, preferences, and account integrations',
+  },
+  {
+    id: 'billing',
+    icon: 'trending',
+    label: 'Billing',
+    tooltip: 'View your plan, content credits, and billing history',
+  },
+  {
+    // ADMIN ONLY — filtered out below unless /jane-ads/admin/access allows it. Shows
+    // other businesses' reasoning and performance, so it is never client-facing
+    // (CI-SPEC-01 §4.5). Hiding the item is convenience; every endpoint re-checks.
+    id: 'records',
+    icon: 'book',
+    label: 'Records',
+    tooltip: 'What Jane decided on each campaign, and what the buckets say',
+    adminOnly: true,
+  },
+  {
+    id: 'visual-engine-v2',
+    icon: 'grid',
+    label: '🧪 Visual Engine V2',
+    tooltip:
+      'Beta: isolated 4-layer compositing engine (content + imagery + brand + template-fill), not yet wired into the main Create Content flow',
+  },
+  {
+    // Global platform admin (user management, credit/trial adjustment,
+    // access codes) — a DIFFERENT admin concept from `records` above's
+    // Jane-Ads-specific isAdsAdmin, deliberately not reusing that flag so
+    // the two permission systems stay distinct. AdminUsersPage.tsx also
+    // re-checks server-side and self-redirects non-admins away; hiding the
+    // nav item is convenience, not the real gate.
+    id: 'admin',
+    icon: 'settings',
+    label: 'Admin',
+    tooltip: 'User management, credit/trial adjustment, and partner access codes',
+    platformAdminOnly: true,
+  },
+  {
+    // Same platform-admin gate as `admin` above — a market and its topics,
+    // sources and readings are shared across every subscribed business,
+    // not any one tenant's own data, so this lives outside the brand-
+    // scoped Market Intelligence page. ListeningCurationPage.tsx also
+    // re-checks server-side and self-redirects non-admins away.
+    id: 'listening-curation',
+    icon: 'eye',
+    label: 'Listening Curation',
+    tooltip: 'Topics, sources, review queue, golden datasets, replay and product metrics for Listening Intelligence',
+    platformAdminOnly: true,
+  },
+];
 
-  // Admin-only tab — was wired up in commit 05fbdab but silently dropped when
-  // this NAV array got reverted to a plain static list in a later refactor of
-  // this file. Re-added here; keep this conditional intact through future edits
-  // to this array. isAdminUser comes from AuthProvider's backend-verified
-  // /api/admin/me check (DB is_admin flag + bootstrap allowlist), not a
-  // hardcoded email — any user granted admin via the panel gets this tab too.
-  if (isAdminUser) {
-    baseNav.push({
-      id: 'admin',
-      icon: 'users',
-      label: 'Manage Users',
-      tooltip: 'Admin dashboard for user management, credits, and platform analytics',
-    });
-  }
-
-  // Support-access tab (Jane-on-WhatsApp escalations) — gated on isSupportUser,
-  // not isAdminUser: real customer-care team members without admin/credit-editing
-  // powers still need this. Admins always pass isSupportUser too (implicit
-  // support access, see uri-social-backend's admin_router._is_support_email).
-  if (isSupportUser) {
-    baseNav.push({
-      id: 'escalations',
-      icon: 'inbox',
-      label: 'Escalations',
-      tooltip: "Reply to customer questions Jane's WhatsApp reply engine couldn't answer",
-    });
-  }
-
-  return baseNav;
-};
-
+// Kept as the 5 tabs it already had (Create/Analytics/Playbook/More
+// untouched) — only the first one now matches the desktop default-landing
+// change (Home replacing the chat, see PRIMARY_NAV above). A full mobile
+// redesign to the approved design's own 5-tab set (Home/Content/
+// Campaigns/Messages/Performance) is later work, not done here.
 const MOBILE_TABS = [
-  { id: 'workspace', icon: 'home', label: 'Jane' },
+  { id: 'home', icon: 'home', label: 'Home' },
   { id: 'schedule', icon: 'calendar', label: 'Create' },
   { id: 'performance', icon: 'chart', label: 'Analytics' },
   { id: 'playbook', icon: 'book', label: 'Playbook' },
   { id: 'more', icon: 'settings', label: 'More' },
 ];
 
-const MORE_NAV = [
-  { id: 'campaigns', icon: 'megaphone', label: 'Campaigns' },
-  // Business Pulse moved inside Brand Playbook — see the matching comment on the main tab list above.
+// Every NAV id that the bottom bar has no room for lives here, so mobile can
+// still reach all of them — MOBILE_TABS only holds the five primary destinations.
+const MORE_NAV: { id: string; icon: string; label: string; href?: string; target?: string; anchor?: string }[] = [
+  { id: 'campaign-overview', icon: 'megaphone', label: 'Campaigns' },
+  { id: 'blog', icon: 'book', label: 'Blog' },
+  { id: 'market-intelligence', icon: 'eye', label: 'Market Intelligence' },
+  // Business Pulse moved inside Brand Playbook — no longer its own destination.
+  { id: 'connections', icon: 'share', label: 'Connected Accounts' },
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
-  { id: 'social-accounts', icon: 'globe', label: 'Social Accounts', href: '/settings/social-accounts/' },
-  { id: 'brand-setup', icon: 'edit', label: 'Edit Brand Setup', href: '/social-media/brand-setup/' },
+  // Live-reported (Gloria, staging): this used to be its own entry pointing at
+  // /settings/social-accounts/ — that route is itself nothing but a redirect
+  // shim straight back to ?tab=connections (see that page's own source), i.e.
+  // a pure duplicate of "Connected Accounts" above. Removed rather than kept
+  // as dead weight; desktop's own Connected Accounts page already exposes
+  // "Social Accounts" as a section within that one page, same destination.
+  {
+    id: 'brand-setup',
+    icon: 'edit',
+    label: 'Edit Brand Setup',
+    // Live-reported (Gloria, staging), twice now: this used to push to the
+    // standalone /social-media/brand-setup/ route — the first-run
+    // onboarding wizard, whose own init effect immediately
+    // router.replace('/workspace/') once onboarding_completed is true, i.e.
+    // for every account that can actually reach this nav item. First fix
+    // routed this to Settings > Brand Profile instead, which was still
+    // wrong — "Brand Setup" means the Brand Playbook (voice, content
+    // pillars, formats, guardrails, audience, the actual onboarding-wizard
+    // fields), not the few identity fields Settings' own Brand Profile
+    // card shows. Brand Playbook already has full inline editing for every
+    // one of those fields, so this goes straight there now.
+    target: 'playbook',
+  },
+  { id: 'visual-engine-v2', icon: 'grid', label: '🧪 Visual Engine V2' },
 ];
+
+// Product-restructure redesign (URI Social — Product Restructure & Ads
+// Workspace Requirements): the primary sidebar collapses to these 6
+// destinations + Settings, matching the approved design. NAV/MORE_NAV above
+// are left untouched — every tab they point to (Market Intelligence, Blog,
+// Brand Playbook, Billing, Records, Visual Engine V2, admin pages, and the
+// original chat-based "workspace" home) still exists and is still reachable
+// by its same id/URL; they just don't have a primary sidebar button yet.
+// Where each of those belongs (nested under Content Studio? Performance?
+// Settings?) is a later phase of this same redesign, not decided here.
+const PRIMARY_NAV = [
+  {
+    id: 'home',
+    icon: 'home',
+    label: 'Home',
+    tooltip: "Dashboard, key shortcuts and a quick look at today's activity",
+  },
+  {
+    id: 'schedule',
+    icon: 'calendar',
+    label: 'Content Studio',
+    tooltip: 'Generate, review, and schedule social media posts across all your platforms',
+  },
+  {
+    id: 'campaigns',
+    icon: 'megaphone',
+    label: 'Campaign Manager',
+    tooltip: 'Tell Jane what to promote — she plans, designs, and runs it for you',
+  },
+  {
+    id: 'messages',
+    icon: 'inbox',
+    // Was "Automated Messaging" — live-reported: that text alone needs more
+    // width than this row has at 13px bold, so it wrapped to two lines and
+    // threw off the row's height next to every other section's one-liner.
+    // The tooltip already says what it does in full.
+    label: 'Messaging',
+    tooltip: 'Reply to DMs and comments across Instagram, Facebook, WhatsApp and TikTok — all in one inbox',
+  },
+  {
+    id: 'performance',
+    icon: 'chart',
+    label: 'Performance',
+    tooltip: 'Posts, accounts, and market intel — all your insights in one place',
+  },
+  {
+    id: 'connections',
+    icon: 'share',
+    label: 'Connected Accounts',
+    tooltip: 'Link your Facebook, Instagram, LinkedIn, and X accounts to publish directly',
+  },
+];
+
+// Customer Messages is hidden on prod (as it was before this release) — dev keeps it.
+const VISIBLE_PRIMARY_NAV = PRIMARY_NAV.filter((n) => !(IS_PRODUCTION && n.id === 'messages'));
+
+const LOWER_NAV = [
+  {
+    id: 'settings',
+    icon: 'settings',
+    label: 'Settings',
+    tooltip: 'Manage your profile, preferences, and account integrations',
+  },
+  {
+    id: 'help',
+    icon: 'help',
+    label: 'Help & Support',
+    tooltip: 'Get help or contact support',
+  },
+];
+
+// No real help/support destination exists anywhere in the app yet (no
+// article/FAQ system, no live chat widget) — this is an honest placeholder,
+// not a built-out help center, so it says so rather than pretending.
+const HelpSupportPage = () => (
+  <div style={{ padding: '18px 24px 32px', fontFamily: 'var(--wf)', maxWidth: 520 }}>
+    <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1A1523', margin: '0 0 6px' }}>Help &amp; Support</h1>
+    <p style={{ fontSize: 13.5, color: '#6B7280', lineHeight: 1.5, margin: '0 0 18px' }}>
+      A real help centre isn&apos;t built yet — for now, reach the team directly.
+    </p>
+    <a
+      href="mailto:support@urisocial.com"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '10px 16px',
+        borderRadius: 10,
+        background: '#C2185B',
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: 700,
+        textDecoration: 'none',
+      }}
+    >
+      <I n="send" s={14} c="#fff" />
+      Email support
+    </a>
+  </div>
+);
 
 /* ══════════════════════════════════════════════════════════════════════════
    MAIN DASHBOARD
 ═══════════════════════════════════════════════════════════════════════════ */
 export default function WorkspaceDashboard() {
+  // Same gate the Revenue tab uses (/jane-ads/admin/access). The Records item shows
+  // other businesses' reasoning and performance, so it is hidden for everyone else —
+  // and every endpoint behind it re-checks server-side regardless (CI-SPEC-01 §4.5).
+  const [isAdsAdmin, setIsAdsAdmin] = useState(false);
+
+  useEffect(() => {
+    CampaignService.billingAccess()
+      .then(setIsAdsAdmin)
+      .catch(() => setIsAdsAdmin(false));
+  }, []);
+
   const { logoutUser, userDetails, isAdminUser, isSupportUser } = useAuth();
   const { unreadCount } = useNotifications();
   const { showVerifyModal, setShowVerifyModal, requireEmailVerification } = useEmailVerification();
@@ -10237,7 +11049,7 @@ export default function WorkspaceDashboard() {
 
   const [ready, setReady] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
-  const [nav, setNav] = useState(() => searchParams?.get('tab') || 'workspace');
+  const [nav, setNav] = useState(() => searchParams?.get('tab') || 'home');
   const [billingTab, setBillingTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>('overview');
   const [sIdx, setSIdx] = useState(0);
   const [feed, setFeed] = useState<FeedMsg[]>([]);
@@ -10263,11 +11075,38 @@ export default function WorkspaceDashboard() {
     };
   }, [attachment?.previewUrl]);
   const [profile, setProfile] = useState<BrandProfileData | null>(null);
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useIsMobile();
   const [switcherBrands, setSwitcherBrands] = useState<BrandAccount[] | null>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // Mobile has no sidebar to show a section's subNav inline (Content Studio,
+  // Campaign Manager, Performance, Settings, Connected Accounts each have
+  // one) — this drawer is that, reusing the exact same subNav arrays the
+  // sidebar renders rather than a second, divergent mobile-only list.
+  const [sectionNavOpen, setSectionNavOpen] = useState(false);
+  // Product-restructure redesign: top-bar quick search. Real, if basic —
+  // jumps between the primary destinations rather than being decorative.
+  // Full content/campaign/message search (per the approved design's
+  // placeholder copy) isn't built yet; this is the honest first version.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen(true);
+        searchInputRef.current?.focus();
+      }
+      if (e.key === 'Escape') setSearchOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
   const [trialExpiredOpen, setTrialExpiredOpen] = useState(false);
+  const [planPromptReason, setPlanPromptReason] = useState<'credits_out' | 'no_plan' | null>(null);
   const [trialEndingDismissed, setTrialEndingDismissed] = useState(false);
   const [janeMessage, setJaneMessage] = useState<JaneFirstMessageResponse | null>(null);
   const [janeGenerating, setJaneGenerating] = useState(false);
@@ -10288,13 +11127,6 @@ export default function WorkspaceDashboard() {
   }, [router]);
 
   useEffect(() => {
-    const ck = () => setIsMobile(window.innerWidth < 768);
-    ck();
-    window.addEventListener('resize', ck);
-    return () => window.removeEventListener('resize', ck);
-  }, []);
-
-  useEffect(() => {
     AgencyService.listBrands()
       .then((res) => setSwitcherBrands(res.status ? (res.responseData ?? []) : []))
       .catch(() => setSwitcherBrands([]));
@@ -10308,10 +11140,20 @@ export default function WorkspaceDashboard() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (!localStorage.getItem('uri_tour_v1')) {
+    // Live-reported bug: the tour's full-page click-catcher backdrop (see
+    // GuidedTour, "Clickable backdrop... to allow skip on outside click")
+    // swallows the FIRST real click anywhere on the page while it's open,
+    // dismissing the tour silently instead of reaching whatever the user
+    // actually meant to click — e.g. a plan-variant card's "Select this
+    // one", making "Build this ad" look broken/stuck disabled until a
+    // second click. A direct link to a specific tab (?tab=campaigns, etc.)
+    // means the user is returning to do real work, not landing fresh — the
+    // tour should never auto-launch on top of that.
+    if (!localStorage.getItem('uri_tour_v1') && !searchParams?.get('tab')) {
       const t = setTimeout(() => setTourOpen(true), 900);
       return () => clearTimeout(t);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Keep URL in sync with nav so that router.push('/workspace/?tab=X') always triggers a URL change.
@@ -10323,12 +11165,545 @@ export default function WorkspaceDashboard() {
     [router]
   );
 
+  // Product-restructure redesign: Content Studio's contextual sidebar
+  // (SECTION_NAV.schedule below) needs to land on one of ContentManagerPage's
+  // own internal tabs (Create/Content Library/Calendar/Saved/AI Tools), not
+  // just open the page on whatever it last showed. `seq` bumps on every
+  // click so re-selecting the SAME sub-item while already on this page
+  // still re-applies it (a plain tab value wouldn't change and the effect
+  // wouldn't re-fire).
+  const [contentStudioNav, setContentStudioNav] = useState<{ tab: ContentTab; seq: number }>({
+    tab: 'create',
+    seq: 0,
+  });
+  const goToContentStudioTab = useCallback(
+    (tab: ContentTab) => {
+      setContentStudioNav((prev) => ({ tab, seq: prev.seq + 1 }));
+      goTo('schedule');
+    },
+    [goTo]
+  );
+
+  // Product-restructure redesign: a top-level section with a contextual
+  // sidebar (matching the approved design's Content Studio / Campaign
+  // Manager / Automated Messaging sub-nav panels) swaps the ENTIRE sidebar
+  // to its own item list while nav is anywhere inside it — not a second
+  // rail alongside the primary one. `real: false` items are honest stubs
+  // for confirmed-missing features (no fake page, a plain explanation of
+  // what exists instead) rather than either hiding them or faking a page.
+  const contentStudioSubNav = [
+    {
+      id: 'create',
+      icon: 'edit',
+      label: 'Create Content',
+      active: nav === 'schedule' && contentStudioNav.tab === 'create',
+      onClick: () => goToContentStudioTab('create'),
+    },
+    {
+      id: 'library',
+      icon: 'file',
+      label: 'Content Library',
+      active: nav === 'schedule' && contentStudioNav.tab === 'library',
+      onClick: () => goToContentStudioTab('library'),
+    },
+    {
+      id: 'calendar',
+      icon: 'calendar',
+      label: 'Calendar',
+      active: nav === 'schedule' && contentStudioNav.tab === 'calendar-v2',
+      onClick: () => goToContentStudioTab('calendar-v2'),
+    },
+    // Auto-Generate removed from this nav per staging feedback (item 5) —
+    // AutoGenerateTab itself is untouched and still reachable via
+    // goToContentStudioTab('auto') if it needs a home again later.
+    {
+      id: 'video',
+      icon: 'video',
+      label: '🎬 Video',
+      // Same orphan as Auto above — the classic tab-scroll row (Create/
+      // Library/Auto/Video) had a real, working Video pill that the
+      // restructure dropped along with the row itself. Re-linked here.
+      active: nav === 'schedule' && contentStudioNav.tab === 'video',
+      onClick: () => goToContentStudioTab('video'),
+    },
+    {
+      id: 'blog',
+      icon: 'book',
+      label: 'Blog',
+      // Not in the approved design's Content Studio list, but Blog has no
+      // other stated home anywhere in it either (PRD §10's own open
+      // question) — a real, working feature needs SOME place to live.
+      active: nav === 'blog',
+      onClick: () => goTo('blog'),
+    },
+    // "AI Tools" (-> Visual Engine V2) used to live here too, but that panel
+    // is an explicitly beta, not-wired-into-production testing surface (see
+    // its own top-of-file doc comment) — the restructure gave it a
+    // prominent all-user button it was never meant to have. It's still
+    // reachable exactly as before: mobile's "More" tab (MORE_NAV above).
+  ];
+
+  const campaignManagerSubNav = [
+    {
+      id: 'campaign-overview',
+      icon: 'chart',
+      // Was an internal tab on the chat page being retired (CampaignsPage.tsx's
+      // 'home') — a real sidebar destination now, same as everything else here,
+      // and the first thing you see entering Campaign Manager.
+      label: 'Overview',
+      active: nav === 'campaign-overview',
+      onClick: () => goTo('campaign-overview'),
+    },
+    {
+      id: 'campaign-wizard',
+      icon: 'edit',
+      // Was "New Campaign Builder" — that name only existed to distinguish it
+      // from the old chat-driven 'campaigns' page while both were reachable for
+      // comparison. That page is now hidden from this menu (still reachable by
+      // deep link for the hand-offs that still depend on it — ad-test/video-
+      // polish resume), so this is simply "Campaigns" now.
+      label: 'Campaigns',
+      active: nav === 'campaign-wizard',
+      onClick: () => goTo('campaign-wizard'),
+    },
+    {
+      id: 'campaign-growth',
+      icon: 'eye',
+      label: 'Growth',
+      active: nav === 'campaign-growth',
+      onClick: () => goTo('campaign-growth'),
+    },
+    {
+      id: 'campaign-wallet',
+      icon: 'trending',
+      // Not the same balance as "Budget & Billing" below — this is what Jane
+      // spends on Meta/TikTok/Google, Budget & Billing is the app subscription.
+      label: 'Ad Wallet',
+      active: nav === 'campaign-wallet',
+      onClick: () => goTo('campaign-wallet'),
+    },
+    ...(isAdsAdmin
+      ? [
+          {
+            id: 'campaign-revenue',
+            icon: 'settings',
+            label: 'Revenue',
+            active: nav === 'campaign-revenue',
+            onClick: () => goTo('campaign-revenue'),
+          },
+        ]
+      : []),
+    // "Ad Accounts" used to live here too, as a link that silently jumped out
+    // to Connected Accounts' own "Ad Accounts" heading — confusing precisely
+    // because it looked like a Campaign Manager destination (it even sat in
+    // this list) but never actually stayed one; `active` here was hard-coded
+    // false because it could never truthfully highlight as "you are here".
+    // Connected Accounts already has its own real nav entry for this, so
+    // dropped rather than kept as a second, misleading path to the same page.
+    //
+    // "Audiences" used to live here too — dropped rather than left as a stub.
+    // Unlike Creatives below, there's no reusable-audience concept on the
+    // backend to give a real page to: Jane computes audience strategy fresh
+    // per campaign from context (business, budget, city), not from saved
+    // segments, so a "library" here would mean inventing data the AI-driven
+    // model doesn't use, just to have something to show.
+    {
+      id: 'creatives',
+      icon: 'image',
+      label: 'Creatives',
+      active: nav === 'creatives',
+      onClick: () => goTo('creatives'),
+    },
+    // "Performance" used to live here too, for the exact same reason Ad
+    // Accounts just got dropped — it jumped to the standalone Performance
+    // section (which already has its own proper sidebar entry) rather than
+    // opening anything of its own, and could never show as "active" here.
+    //
+    // "Budget & Billing" used to live here too — a second entry point to the
+    // exact same page as Settings' own "Billing & Subscription" below, under
+    // a different label. Live-reported: this is app subscription billing, not
+    // ad spend (that's Ad Wallet, above, and it stays) — dropped the duplicate
+    // rather than keep two sidebar paths to the one page.
+  ];
+
+  const performanceSubNav = [
+    {
+      id: 'overview',
+      icon: 'chart',
+      label: 'Performance',
+      active: nav === 'performance',
+      onClick: () => goTo('performance'),
+    },
+    {
+      id: 'market-intelligence',
+      icon: 'eye',
+      label: 'Market Intelligence',
+      active: nav === 'market-intelligence',
+      onClick: () => goTo('market-intelligence'),
+    },
+  ];
+
+  // Account/Security/Brand Profile are sections of the one SettingsPage, not
+  // separate pages — same "real destination, scroll straight to it" fix as
+  // Campaign Manager's Ad Accounts entry above.
+  const goToSettingsAnchor = (anchor: string) => {
+    setNav('settings');
+    router.replace(`/workspace/?tab=settings&anchor=${anchor}`, {
+      scroll: false,
+    } as Parameters<typeof router.replace>[1]);
+  };
+
+  const settingsSubNav = [
+    {
+      id: 'settings-account',
+      icon: 'settings',
+      label: 'Account',
+      active: false,
+      onClick: () => goToSettingsAnchor('account'),
+    },
+    {
+      id: 'settings-security',
+      icon: 'lock',
+      label: 'Security',
+      active: false,
+      onClick: () => goToSettingsAnchor('security'),
+    },
+    {
+      id: 'settings-brand',
+      icon: 'edit',
+      label: 'Brand Profile',
+      active: false,
+      onClick: () => goToSettingsAnchor('brand'),
+    },
+    {
+      id: 'playbook',
+      icon: 'book',
+      label: 'Brand Playbook',
+      active: nav === 'playbook',
+      onClick: () => goTo('playbook'),
+    },
+    {
+      id: 'settings-billing',
+      icon: 'trending',
+      label: 'Billing & Subscription',
+      active: nav === 'billing',
+      onClick: () => goTo('billing'),
+    },
+    {
+      id: 'agency',
+      icon: 'grid',
+      label: 'Agency',
+      active: nav === 'agency',
+      onClick: () => goTo('agency'),
+    },
+  ];
+
+  // Social Accounts/Ad Accounts are the two real section headings on
+  // Connected Accounts' one page (see the connections-section-social/
+  // connections-section-ads ids on that page) — same scroll-straight-to-it
+  // fix as Settings' Account/Security/Brand Profile above, and the one
+  // Campaign Manager's own "Ad Accounts" entry now reuses too.
+  const goToConnectionsAnchor = (anchor: string) => {
+    setNav('connections');
+    router.replace(`/workspace/?tab=connections&anchor=${anchor}`, {
+      scroll: false,
+    } as Parameters<typeof router.replace>[1]);
+  };
+
+  const connectionsSubNav = [
+    {
+      id: 'connections-social',
+      icon: 'share',
+      label: 'Social Accounts',
+      active: false,
+      onClick: () => goToConnectionsAnchor('social'),
+    },
+    {
+      id: 'connections-ads',
+      icon: 'megaphone',
+      label: 'Ad Accounts',
+      active: false,
+      onClick: () => goToConnectionsAnchor('ads'),
+    },
+  ];
+
+  // Automated Messaging (InboxDashboard) has had these same six sub-views —
+  // Inbox, Connections, Insights, Brand Voice, AI Usage, Inbox Settings — as
+  // its own in-page left rail for a while, but never got the sidebar
+  // dropdown every other section here has, so there was no "jump straight to
+  // Brand Voice" from outside the page. InboxDashboard's `view` param
+  // already handled `connections` (a Meta OAuth redirect lands back there);
+  // reusing the same param for the rest keeps this a one-line change there.
+  // Live-reported: none of these ever highlighted — `view` lives in the URL,
+  // not in `nav`, and nothing here was reading it back. Tried reading it
+  // straight off searchParams (reactive the same way elsewhere in this
+  // component for OAuth redirect params) first, but router.replace's actual
+  // effect on useSearchParams() lands on its own async schedule — clicking
+  // through the submenu could show last click's highlight, or two at once,
+  // for anywhere from nothing to over a second. Plain state, set synchronously
+  // in the same click as the navigation (same pattern `nav` itself already
+  // uses), has no such lag — the URL still carries the view for deep links
+  // and the back button; it's just not this state's own source of truth.
+  const [messagesViewState, setMessagesViewState] = useState(() => searchParams?.get('view') || 'inbox');
+  const goToMessagesView = (view: string) => {
+    setNav('messages');
+    setMessagesViewState(view);
+    router.replace(`/workspace/?tab=messages&view=${view}`, {
+      scroll: false,
+    } as Parameters<typeof router.replace>[1]);
+  };
+  const messagesView = nav === 'messages' ? messagesViewState : null;
+
+  const messagesSubNav = [
+    {
+      id: 'messages-inbox',
+      icon: 'inbox',
+      label: 'Inbox',
+      active: messagesView === 'inbox',
+      onClick: () => goToMessagesView('inbox'),
+    },
+    {
+      id: 'messages-connections',
+      icon: 'share',
+      label: 'Connections',
+      active: messagesView === 'connections',
+      onClick: () => goToMessagesView('connections'),
+    },
+    {
+      id: 'messages-insights',
+      icon: 'chart',
+      label: 'Insights',
+      active: messagesView === 'insights',
+      onClick: () => goToMessagesView('insights'),
+    },
+    {
+      id: 'messages-voice',
+      icon: 'mic',
+      label: 'Brand Voice',
+      active: messagesView === 'voice',
+      onClick: () => goToMessagesView('voice'),
+    },
+    {
+      id: 'messages-usage',
+      icon: 'trending',
+      label: 'AI Usage',
+      active: messagesView === 'usage',
+      onClick: () => goToMessagesView('usage'),
+    },
+    {
+      id: 'messages-settings',
+      icon: 'settings',
+      label: 'Inbox Settings',
+      active: messagesView === 'settings',
+      onClick: () => goToMessagesView('settings'),
+    },
+  ];
+
+  // Which contextual sidebar (if any) the current nav value belongs to.
+  // A nav id not claimed by any zone falls through to the flat PRIMARY_NAV
+  // sidebar instead — this is also why reusing a PRIMARY_NAV-owned id in a
+  // sub-item (Performance, Connected Accounts) is safe: clicking it is
+  // meant to pop back out to the top-level view, not fake a dedicated page.
+  const activeSection:
+    | 'content-studio'
+    | 'campaign-manager'
+    | 'messages'
+    | 'performance'
+    | 'settings'
+    | 'connections'
+    | null = ['schedule', 'blog', 'visual-engine-v2'].includes(nav)
+    ? 'content-studio'
+    : [
+          'campaigns',
+          'campaign-wizard',
+          'campaign-overview',
+          'campaign-growth',
+          'campaign-wallet',
+          'campaign-revenue',
+        ].includes(nav)
+      ? 'campaign-manager'
+      : nav === 'messages'
+        ? 'messages'
+        : ['performance', 'market-intelligence'].includes(nav)
+          ? 'performance'
+          : // 'playbook' moved here from content-studio's list — it has no item in
+            // that sidebar (deliberately moved into Settings, see SettingsPage's own
+            // comment on why), so it belongs with 'settings' and 'agency' now that
+            // both of those have real Settings sub-nav entries too. 'billing' moved
+            // here too once Campaign Manager's own duplicate "Budget & Billing" entry
+            // was dropped — Settings' "Billing & Subscription" is the only path to it now.
+            ['settings', 'playbook', 'agency', 'billing'].includes(nav)
+            ? 'settings'
+            : nav === 'connections'
+              ? 'connections'
+              : null;
+
+  const SECTION_META: Record<string, { label: string; subNav: typeof contentStudioSubNav }> = {
+    'content-studio': { label: 'Content Studio', subNav: contentStudioSubNav },
+    'campaign-manager': { label: 'Campaign Manager', subNav: campaignManagerSubNav },
+    messages: { label: 'Automated Messaging', subNav: messagesSubNav },
+    performance: { label: 'Performance', subNav: performanceSubNav },
+    settings: { label: 'Settings', subNav: settingsSubNav },
+    connections: { label: 'Connected Accounts', subNav: connectionsSubNav },
+  };
+
+  // Maps a PRIMARY_NAV item's id to the zone it expands — the sidebar stays
+  // a single flat list and the owning row grows its own sub-items beneath
+  // it (accordion), rather than swapping the whole list out for a
+  // section-only view.
+  const ZONE_BY_PRIMARY_ID: Record<
+    string,
+    'content-studio' | 'campaign-manager' | 'messages' | 'performance' | 'connections'
+  > = {
+    schedule: 'content-studio',
+    campaigns: 'campaign-manager',
+    messages: 'messages',
+    performance: 'performance',
+    connections: 'connections',
+  };
+  const [expandedSection, setExpandedSection] = useState<
+    'content-studio' | 'campaign-manager' | 'messages' | 'performance' | 'settings' | 'connections' | null
+  >(activeSection);
+  useEffect(() => {
+    if (activeSection) setExpandedSection(activeSection);
+  }, [activeSection]);
+
+  // Admin was dropped from the sidebar entirely when the Product Restructure
+  // PRD swapped in PRIMARY_NAV/LOWER_NAV (the old flat sidebar's isAdminUser
+  // gate on this item never carried over) — the Admin page itself was left
+  // fully working, just unreachable from any visible nav. Appending it here,
+  // gated the same way the old sidebar gated it, restores the entry point
+  // without exposing it to non-admins.
+  const lowerNavItems = [
+    ...LOWER_NAV,
+    ...(isAdminUser
+      ? [
+          {
+            id: 'admin',
+            icon: 'settings',
+            label: 'Admin',
+            tooltip: 'User management, credit/trial adjustment, and partner access codes',
+          },
+        ]
+      : []),
+    // Support team (and admins): reply to the questions Jane's WhatsApp reply engine
+    // couldn't answer — from aws/prod.
+    ...(isSupportUser
+      ? [
+          {
+            id: 'escalations',
+            icon: 'inbox',
+            label: 'Escalations',
+            tooltip: "Reply to customer questions Jane's WhatsApp reply engine couldn't answer",
+          },
+        ]
+      : []),
+  ];
+
+  // Quick search needs to reach every REAL destination, not just the 8
+  // primary ones — Market Intelligence, Brand Playbook, Blog etc. only
+  // have a sidebar button once you're already inside their section, so
+  // search is how you get there from anywhere else.
+  const searchableDestinations = [
+    ...VISIBLE_PRIMARY_NAV,
+    ...lowerNavItems,
+    ...contentStudioSubNav.map((n) => ({ ...n, tooltip: n.label })),
+    ...campaignManagerSubNav
+      .filter((n) => n.id !== 'audiences' && n.id !== 'creatives')
+      .map((n) => ({ ...n, tooltip: n.label })),
+    ...performanceSubNav.map((n) => ({ ...n, tooltip: n.label })),
+  ].filter((n, i, arr) => arr.findIndex((o) => o.id === n.id) === i);
+
+  // Jane Ads video-quality hand-off: a video uploaded in a campaign thread can be
+  // sent here for polishing, then the finished clip comes back to that exact
+  // thread. Lives at this level because it bridges two independent top-level
+  // pages (campaigns <-> schedule/Video Polish), neither of which otherwise
+  // knows about the other. CampaignsPage unmounts for the trip and remounts on
+  // return — pendingVariants (an already-chosen but not-yet-built audience plan)
+  // carries through here because it lives in a CampaignsPage-local ref that the
+  // remount would otherwise wipe, silently dropping the client's choice and making
+  // the resumed build fall back to generating a fresh set of plans instead of
+  // using the video for the ad they'd already started building.
+  const [videoPolishHandoff, setVideoPolishHandoff] = useState<VideoPolishHandoff | null>(null);
+  const [pendingResumeVideo, setPendingResumeVideo] = useState<{
+    threadId: string;
+    url: string;
+    pendingVariants?: PendingVariants;
+  } | null>(null);
+  const [pendingResumeAdTest, setPendingResumeAdTest] = useState<{ threadId: string; seedMessage: string } | null>(
+    null
+  );
+  // "Use in Campaign Builder" from the Creatives library — same hand-off shape as
+  // pendingResumeVideo/pendingResumeAdTest above, bridging two independent
+  // top-level pages via a bit of state set right before navigating, consumed once
+  // by the destination.
+  const [pendingWizardDraft, setPendingWizardDraft] = useState<DraftSummary | null>(null);
+  const handleUseDraftInWizard = useCallback(
+    (draft: DraftSummary) => {
+      setPendingWizardDraft(draft);
+      goTo('campaign-wizard');
+    },
+    [goTo]
+  );
+
+  // "Resume" on a draft from the Overview page — same hand-off shape as
+  // pendingWizardDraft above. Without this, Overview's Resume button could only
+  // land on the Campaign Builder's list (it has no way to open CampaignBuilderPage's
+  // own internal "wizard" mode directly), making the user click Resume a second
+  // time once they got there — live-reported as confusing double-navigation.
+  const [pendingWizardResumeDraft, setPendingWizardResumeDraft] = useState<WizardDraft | null>(null);
+  const handleResumeDraftFromOverview = useCallback(
+    (draft: WizardDraft) => {
+      setPendingWizardResumeDraft(draft);
+      goTo('campaign-wizard');
+    },
+    [goTo]
+  );
+
+  // A Listening opportunity card recommended as an ad test lands here with a
+  // real draft thread already created server-side (POST /listening/cards/
+  // {id}/create already opened it and built the seed message) — this just
+  // carries that hand-off into Campaigns and resumes straight into it, same
+  // "bridges two independent top-level pages" reasoning as the video-polish
+  // hand-off just above. Destructive take here (unlike video's two-step
+  // peek/take): there's no separate component downstream to do the real
+  // read — CampaignsPage is both the landing tab and the consumer.
+  useEffect(() => {
+    const seed = takeAdTestSeed();
+    if (seed) {
+      goTo('campaigns');
+      setPendingResumeAdTest({ threadId: seed.threadId, seedMessage: seed.seedMessage });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleRequestVideoPolish = useCallback(
+    (file: File, threadId: string, pendingVariants?: PendingVariants) => {
+      setVideoPolishHandoff({ file, returnThreadId: threadId, pendingVariants });
+      goTo('schedule');
+    },
+    [goTo]
+  );
+
+  const handleReturnToCampaignFromPolish = useCallback(
+    (url: string) => {
+      if (videoPolishHandoff)
+        setPendingResumeVideo({
+          threadId: videoPolishHandoff.returnThreadId,
+          url,
+          pendingVariants: videoPolishHandoff.pendingVariants,
+        });
+      setVideoPolishHandoff(null);
+      goTo('campaigns');
+    },
+    [videoPolishHandoff, goTo]
+  );
   // Customer Messages is hidden on prod — removing it from the sidebar list
   // alone didn't stop NotificationBell (and any future ?tab=messages link)
   // from landing here directly, bypassing the sidebar entirely. This closes
   // that off at the route level instead of chasing every entry point.
   useEffect(() => {
-    if (nav === 'messages') goTo('workspace');
+    if (IS_PRODUCTION && nav === 'messages') goTo('workspace');
   }, [nav, goTo]);
 
   const closeTour = useCallback(
@@ -10340,13 +11715,39 @@ export default function WorkspaceDashboard() {
     [goTo]
   );
 
-  // Show trial expired modal on first visit after expiry
+  // Plan popup, shown ONCE per situation — not on every visit:
+  //  • credits_out — they've had a plan or bought credits and used them all
+  //    (never called a "trial"); shown again only after they top up and run
+  //    out again.
+  //  • no_plan — never paid and the free trial is over.
+  // Waits for the balance (hasHadPlan) so it can't guess before it knows, and
+  // closes by itself if a plan loads after the trial status.
+  const planPromptKey = (reason: string) => `uri_plan_prompt:${userDetails?.userId ?? ''}:${reason}`;
   useEffect(() => {
-    if (userDetails?.trialExpired && !userDetails?.subscriptionTier) {
-      const dismissed = sessionStorage.getItem('trial_expired_dismissed');
-      if (!dismissed) setTrialExpiredOpen(true);
+    if (!userDetails || userDetails.hasHadPlan === undefined) return;
+    const credits = userDetails.creditsRemaining ?? 0;
+    let reason: 'credits_out' | 'no_plan' | null = null;
+    if (!hasActiveSubscription(userDetails.subscriptionTier)) {
+      if (userDetails.hasHadPlan) reason = credits <= 0 ? 'credits_out' : null;
+      else if (userDetails.trialExpired && credits <= 0) reason = 'no_plan';
     }
-  }, [userDetails?.trialExpired, userDetails?.subscriptionTier]);
+    try {
+      // Credits back above zero: the next time they run out deserves one reminder.
+      if (credits > 0) localStorage.removeItem(planPromptKey('credits_out'));
+      if (reason && localStorage.getItem(planPromptKey(reason))) reason = null;
+    } catch {
+      // storage unavailable: fall back to showing it once for this page load
+    }
+    setPlanPromptReason(reason);
+    setTrialExpiredOpen(!!reason);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    userDetails?.userId,
+    userDetails?.hasHadPlan,
+    userDetails?.trialExpired,
+    userDetails?.subscriptionTier,
+    userDetails?.creditsRemaining,
+  ]);
 
   // PRD: Jane's First Message - fetch on workspace load if eligible
   useEffect(() => {
@@ -10648,6 +12049,9 @@ export default function WorkspaceDashboard() {
     .toUpperCase();
 
   const PAGES: Record<string, ReactNode> = {
+    home: <HomePage onNavigate={goTo} />,
+    help: <HelpSupportPage />,
+    messages: <InboxDashboard isMobile={isMobile} />,
     schedule: (
       <ContentManagerPage
         onJane={goWorkspace}
@@ -10657,27 +12061,78 @@ export default function WorkspaceDashboard() {
         janeGenerating={janeGenerating}
         onAcceptJaneMessage={handleAcceptJaneMessage}
         onDeclineJaneMessage={handleDeclineJaneMessage}
+        videoPolishHandoff={videoPolishHandoff}
+        onReturnToCampaignFromPolish={handleReturnToCampaignFromPolish}
+        initialTab={contentStudioNav}
+        onOpenSectionNav={() => setSectionNavOpen(true)}
       />
     ),
-    connections: <ConnectionsPage onJane={goWorkspace} />,
-    performance: <PerformancePage onJane={goWorkspace} />,
-    // Customer Messages (InboxDashboard) is hidden on prod — see the
-    // nav === 'messages' redirect guard above. No entry here means even
-    // the one render before that effect fires shows nothing instead of a
-    // flash of the real inbox.
-
-    campaigns: <CampaignsPage onJane={goWorkspace} onNavigate={goTo} />,
-    intel: <IntelPage onJane={goWorkspace} />,
+    connections: (
+      <ConnectionsPage onJane={goWorkspace} isMobile={isMobile} onOpenSectionNav={() => setSectionNavOpen(true)} />
+    ),
+    records: <RecordsPanel />,
+    performance: (
+      <PerformancePage onJane={goWorkspace} isMobile={isMobile} onOpenSectionNav={() => setSectionNavOpen(true)} />
+    ),
+    campaigns: (
+      <CampaignsPage
+        onJane={goWorkspace}
+        onNavigate={goTo}
+        onRequestVideoPolish={handleRequestVideoPolish}
+        pendingResumeVideo={pendingResumeVideo}
+        onResumeVideoConsumed={() => setPendingResumeVideo(null)}
+        pendingResumeAdTest={pendingResumeAdTest}
+        onResumeAdTestConsumed={() => setPendingResumeAdTest(null)}
+      />
+    ),
+    'campaign-wizard': (
+      <CampaignBuilderPage
+        pendingDraft={pendingWizardDraft}
+        onDraftConsumed={() => setPendingWizardDraft(null)}
+        pendingResumeDraft={pendingWizardResumeDraft}
+        onResumeDraftConsumed={() => setPendingWizardResumeDraft(null)}
+      />
+    ),
+    'campaign-overview': <CampaignOverviewPage onNavigate={goTo} onResumeDraft={handleResumeDraftFromOverview} />,
+    'campaign-growth': <CampaignGrowthPage />,
+    'campaign-wallet': <CampaignWalletPage />,
+    'campaign-revenue': <CampaignRevenuePage />,
+    creatives: <CreativesLibraryPage onUseInWizard={handleUseDraftInWizard} />,
+    'market-intelligence': <MarketIntelligencePage />,
+    admin: <AdminUsersPage onBack={goWorkspace} />,
+    'listening-curation': <ListeningCurationPage onBack={goWorkspace} />,
+    intel: <IntelPage onJane={goWorkspace} isMobile={isMobile} onOpenSectionNav={() => setSectionNavOpen(true)} />,
     agency: <AgencyDashboard />,
     blog: <BlogGeneratorTab />,
-    playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,
-    settings: (
-      <SettingsPage onJane={goWorkspace} brandName={brandName} onNavChange={goTo} onBillingTabChange={setBillingTab} />
+    playbook: (
+      <PlaybookPage
+        onJane={goWorkspace}
+        profile={profile}
+        onProfileUpdate={setProfile}
+        isMobile={isMobile}
+        onOpenSectionNav={() => setSectionNavOpen(true)}
+      />
     ),
-    billing: <BillingPage onBack={goWorkspace} initialTab={billingTab} />,
-    admin: <AdminUsersPage onBack={goWorkspace} />,
+    settings: (
+      <SettingsPage
+        onJane={goWorkspace}
+        brandName={brandName}
+        onNavChange={goTo}
+        onBillingTabChange={setBillingTab}
+        isMobile={isMobile}
+        onOpenSectionNav={() => setSectionNavOpen(true)}
+      />
+    ),
+    billing: (
+      <BillingPage
+        onBack={goWorkspace}
+        initialTab={billingTab}
+        focusBuyCredits={searchParams?.get('billing') === 'buy-credits'}
+      />
+    ),
     escalations: <EscalationsPage onBack={goWorkspace} />,
     notifications: <NotificationsPanel />,
+    'visual-engine-v2': <VisualEngineV2Panel />,
   };
 
   return (
@@ -10696,6 +12151,9 @@ export default function WorkspaceDashboard() {
         .workspace-root input:focus,.workspace-root textarea:focus,.workspace-root select:focus{outline:none}
         @keyframes wTypeBounce{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-5px);opacity:1}}
         @keyframes wStatusFade{0%{opacity:0;transform:translateY(3px)}12%{opacity:1;transform:translateY(0)}88%{opacity:1}100%{opacity:0;transform:translateY(-3px)}}
+        .ws-nav-scroll{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.12) transparent}
+        .ws-nav-scroll::-webkit-scrollbar{width:4px}
+        .ws-nav-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px}
         @keyframes tourFadeIn{from{opacity:0}to{opacity:1}}
         @keyframes tourRingPulse{0%,100%{box-shadow:0 0 0 3px #C2185B,0 0 0 7px rgba(194,24,91,.2),0 0 28px rgba(194,24,91,.45)}50%{box-shadow:0 0 0 3px #C2185B,0 0 0 12px rgba(194,24,91,.1),0 0 40px rgba(194,24,91,.25)}}
       `}</style>
@@ -10706,6 +12164,7 @@ export default function WorkspaceDashboard() {
           display: 'flex',
           flexDirection: isMobile ? 'column' : 'row',
           height: '100vh',
+          overflow: 'hidden',
           fontFamily: 'var(--wf)',
           background: '#f5f4f0',
           opacity: ready ? 1 : 0,
@@ -10722,6 +12181,8 @@ export default function WorkspaceDashboard() {
               flexDirection: 'column',
               padding: '18px 0',
               flexShrink: 0,
+              height: '100%',
+              minHeight: 0,
             }}
           >
             <Link
@@ -10757,70 +12218,259 @@ export default function WorkspaceDashboard() {
                 social
               </span>
             </Link>
+            {/* On a short screen the menu scrolls here instead of pushing the sidebar
+                past the bottom of the window (which left a white strip under the app). */}
             <div
-              id="tour-jane-agent"
-              style={{
-                margin: '0 12px 18px',
-                padding: '12px 14px',
-                borderRadius: 11,
-                background: 'rgba(194,24,91,.08)',
-                border: '1px solid rgba(194,24,91,.12)',
-              }}
+              className="ws-nav-scroll"
+              style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 5 }}>
-                <JaneAvatar size={28} pulse />
-                <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: '#f3d0df' }}>URI Agent</div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.3)' }}>AI Social Manager</div>
-                </div>
-              </div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)', paddingLeft: 37 }}>Active & ready</div>
-            </div>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {getNav(isAdminUser, isSupportUser).map((n) => {
-                const badge = n.id === 'notifications' ? unreadCount : (n as { count?: number }).count;
-                return (
-                  <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>
-                    <button
-                      id={`tnav-${n.id}`}
-                      onClick={() => goTo(n.id)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '9px 18px',
-                        background: nav === n.id ? 'rgba(194,24,91,.1)' : 'transparent',
-                        border: 'none',
-                        borderLeft: nav === n.id ? '2.5px solid #E91E63' : '2.5px solid transparent',
-                        fontFamily: 'var(--wf)',
-                        fontSize: 12.5,
-                        color: nav === n.id ? '#fce4ec' : 'rgba(255,255,255,.35)',
-                        fontWeight: nav === n.id ? 600 : 400,
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        transition: 'all .12s',
-                      }}
-                    >
-                      <I n={n.icon} s={15} c={nav === n.id ? '#E91E63' : 'rgba(255,255,255,.22)'} />
-                      <span style={{ flex: 1 }}>{n.label}</span>
-                      {badge != null && badge > 0 && (
-                        <span
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {VISIBLE_PRIMARY_NAV.map((n) => {
+                  const zone = ZONE_BY_PRIMARY_ID[n.id];
+                  const isExpanded = zone != null && expandedSection === zone;
+                  const parentActive = zone ? activeSection === zone : nav === n.id;
+                  return (
+                    <div key={n.id}>
+                      <BrandTooltip title={n.tooltip} placement="right" arrow>
+                        <button
+                          id={`tnav-${n.id}`}
+                          onClick={() => {
+                            // Toggle: clicking an already-open section collapses it
+                            // instead of being a no-op that only another tab's click
+                            // could undo.
+                            if (zone) setExpandedSection((prev) => (prev === zone ? null : zone));
+                            // Campaign Manager's own id is still 'campaigns' (the
+                            // hidden chat page) purely so ZONE_BY_PRIMARY_ID/
+                            // activeSection keep recognizing this row — clicking the
+                            // row itself now lands on Overview, not that page.
+                            goTo(n.id === 'campaigns' ? 'campaign-overview' : n.id);
+                            // goTo drops the `view` query param entirely (lands on
+                            // plain ?tab=messages) — reset the submenu's own state to
+                            // match, same as the page itself defaulting to Inbox with
+                            // no view param, so the sidebar highlight doesn't keep
+                            // showing whatever sub-view was open last time.
+                            if (n.id === 'messages') setMessagesViewState('inbox');
+                          }}
                           style={{
-                            background: '#E91E63',
-                            color: '#fff',
-                            fontSize: 9.5,
-                            fontWeight: 700,
-                            padding: '1px 5px',
-                            borderRadius: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            width: 'calc(100% - 20px)',
+                            margin: '0 10px',
+                            padding: '9px 12px',
+                            borderRadius: 9,
+                            background: parentActive ? '#C2185B' : 'transparent',
+                            border: 'none',
+                            fontFamily: 'var(--wf)',
+                            fontSize: 13,
+                            color: parentActive ? '#fff' : 'rgba(255,255,255,.55)',
+                            fontWeight: parentActive ? 700 : 500,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all .12s',
                           }}
                         >
-                          {badge > 99 ? '99+' : badge}
-                        </span>
+                          <I n={n.icon} s={15} c={parentActive ? '#fff' : 'rgba(255,255,255,.4)'} />
+                          <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {n.label}
+                          </span>
+                          {zone && (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                transition: 'transform .15s',
+                                transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                              }}
+                            >
+                              <I n="chevronRight" s={12} c={parentActive ? '#fff' : 'rgba(255,255,255,.35)'} />
+                            </span>
+                          )}
+                        </button>
+                      </BrandTooltip>
+                      {zone && (
+                        <div
+                          style={{
+                            maxHeight: isExpanded ? 320 : 0,
+                            overflow: 'hidden',
+                            transition: 'max-height .25s ease',
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '3px 0 5px' }}>
+                            {SECTION_META[zone].subNav.map((sn) => {
+                              const childActive = sn.active;
+                              return (
+                                <BrandTooltip key={sn.id} title={sn.label} placement="right" arrow>
+                                  <button
+                                    id={`tnav-${sn.id}`}
+                                    onClick={() => sn.onClick()}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 9,
+                                      width: 'calc(100% - 36px)',
+                                      margin: '0 10px 0 26px',
+                                      padding: '7px 10px',
+                                      borderRadius: 8,
+                                      background: childActive ? 'rgba(194,24,91,.18)' : 'transparent',
+                                      border: 'none',
+                                      fontFamily: 'var(--wf)',
+                                      fontSize: 12.5,
+                                      color: childActive ? '#fff' : 'rgba(255,255,255,.5)',
+                                      fontWeight: childActive ? 700 : 500,
+                                      cursor: 'pointer',
+                                      textAlign: 'left',
+                                      transition: 'all .12s',
+                                    }}
+                                  >
+                                    <I n={sn.icon} s={13} c={childActive ? '#fff' : 'rgba(255,255,255,.35)'} />
+                                    <span
+                                      style={{
+                                        flex: 1,
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                      }}
+                                    >
+                                      {sn.label}
+                                    </span>
+                                  </button>
+                                </BrandTooltip>
+                              );
+                            })}
+                          </div>
+                        </div>
                       )}
-                    </button>
-                  </BrandTooltip>
-                );
-              })}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ flex: 1 }} />
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                  paddingTop: 10,
+                  marginTop: 10,
+                  borderTop: '1px solid rgba(255,255,255,.06)',
+                }}
+              >
+                {lowerNavItems.map((n) => {
+                  // "Settings" is the only lowerNavItems entry with a contextual
+                  // sub-nav (Account/Security/Brand Profile/Brand Playbook/
+                  // Billing/Agency) — same accordion as the PRIMARY_NAV zones
+                  // above, special-cased here rather than touching that shared
+                  // loop since Help & Support (and Admin) stay plain links.
+                  const zone = n.id === 'settings' ? ('settings' as const) : undefined;
+                  const isExpanded = zone != null && expandedSection === zone;
+                  const active = zone ? activeSection === zone : nav === n.id;
+                  return (
+                    <div key={n.id}>
+                      <BrandTooltip title={n.tooltip} placement="right" arrow>
+                        <button
+                          id={`tnav-${n.id}`}
+                          onClick={() => {
+                            // Toggle: clicking an already-open section collapses it
+                            // instead of being a no-op that only another tab's click
+                            // could undo.
+                            if (zone) setExpandedSection((prev) => (prev === zone ? null : zone));
+                            goTo(n.id);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            width: zone ? 'calc(100% - 20px)' : undefined,
+                            margin: '0 10px',
+                            // Matches every other accordion row above (Content Studio,
+                            // Campaign Manager, etc.) — this used to be a fainter,
+                            // differently-colored highlight, the one thing that made
+                            // Settings look like a different kind of nav item instead
+                            // of the same pattern everything else here already uses.
+                            padding: '9px 12px',
+                            borderRadius: 9,
+                            background: active ? '#C2185B' : 'transparent',
+                            border: 'none',
+                            fontFamily: 'var(--wf)',
+                            fontSize: 13,
+                            color: active ? '#fff' : 'rgba(255,255,255,.55)',
+                            fontWeight: active ? 700 : 500,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all .12s',
+                          }}
+                        >
+                          <I n={n.icon} s={15} c={active ? '#fff' : 'rgba(255,255,255,.4)'} />
+                          <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {n.label}
+                          </span>
+                          {zone && (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                transition: 'transform .15s',
+                                transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                              }}
+                            >
+                              <I n="chevronRight" s={12} c={active ? '#fff' : 'rgba(255,255,255,.35)'} />
+                            </span>
+                          )}
+                        </button>
+                      </BrandTooltip>
+                      {zone && (
+                        <div
+                          style={{
+                            maxHeight: isExpanded ? 320 : 0,
+                            overflow: 'hidden',
+                            transition: 'max-height .25s ease',
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '3px 0 5px' }}>
+                            {SECTION_META[zone].subNav.map((sn) => (
+                              <BrandTooltip key={sn.id} title={sn.label} placement="right" arrow>
+                                <button
+                                  id={`tnav-${sn.id}`}
+                                  onClick={() => sn.onClick()}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 9,
+                                    width: 'calc(100% - 36px)',
+                                    margin: '0 10px 0 26px',
+                                    padding: '7px 10px',
+                                    borderRadius: 8,
+                                    background: sn.active ? 'rgba(194,24,91,.18)' : 'transparent',
+                                    border: 'none',
+                                    fontFamily: 'var(--wf)',
+                                    fontSize: 12.5,
+                                    color: sn.active ? '#fff' : 'rgba(255,255,255,.5)',
+                                    fontWeight: sn.active ? 700 : 500,
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    transition: 'all .12s',
+                                  }}
+                                >
+                                  <I n={sn.icon} s={13} c={sn.active ? '#fff' : 'rgba(255,255,255,.35)'} />
+                                  <span
+                                    style={{
+                                      flex: 1,
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    }}
+                                  >
+                                    {sn.label}
+                                  </span>
+                                </button>
+                              </BrandTooltip>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
             <div
               style={{
@@ -10869,12 +12519,24 @@ export default function WorkspaceDashboard() {
                     <span style={{ color: '#fff', fontWeight: 700, fontSize: 11 }}>{brandInitials}</span>
                   </div>
                 )}
-                <div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,.75)', fontWeight: 600 }}>{brandName}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: 'rgba(255,255,255,.75)',
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {brandName}
+                  </div>
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)', textTransform: 'capitalize' }}>
                     {userDetails?.subscriptionTier || 'Free'} Plan
                   </div>
                 </div>
+                {switcherBrands && switcherBrands.length > 1 && <I n="chevronRight" s={13} c="rgba(255,255,255,.3)" />}
                 {switcherOpen && switcherBrands && switcherBrands.length > 1 && (
                   <div
                     onClick={(e) => e.stopPropagation()}
@@ -10968,120 +12630,297 @@ export default function WorkspaceDashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 7 : 9, minWidth: 0, flexShrink: 1 }}>
               {isMobile && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginRight: 4, flexShrink: 0 }}>
-                  <div
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 6,
-                      background: 'linear-gradient(135deg,#C2185B,#E91E63)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <span style={{ color: '#fff', fontWeight: 900, fontSize: 11 }}>U</span>
-                  </div>
+                  {/* The real app logo, same file the desktop sidebar uses — this used
+                      to be a hand-drawn "U" square standing in for it, so mobile and
+                      desktop showed two different marks for the same brand. */}
+                  <img
+                    src="/images/urilogo-nobg.png"
+                    alt="URI Social"
+                    style={{ width: 24, height: 24, objectFit: 'contain', flexShrink: 0 }}
+                  />
                   <span style={{ fontSize: 13, fontWeight: 700, color: '#111', whiteSpace: 'nowrap' }}>
                     URI <span style={{ fontWeight: 400, color: '#999' }}>Social</span>
                   </span>
                 </div>
               )}
+              {/* Product-restructure redesign: the old rotating "URI Agent is
+                  active" status line lived here — replaced with a real quick
+                  search (Cmd/Ctrl+K), matching the approved design. */}
               {!isMobile && (
-                <div
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: '50%',
-                    background: '#4caf50',
-                    boxShadow: '0 0 7px rgba(76,175,80,.4)',
-                    flexShrink: 0,
-                  }}
-                />
-              )}
-              {/* Rotating status line is decorative flavour text — dropped on
-                  mobile entirely so the functional controls on the right
-                  (credits, notifications, profile) always have room and are
-                  never the thing that silently overflows off-screen. */}
-              {!isMobile && (
-                <span
-                  style={{
-                    fontSize: 12.5,
-                    color: '#666',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <strong style={{ color: '#C2185B' }}>URI Agent</strong> is active:{' '}
-                  <span key={sIdx} style={{ animation: 'wStatusFade 5s linear', display: 'inline-block' }}>
-                    {STATUS_MSGS[sIdx]}
+                <div style={{ position: 'relative', width: 'min(420px, 100%)' }}>
+                  <svg
+                    width={15}
+                    height={15}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#9CA3AF"
+                    strokeWidth="2"
+                    style={{
+                      position: 'absolute',
+                      left: 11,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <input
+                    ref={searchInputRef}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => setSearchOpen(true)}
+                    onBlur={() => setTimeout(() => setSearchOpen(false), 120)}
+                    placeholder="Search anything... (content, campaigns, messages, insights)"
+                    style={{
+                      width: '100%',
+                      height: 34,
+                      padding: '0 52px 0 34px',
+                      borderRadius: 9,
+                      border: '1px solid #E5E3DF',
+                      background: '#F9F8F6',
+                      fontSize: 12.5,
+                      fontFamily: 'var(--wf)',
+                      color: '#1A1523',
+                      outline: 'none',
+                    }}
+                  />
+                  <span
+                    style={{
+                      position: 'absolute',
+                      right: 8,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: '#9CA3AF',
+                      border: '1px solid #E5E3DF',
+                      borderRadius: 5,
+                      padding: '2px 5px',
+                      background: '#fff',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    Ctrl K
                   </span>
-                </span>
+                  {searchOpen && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        marginTop: 6,
+                        width: '100%',
+                        minWidth: 260,
+                        background: '#fff',
+                        border: '1px solid #E5E3DF',
+                        borderRadius: 10,
+                        boxShadow: '0 10px 30px rgba(0,0,0,.12)',
+                        overflow: 'hidden',
+                        zIndex: 60,
+                      }}
+                    >
+                      {searchableDestinations
+                        .filter((n) => n.label.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+                        .map((n) => (
+                          <button
+                            key={n.id}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              if ('onClick' in n) {
+                                (n as { onClick: () => void }).onClick();
+                              } else {
+                                goTo(n.id);
+                              }
+                              setSearchQuery('');
+                              setSearchOpen(false);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 9,
+                              width: '100%',
+                              padding: '9px 12px',
+                              border: 'none',
+                              background: 'transparent',
+                              cursor: 'pointer',
+                              fontFamily: 'var(--wf)',
+                              fontSize: 12.5,
+                              color: '#1A1523',
+                              textAlign: 'left',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = '#F9F8F6')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <I n={n.icon} s={13} c="#9CA3AF" />
+                            {n.label}
+                          </button>
+                        ))}
+                      {searchableDestinations.filter((n) =>
+                        n.label.toLowerCase().includes(searchQuery.trim().toLowerCase())
+                      ).length === 0 && (
+                        <div style={{ padding: '10px 12px', fontSize: 12, color: '#9CA3AF' }}>
+                          No destinations match &ldquo;{searchQuery}&rdquo;. Searching content, campaigns and messages
+                          directly isn&apos;t wired up yet.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              {!isMobile && (
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <button
+                    onClick={() => setCreateOpen((o) => !o)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '8px 14px',
+                      borderRadius: 9,
+                      border: 'none',
+                      background: '#C2185B',
+                      color: '#fff',
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      fontFamily: 'var(--wf)',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <I n="plus" s={13} c="#fff" />
+                    Create
+                    <I n="chevronRight" s={11} c="rgba(255,255,255,.7)" />
+                  </button>
+                  {createOpen && (
+                    <>
+                      <div onClick={() => setCreateOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 59 }} />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '100%',
+                          right: 0,
+                          marginTop: 6,
+                          width: 200,
+                          background: '#fff',
+                          border: '1px solid #E5E3DF',
+                          borderRadius: 10,
+                          boxShadow: '0 10px 30px rgba(0,0,0,.12)',
+                          overflow: 'hidden',
+                          zIndex: 60,
+                        }}
+                      >
+                        {[
+                          { id: 'schedule', icon: 'edit', label: 'New post' },
+                          { id: 'campaign-wizard', icon: 'megaphone', label: 'New campaign' },
+                          { id: 'blog', icon: 'book', label: 'New blog post' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => {
+                              setCreateOpen(false);
+                              goTo(opt.id);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 9,
+                              width: '100%',
+                              padding: '9px 12px',
+                              border: 'none',
+                              background: 'transparent',
+                              cursor: 'pointer',
+                              fontFamily: 'var(--wf)',
+                              fontSize: 12.5,
+                              color: '#1A1523',
+                              textAlign: 'left',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = '#F9F8F6')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <I n={opt.icon} s={13} c="#9CA3AF" />
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
               )}
             </div>
             <div
               id="tour-notification-area"
               style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0, flexWrap: 'wrap' }}
             >
-              {/* Utility toolbar — Settings, Edit Brand Setup, Clear conversation.
-                  A single segmented pill instead of loose bordered squares reads
-                  as one cohesive control rather than three separate buttons, and
-                  it's shown on mobile too now (icon-only, same as desktop) rather
-                  than being dropped entirely — the "More" drawer still offers the
-                  labeled versions for anyone who prefers text over icons. */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'stretch',
-                  border: '1px solid #e5e3df',
-                  borderRadius: 9,
-                  overflow: 'hidden',
-                  background: '#fff',
-                  flexShrink: 0,
-                }}
-              >
-                <button
-                  onClick={() => router.push('/settings/social-accounts/')}
-                  title="Social Accounts"
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              {/* Utility toolbar — Edit Brand Setup, Clear conversation. Chat-page
+                  specific now that Settings has its own primary sidebar button
+                  (PRIMARY_NAV/LOWER_NAV) — showing it everywhere would duplicate
+                  that and clutter the new design's clean top bar. */}
+              {nav === 'workspace' && (
+                <div
                   style={{
-                    width: isMobile ? 34 : 32,
-                    height: isMobile ? 34 : 32,
-                    border: 'none',
-                    borderRight: '1px solid #edecea',
-                    background: 'transparent',
-                    cursor: 'pointer',
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: 'background .15s',
+                    alignItems: 'stretch',
+                    border: '1px solid #e5e3df',
+                    borderRadius: 9,
+                    overflow: 'hidden',
+                    background: '#fff',
+                    flexShrink: 0,
                   }}
                 >
-                  <I n="settings" s={14} c="#666" />
-                </button>
-                <button
-                  onClick={() => router.push('/social-media/brand-setup/')}
-                  title="Edit Brand Setup"
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                  style={{
-                    width: isMobile ? 34 : 32,
-                    height: isMobile ? 34 : 32,
-                    border: 'none',
-                    borderRight: nav === 'workspace' ? '1px solid #edecea' : 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: 'background .15s',
-                  }}
-                >
-                  <I n="edit" s={14} c="#666" />
-                </button>
-                {nav === 'workspace' && (
+                  <button
+                    onClick={() => router.push('/settings/social-accounts/')}
+                    title="Social Accounts"
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    style={{
+                      width: isMobile ? 34 : 32,
+                      height: isMobile ? 34 : 32,
+                      border: 'none',
+                      borderRight: '1px solid #edecea',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'background .15s',
+                    }}
+                  >
+                    <I n="settings" s={14} c="#666" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      // Same fix as MORE_NAV's own "Edit Brand Setup" above —
+                      // /social-media/brand-setup/ is the first-run onboarding
+                      // wizard and bounces straight to /workspace/ once
+                      // onboarding is done, which it always is by the time
+                      // this toolbar is even visible. Live-reported twice:
+                      // routing to Settings > Brand Profile (first fix) was
+                      // also wrong — "Brand Setup" means Brand Playbook.
+                      setNav('playbook');
+                      router.replace('/workspace/?tab=playbook', {
+                        scroll: false,
+                      } as Parameters<typeof router.replace>[1]);
+                    }}
+                    title="Edit Brand Setup"
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    style={{
+                      width: isMobile ? 34 : 32,
+                      height: isMobile ? 34 : 32,
+                      border: 'none',
+                      borderRight: '1px solid #edecea',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'background .15s',
+                    }}
+                  >
+                    <I n="edit" s={14} c="#666" />
+                  </button>
                   <button
                     onClick={() => setClearConfirmOpen(true)}
                     title="Clear conversation"
@@ -11101,8 +12940,8 @@ export default function WorkspaceDashboard() {
                   >
                     <I n="broom" s={14} c="#666" />
                   </button>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Notification Bell */}
               <NotificationBell isMobile={isMobile} onViewAll={() => goTo('notifications')} />
@@ -11110,16 +12949,8 @@ export default function WorkspaceDashboard() {
               {/* Trial Badge — kept visible (compact) on mobile too. Hiding this
                   entirely used to mean there was no way to see remaining
                   credits on mobile short of opening Billing, including for
-                  Jane herself when asked "how many credits do I have left".
-                  Only for PURE trial users — a subscriber's trial keeps
-                  running on its own clock (it isn't cut short by
-                  subscribing) so trialActive can still be true for them, but
-                  they've already upgraded, so this "you're on a free trial"
-                  framing (and the "Upgrade Now" banner below) shouldn't
-                  address them — WorkspaceCreditBadge shows their real
-                  combined balance (subscription + any unexpired trial
-                  credits) instead. */}
-              {userDetails?.trialActive && !hasActiveSubscription(userDetails?.subscriptionTier) && (
+                  Jane herself when asked "how many credits do I have left". */}
+              {userDetails?.trialActive && (
                 <TrialBanner
                   daysRemaining={userDetails.trialDaysRemaining ?? 0}
                   creditsRemaining={userDetails.trialCreditsRemaining ?? 0}
@@ -11129,9 +12960,13 @@ export default function WorkspaceDashboard() {
               )}
 
               {/* Credit Balance Badge — already compact enough for mobile as-is */}
-              {(!userDetails?.trialActive || hasActiveSubscription(userDetails?.subscriptionTier)) && (
-                <WorkspaceCreditBadge onClick={() => goTo('billing')} />
-              )}
+              {!userDetails?.trialActive && <WorkspaceCreditBadge onClick={() => goTo('billing')} />}
+
+              {/* Ad wallet balance — a different currency from credits (this funds real
+                  ad spend), and it now moves during normal use because launching a
+                  campaign debits it. Hidden on mobile, where header room is tight and
+                  the credit badge is the one that must survive. */}
+              {!isMobile && <WorkspaceAdWalletBadge onClick={() => goTo('campaign-wallet')} />}
 
               {/* Ad wallet balance — a different currency from credits (this funds real
                   ad spend), and it now moves during normal use because launching a
@@ -11144,17 +12979,14 @@ export default function WorkspaceDashboard() {
             </div>
           </div>
 
-          {/* Trial ending banner (≤24h remaining) — pure trial users only, see above */}
-          {userDetails?.trialActive &&
-            !hasActiveSubscription(userDetails?.subscriptionTier) &&
-            (userDetails.trialHoursRemaining ?? 999) <= 24 &&
-            !trialEndingDismissed && (
-              <TrialEndingBanner
-                hoursRemaining={userDetails.trialHoursRemaining ?? 0}
-                creditsRemaining={userDetails.trialCreditsRemaining ?? 0}
-                onDismiss={() => setTrialEndingDismissed(true)}
-              />
-            )}
+          {/* Trial ending banner (≤24h remaining) */}
+          {userDetails?.trialActive && (userDetails.trialHoursRemaining ?? 999) <= 24 && !trialEndingDismissed && (
+            <TrialEndingBanner
+              hoursRemaining={userDetails.trialHoursRemaining ?? 0}
+              creditsRemaining={userDetails.trialCreditsRemaining ?? 0}
+              onDismiss={() => setTrialEndingDismissed(true)}
+            />
+          )}
 
           {/* Page content */}
           <div style={{ flex: 1, overflow: nav === 'workspace' ? 'hidden' : 'auto' }}>
@@ -11651,6 +13483,10 @@ export default function WorkspaceDashboard() {
                 boxShadow: '0 -4px 24px rgba(0,0,0,.12)',
                 zIndex: 201,
                 paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+                // The drawer now lists every nav item the bottom bar can't hold,
+                // so it has to scroll rather than run off the top of short screens.
+                maxHeight: 'calc(100vh - 56px - 24px)',
+                overflowY: 'auto',
               }}
             >
               {/* Handle */}
@@ -11699,12 +13535,22 @@ export default function WorkspaceDashboard() {
               {/* More nav items */}
               {MORE_NAV.map((n) => {
                 const badge = n.id === 'notifications' ? unreadCount : undefined;
+                // 'brand-setup' really lands on the Settings page (see its own
+                // `target` above) — highlight against where it actually goes,
+                // not its own list-only id.
+                const activeId = n.target ?? n.id;
+                const isActive = nav === activeId;
                 return (
                   <button
                     key={n.id}
                     onClick={() => {
-                      if ('href' in n && n.href) {
+                      if (n.href) {
                         router.push(n.href);
+                      } else if (n.target) {
+                        setNav(n.target);
+                        router.replace(`/workspace/?tab=${n.target}${n.anchor ? `&anchor=${n.anchor}` : ''}`, {
+                          scroll: false,
+                        } as Parameters<typeof router.replace>[1]);
                       } else {
                         goTo(n.id);
                       }
@@ -11716,19 +13562,21 @@ export default function WorkspaceDashboard() {
                       alignItems: 'center',
                       gap: 12,
                       padding: '14px 18px',
-                      background: nav === n.id ? 'rgba(194,24,91,.05)' : 'none',
+                      background: isActive ? 'rgba(194,24,91,.05)' : 'none',
                       border: 'none',
-                      borderLeft: nav === n.id ? '3px solid #E91E63' : '3px solid transparent',
+                      borderLeft: isActive ? '3px solid #E91E63' : '3px solid transparent',
                       cursor: 'pointer',
                       fontFamily: 'var(--wf)',
                       fontSize: 14,
-                      fontWeight: nav === n.id ? 600 : 500,
-                      color: nav === n.id ? '#C2185B' : '#333',
+                      fontWeight: isActive ? 600 : 500,
+                      color: isActive ? '#C2185B' : '#333',
                       textAlign: 'left',
                     }}
                   >
-                    <I n={n.icon} s={18} c={nav === n.id ? '#C2185B' : '#888'} />
-                    <span style={{ flex: 1 }}>{n.label}</span>
+                    <I n={n.icon} s={18} c={isActive ? '#C2185B' : '#888'} />
+                    <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {n.label}
+                    </span>
                     {badge != null && badge > 0 && (
                       <span
                         style={{
@@ -11777,15 +13625,97 @@ export default function WorkspaceDashboard() {
         )}
       </div>
 
+      {/* SECTION SUBNAV DRAWER — mobile only. Opened from the Topbar's section
+          chip; lists the exact same subNav the desktop sidebar shows for
+          whichever section (Content Studio, Campaign Manager, Performance,
+          Settings, Connected Accounts) nav is currently inside — one source
+          of truth for both platforms instead of a second, divergent list. */}
+      {isMobile && sectionNavOpen && activeSection && (
+        <>
+          <div
+            onClick={() => setSectionNavOpen(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.25)', zIndex: 200 }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 56,
+              left: 0,
+              right: 0,
+              background: '#fff',
+              borderRadius: '16px 16px 0 0',
+              boxShadow: '0 -4px 24px rgba(0,0,0,.12)',
+              zIndex: 201,
+              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+              maxHeight: 'calc(100vh - 56px - 24px)',
+              overflowY: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: '#e5e3df' }} />
+            </div>
+            <div
+              style={{
+                padding: '4px 18px 10px',
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#9CA3AF',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                borderBottom: '1px solid #f0eeea',
+              }}
+            >
+              {SECTION_META[activeSection].label}
+            </div>
+            {SECTION_META[activeSection].subNav.map((n) => (
+              <button
+                key={n.id}
+                onClick={() => {
+                  n.onClick();
+                  setSectionNavOpen(false);
+                }}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '14px 18px',
+                  background: n.active ? 'rgba(194,24,91,.05)' : 'none',
+                  border: 'none',
+                  borderLeft: n.active ? '3px solid #E91E63' : '3px solid transparent',
+                  cursor: 'pointer',
+                  fontFamily: 'var(--wf)',
+                  fontSize: 14,
+                  fontWeight: n.active ? 600 : 500,
+                  color: n.active ? '#C2185B' : '#333',
+                  textAlign: 'left',
+                }}
+              >
+                <I n={n.icon} s={18} c={n.active ? '#C2185B' : '#888'} />
+                {n.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* Guided Tour */}
-      {tourOpen && !isMobile && <GuidedTour onDone={closeTour} />}
+      {/* The tour waits for the plan popup: its full-screen "click to skip" layer
+          sat above the popup and made its buttons unclickable. */}
+      {tourOpen && !isMobile && !trialExpiredOpen && nav === 'workspace' && <GuidedTour onDone={closeTour} />}
 
       {/* Trial Expired Modal */}
       <TrialExpiredModal
         open={trialExpiredOpen}
+        reason={planPromptReason ?? 'no_plan'}
+        trialEndDate={userDetails?.trialEndDate}
         onClose={() => {
           setTrialExpiredOpen(false);
-          sessionStorage.setItem('trial_expired_dismissed', '1');
+          try {
+            if (planPromptReason) localStorage.setItem(planPromptKey(planPromptReason), new Date().toISOString());
+          } catch {
+            // storage unavailable — it simply may show again next visit
+          }
         }}
       />
 

@@ -14,9 +14,15 @@ type ISocialMediaAgentApi =
   | 'instagramDirectPending'
   | 'instagramDirectFinalizePending'
   | 'generateContent'
+  | 'expandPrompt'
+  | 'expandVideoPrompt'
   | 'uploadUserContent'
+  | 'downloadUrl'
   | 'generateStoryboard'
+  | 'storyboardJob'
   | 'generateVideoFromStoryboard'
+  | 'videoQuote'
+  | 'storyboardQuote'
   | 'videoJob'
   | 'refineContent'
   | 'approveContent'
@@ -27,6 +33,7 @@ type ISocialMediaAgentApi =
   | 'autoGenerateSettings'
   | 'autoGenerateTrigger'
   | 'autoGenerateConnectInsights'
+  // Content Calendar V2 — staging-only, fully isolated from the v1 routes above
   | 'calendarV2Plan'
   | 'calendarV2PlanGenerate'
   | 'calendarV2ItemBase'
@@ -34,7 +41,11 @@ type ISocialMediaAgentApi =
   | 'videoDrafts'
   | 'generateStoryboardFrames'
   | 'storyboardFrameJob'
+  | 'generateCreativeStoryboard'
+  | 'creativeStoryboardJob'
+  | 'generateCreativeFrames'
   | 'publishVideoDraft'
+  | 'publishTikTokPhotoDraft'
   | 'videoPublishJob'
   | 'extractImageText'
   | 'uploadCustomFont'
@@ -92,7 +103,11 @@ type ISocialMediaAgentApi =
   | 'zapcapProduce'
   | 'zapcapJob'
   | 'zapcapTemplates'
-  | 'multiClipAnalyze';
+  | 'multiClipAnalyze'
+  | 'videoVoiceoverScript'
+  | 'videoVoiceoverProduce'
+  | 'videoBrandOverlayAdjust'
+  | 'videoFrame';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -105,9 +120,15 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   instagramDirectPending: '/connect/instagram-direct/pending',
   instagramDirectFinalizePending: '/connect/instagram-direct/finalize-pending',
   generateContent: '/generate-content',
+  expandPrompt: '/expand-prompt',
+  expandVideoPrompt: '/expand-video-prompt',
   uploadUserContent: '/upload-user-content',
+  downloadUrl: '/download-url',
   generateStoryboard: '/generate-storyboard',
+  storyboardJob: '/storyboard-job',
   generateVideoFromStoryboard: '/generate-video-from-storyboard',
+  videoQuote: '/video-quote',
+  storyboardQuote: '/storyboard-quote',
   videoJob: '/video-job',
   refineContent: '/refine',
   approveContent: '/approve',
@@ -125,7 +146,11 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   videoDrafts: '/video-drafts',
   generateStoryboardFrames: '/generate-storyboard-frames',
   storyboardFrameJob: '/storyboard-frame-job',
+  generateCreativeStoryboard: '/generate-creative-storyboard',
+  creativeStoryboardJob: '/creative-storyboard-job',
+  generateCreativeFrames: '/generate-creative-frames',
   publishVideoDraft: '/publish-video-draft',
+  publishTikTokPhotoDraft: '/publish-tiktok-photo-draft',
   videoPublishJob: '/video-publish-job',
   extractImageText: '/extract-image-text',
   uploadCustomFont: '/upload-custom-font',
@@ -184,6 +209,10 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   submagicJob: '/submagic-job',
   zapcapProduce: '/zapcap-produce',
   zapcapJob: '/zapcap-job',
+  videoVoiceoverScript: '/video-voiceover/script',
+  videoVoiceoverProduce: '/video-voiceover/produce',
+  videoBrandOverlayAdjust: '/video-brand-overlay/adjust',
+  videoFrame: '/video-frame',
   zapcapTemplates: '/zapcap-templates',
   multiClipAnalyze: '/multi-clip/job',
 };

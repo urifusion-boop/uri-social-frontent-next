@@ -17,7 +17,7 @@ const PLATFORM_ASPECT: Record<string, string> = {
 };
 
 interface ScheduledCardProps {
-  draft: ContentDraft & { scheduled_date?: string };
+  draft: ContentDraft;
   onRefresh: () => void;
   onUnscheduled?: () => void;
 }
