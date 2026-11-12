@@ -146,7 +146,12 @@ export interface VideoClip {
   late?: boolean;
   latency_seconds?: number;
   error?: string;
+  /** Set when the scene wasn't made because video generation is down on our side (not because of the scene). */
+  error_code?: string;
 }
+
+/** `error_code` on a video job / clip when video generation is temporarily unavailable on our side. */
+export const VIDEO_SERVICE_UNAVAILABLE = 'video_service_unavailable';
 
 /** What was charged for a generated video, and what came back. Present only when the job was really charged. */
 export interface VideoJobBilling {
@@ -184,6 +189,8 @@ export interface VideoJob {
   current_scene: number;
   clips: VideoClip[];
   error: string | null;
+  /** VIDEO_SERVICE_UNAVAILABLE when `error` is a plain "try again later" message, not a failure of the video itself. */
+  error_code?: string | null;
   billing?: VideoJobBilling | null;
   // Live fal.ai queue status for whichever scene is generating right now —
   // only present while a fal.ai call is actually in flight (unset on

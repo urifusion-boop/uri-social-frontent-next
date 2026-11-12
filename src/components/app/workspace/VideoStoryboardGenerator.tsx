@@ -7,6 +7,7 @@ import {
   VideoDraft,
   VideoClip,
   VideoJob,
+  VIDEO_SERVICE_UNAVAILABLE,
   VideoPublishJob,
   TikTokPostSettings,
 } from '@/src/api/SocialMediaAgentService';
@@ -1417,7 +1418,23 @@ export default function VideoStoryboardGenerator({
                   </div>
                 )}
 
-                {videoJob?.status === 'failed' && (
+                {/* Our video service being down is a notice, not a red failure of the customer's video. */}
+                {videoJob?.error_code === VIDEO_SERVICE_UNAVAILABLE && (
+                  <div
+                    role="status"
+                    style={{
+                      background: '#FFFBEB',
+                      border: '1px solid #FDE68A',
+                      borderRadius: 10,
+                      padding: '10px 14px',
+                      marginBottom: 14,
+                    }}
+                  >
+                    <p style={{ fontSize: 13, color: '#92400E', margin: 0 }}>{videoJob.error}</p>
+                  </div>
+                )}
+
+                {videoJob?.status === 'failed' && videoJob.error_code !== VIDEO_SERVICE_UNAVAILABLE && (
                   <div
                     style={{
                       background: '#FEF2F2',
@@ -2333,12 +2350,12 @@ export function SceneCard({
                   fontSize: 10,
                   fontWeight: 700,
                   color: '#fff',
-                  background: '#DC2626',
+                  background: clip.error_code === VIDEO_SERVICE_UNAVAILABLE ? '#D97706' : '#DC2626',
                   borderRadius: 4,
                   padding: '2px 7px',
                 }}
               >
-                Failed
+                {clip.error_code === VIDEO_SERVICE_UNAVAILABLE ? 'Not made' : 'Failed'}
               </span>
             )}
             {!clip.video_url && !clip.error && (
@@ -2498,10 +2515,11 @@ export function SceneCard({
             <p
               style={{
                 fontSize: 11.5,
-                color: '#f87171',
+                color: clip.error_code === VIDEO_SERVICE_UNAVAILABLE ? '#fbbf24' : '#f87171',
                 marginTop: 10,
                 padding: '7px 10px',
-                background: 'rgba(220,38,38,0.12)',
+                background:
+                  clip.error_code === VIDEO_SERVICE_UNAVAILABLE ? 'rgba(217,119,6,0.15)' : 'rgba(220,38,38,0.12)',
                 borderRadius: 6,
               }}
             >
