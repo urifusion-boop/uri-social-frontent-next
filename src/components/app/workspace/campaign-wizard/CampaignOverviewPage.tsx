@@ -18,7 +18,13 @@ import { FileEdit, Megaphone, MessageCircle, Sparkles, Wallet as WalletIcon } fr
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { CampaignService, type DashboardHome } from '@/src/api/CampaignService';
 import { draftHasPlan, draftThumbnail, platformLabel } from './CampaignBuilderPage';
-import { fetchRemoteWizardDrafts, loadWizardDrafts, mergeWizardDrafts, WizardDraft } from './wizardDraft';
+import {
+  deleteWizardDraft,
+  fetchRemoteWizardDrafts,
+  loadWizardDrafts,
+  mergeWizardDrafts,
+  WizardDraft,
+} from './wizardDraft';
 
 const PINK = '#C2185B';
 const AMBER = '#a15c00';
@@ -182,6 +188,13 @@ export default function CampaignOverviewPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [drafts, setDrafts] = useState<WizardDraft[]>([]);
+  // Discard straight from "Unfinished" — asks once first, since a discarded draft is gone.
+  const [confirmDiscard, setConfirmDiscard] = useState<string | null>(null);
+  const discardDraft = (id: string) => {
+    deleteWizardDraft(id);
+    setDrafts((current) => current.filter((d) => d.id !== id));
+    setConfirmDiscard(null);
+  };
   const isMobile = useIsMobile();
   // Pause / Resume straight from "Running now". A paused campaign drops out of this
   // list on the next load, so its new state is kept here until then (with Resume).
@@ -481,9 +494,42 @@ export default function CampaignOverviewPage({
                           {draftHasPlan(d) ? 'Ad already built' : 'Still filling in'}
                         </div>
                       </div>
-                      <button type="button" onClick={() => onResumeDraft(d)} style={smallBtn}>
-                        Resume
-                      </button>
+                      {confirmDiscard === d.id ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                          <span style={{ fontSize: 11.5, color: '#7a7270' }}>Discard?</span>
+                          <button
+                            type="button"
+                            onClick={() => discardDraft(d.id)}
+                            style={{ ...smallBtn, background: PINK, color: '#fff' }}
+                          >
+                            Yes
+                          </button>
+                          <button type="button" onClick={() => setConfirmDiscard(null)} style={smallBtn}>
+                            Keep
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDiscard(d.id)}
+                            style={{
+                              border: 'none',
+                              background: 'none',
+                              color: '#7a7270',
+                              fontSize: 12.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              padding: '8px 4px',
+                            }}
+                          >
+                            Discard
+                          </button>
+                          <button type="button" onClick={() => onResumeDraft(d)} style={smallBtn}>
+                            Resume
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
