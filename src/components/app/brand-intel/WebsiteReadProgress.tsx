@@ -10,7 +10,7 @@ export default function WebsiteReadProgress({ read, compact = false }: { read: W
   const steps = read.steps ?? [];
   const done = steps.filter((s) => s.status === 'done').length;
   const pct = Math.min(95, Math.round(((done + 0.5) / EXPECTED_STEPS) * 100));
-  const host = read.url ? read.url.replace(/^https?:\/\//, '').replace(/\/$/, '') : 'your website';
+  const host = read.url ? read.url.replace(/^https?:\/\//, '').replace(/\/$/, '') : 'your account';
   const queued = read.status === 'queued' && steps.length === 0;
 
   return (

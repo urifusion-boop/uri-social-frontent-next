@@ -1,5 +1,6 @@
 'use client';
 
+import { trackEvent } from '@/lib/analytics';
 import { BrandIntelService, Finding, FindingValue, WebsiteRead } from '@/src/api/BrandIntelService';
 import type { BrandProfileData } from '@/src/api/BrandProfileService';
 import { C, font, GRADIENT, pill } from '@/src/components/app/workspace/PlaybookPanel';
@@ -80,6 +81,13 @@ export default function WebsiteFindings({ read, mode, onApplied, onSkip, skipLab
         chosen,
         Object.fromEntries(Object.entries(edits).filter(([k]) => chosen.includes(k)))
       );
+      trackEvent('website_read_applied', {
+        applied: out.applied.length,
+        offered: actionable.length,
+        edited: Object.keys(edits).filter((k) => chosen.includes(k)).length,
+        guesses_kept: guesses,
+        guesses_unticked: actionable.filter((f) => f.basis === 'inferred' && !selected.has(f.key)).length,
+      });
       onApplied(out.profile_updates, out.applied);
     } catch (e) {
       setError(errorText(e, "We couldn't save that to your Playbook. Your choices are still here — try again."));
@@ -229,7 +237,7 @@ function FindingRow({
   onEditDone: (v?: string) => void;
 }) {
   const [draft, setDraft] = useState(typeof f.found === 'string' ? (edit ?? f.found) : '');
-  const editable = typeof f.found === 'string' && f.key !== 'website';
+  const editable = typeof f.found === 'string' && f.key !== 'website' && f.key !== 'logo_url';
   const shown: FindingValue = edit ?? f.found;
 
   return (
@@ -307,6 +315,15 @@ function FindingRow({
 }
 
 function Value({ k, v }: { k: string; v: FindingValue }) {
+  if (k === 'logo_url' && typeof v === 'string') {
+    return (
+      <img
+        src={v}
+        alt="Logo found on your website"
+        style={{ maxWidth: 160, maxHeight: 80, objectFit: 'contain', borderRadius: 8, border: `1px solid ${C.line}`, background: '#fff', padding: 6 }}
+      />
+    );
+  }
   if (k === 'brand_colors' && Array.isArray(v)) {
     return (
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

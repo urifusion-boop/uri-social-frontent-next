@@ -10,6 +10,9 @@
  *     BASE_URL=http://localhost:3002 npx playwright test e2e/competitors.spec.ts --project=chromium
  */
 import { test, expect, type Page } from '@playwright/test';
+import { mockFeatures } from './feature-flags';
+
+test.beforeEach(async ({ page }) => mockFeatures(page));
 
 const ok = (responseData: unknown) => ({ json: { status: true, responseCode: 200, responseMessage: 'ok', responseData } });
 const PNG =
@@ -44,6 +47,9 @@ async function setup(page: Page) {
     ads: [] as Record<string, unknown>[],
     recPolls: 0,
     removed: '' as string,
+    edited: null as null | Record<string, unknown>,
+    redone: [] as string[],
+    deleted: [] as string[],
   };
   await page.route(/\/social-media\//, (route) => {
     if (!['fetch', 'xhr'].includes(route.request().resourceType())) return route.continue();
@@ -98,6 +104,24 @@ async function setup(page: Page) {
     }
     if (path.endsWith('/recreate')) {
       return route.fulfill({ json: { id: 'rec_1', ad_id: 'cad_1', product: 'Airport runs', count: 2, status: 'running', results: [], error: '', reference: { image_url: PNG, competitor_name: 'RideEasy', analysis: ANALYSIS } } });
+    }
+    const version = path.match(/\/recreations\/[^/]+\/versions\/(\d+)(\/redo)?$/);
+    if (version) {
+      const two = [
+        { image_url: PNG, headline: 'Never stress about your flight', primary_text: 'Fixed-price airport runs from Magen.', angle: 'problem' },
+        { image_url: PNG + '#2', headline: 'Airport runs, fixed price', primary_text: 'Book Magen today.', angle: 'offer' },
+      ];
+      const rec = { id: 'rec_1', ad_id: 'cad_1', product: 'Airport runs', count: 2, error: '', reference: { image_url: PNG, competitor_name: 'RideEasy', analysis: ANALYSIS } };
+      if (req.method() === 'PATCH') {
+        state.edited = JSON.parse(req.postData() || '{}');
+        return route.fulfill({ json: { ok: true } });
+      }
+      if (req.method() === 'DELETE') {
+        state.deleted.push(version[1]);
+        return route.fulfill({ json: { ...rec, count: 1, status: 'done', results: [two[0]] } });
+      }
+      state.redone.push(version[1]);
+      return route.fulfill({ json: { ...rec, status: 'done', results: [two[0]], count: 1 } });
     }
     if (path.includes('/recreations/') && path.endsWith('/use')) {
       return route.fulfill({ json: { draft_id: 'draft_9', platform: 'instagram', content: 'Fixed-price airport runs.', image_url: PNG, created_at: '' } });
@@ -172,4 +196,40 @@ test('save a competitor ad, see why it works, make your own version and use it i
   await composer.getByRole('button', { name: 'Use in a campaign →' }).first().click();
 
   await expect(page.getByText('Create Campaign')).toBeVisible({ timeout: 15000 });
+});
+
+test('each version can have its words edited, be made again, or be removed', async ({ page }) => {
+  const state = await setup(page);
+  state.ads = [{ id: 'cad_1', image_url: PNG, competitor_id: 'cmp_1', competitor_name: 'RideEasy', platform: 'instagram', link: '', note: '', status: 'ready', analysis: ANALYSIS, angle_label: 'Problem / solution', error: '', created_at: '2026-11-13T12:00:00Z' }];
+  state.list = { ...state.list, active: [{ ...RIDE, status: 'active' }] };
+  await page.goto('/workspace/?tab=campaign-competitors');
+  await page.getByRole('tab', { name: 'Their ads' }).click();
+  await page.getByText('Problem / solution · instagram').click();
+  await page.locator('.MuiDrawer-paper').getByRole('button', { name: 'Make one like this' }).click();
+
+  const composer = page.getByRole('dialog', { name: 'Make one like this' });
+  await composer.getByRole('button', { name: '2', exact: true }).click();
+  await composer.getByRole('button', { name: 'Make my versions' }).click();
+  await expect(composer.getByText('Airport runs, fixed price')).toBeVisible();
+
+  await composer.getByRole('button', { name: 'Edit words' }).first().click();
+  await composer.getByLabel('Headline').fill('Fly calm with Magen');
+  await composer.getByRole('button', { name: 'Save words' }).click();
+  await expect(composer.getByText('Fly calm with Magen')).toBeVisible();
+  expect(state.edited).toEqual({ headline: 'Fly calm with Magen', primary_text: 'Fixed-price airport runs from Magen.' });
+
+  await composer.getByRole('button', { name: 'Remove' }).nth(1).click();
+  await expect(composer.getByText('Airport runs, fixed price')).toHaveCount(0);
+  expect(state.deleted).toEqual(['1']);
+
+  await composer.getByRole('button', { name: 'Make again' }).first().click();
+  await expect.poll(() => state.redone).toEqual(['0']);
+});
+
+test('with the switch off, Competitors is not in the menu', async ({ page }) => {
+  await setup(page);
+  await mockFeatures(page, false);
+  await page.goto('/workspace/?tab=campaign-wizard');
+  await expect(page.getByRole('button', { name: '+ New Campaign' }).first()).toBeVisible({ timeout: 30000 });
+  await expect(page.getByText('Competitors', { exact: true })).toHaveCount(0);
 });

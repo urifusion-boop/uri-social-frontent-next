@@ -95,6 +95,7 @@ import type { WizardDraft } from '@/src/components/app/workspace/campaign-wizard
 import CampaignOverviewPage from '@/src/components/app/workspace/campaign-wizard/CampaignOverviewPage';
 import CampaignGrowthPage from '@/src/components/app/workspace/campaign-wizard/CampaignGrowthPage';
 import CompetitorsPage from '@/src/components/app/competitors/CompetitorsPage';
+import { useFeatures } from '@/src/hooks/useFeatures';
 import CampaignWalletPage from '@/src/components/app/workspace/campaign-wizard/CampaignWalletPage';
 import CampaignRevenuePage from '@/src/components/app/workspace/campaign-wizard/CampaignRevenuePage';
 import CreativesLibraryPage from '@/src/components/app/workspace/CreativesLibraryPage';
@@ -6707,6 +6708,7 @@ const PlaybookPage = ({
   isMobile?: boolean;
   onOpenSectionNav?: () => void;
 }) => {
+  const { flags: features } = useFeatures();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -7547,11 +7549,13 @@ const PlaybookPage = ({
             )}
           </div>
 
-          <PlaybookWebsitePanel
-            profile={profile}
-            onProfileUpdate={onProfileUpdate}
-            disabledReason={editing ? 'Save or cancel your edits first, then read your website.' : undefined}
-          />
+          {features.website_playbook && (
+            <PlaybookWebsitePanel
+              profile={profile}
+              onProfileUpdate={onProfileUpdate}
+              disabledReason={editing ? 'Save or cancel your edits first, then read your website.' : undefined}
+            />
+          )}
           <TellJane
             profile={profile}
             onProfileUpdate={onProfileUpdate}
@@ -11146,6 +11150,8 @@ export default function WorkspaceDashboard() {
   // other businesses' reasoning and performance, so it is hidden for everyone else —
   // and every endpoint behind it re-checks server-side regardless (CI-SPEC-01 §4.5).
   const [isAdsAdmin, setIsAdsAdmin] = useState(false);
+  // New capabilities rolled out in stages (staff first, then a share of brands).
+  const { flags: featureFlags } = useFeatures();
 
   useEffect(() => {
     CampaignService.billingAccess()
@@ -11398,13 +11404,17 @@ export default function WorkspaceDashboard() {
       active: nav === 'campaign-growth',
       onClick: () => goTo('campaign-growth'),
     },
-    {
-      id: 'campaign-competitors',
-      icon: 'target',
-      label: 'Competitors',
-      active: nav === 'campaign-competitors',
-      onClick: () => goTo('campaign-competitors'),
-    },
+    ...(featureFlags.competitors
+      ? [
+          {
+            id: 'campaign-competitors',
+            icon: 'target',
+            label: 'Competitors',
+            active: nav === 'campaign-competitors',
+            onClick: () => goTo('campaign-competitors'),
+          },
+        ]
+      : []),
     {
       id: 'campaign-wallet',
       icon: 'trending',

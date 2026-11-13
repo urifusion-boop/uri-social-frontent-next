@@ -12,6 +12,9 @@
  *     BASE_URL=http://localhost:3002 npx playwright test e2e/website-to-playbook.spec.ts --project=chromium
  */
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { mockFeatures } from './feature-flags';
+
+test.beforeEach(async ({ page }) => mockFeatures(page));
 
 const ok = (responseData: unknown) => ({
   json: { status: true, responseCode: 200, responseMessage: 'ok', responseData },
@@ -186,4 +189,38 @@ test('existing users review website suggestions in a side sheet and see where va
   await expect(page.getByText('Added 3 things from your website to your Playbook.')).toBeVisible();
   await expect(page.getByText('From your website').first()).toBeVisible();
   await expect(page.getByText("Jane's guess").first()).toBeVisible();
+});
+
+test('no website: the Playbook panel can read the owner’s own Instagram instead', async ({ page }) => {
+  await fakeAuth(page);
+  const starts: Record<string, unknown>[] = [];
+  await page.route(/\/social-media\//, (route) => {
+    if (!['fetch', 'xhr'].includes(route.request().resourceType())) return route.continue();
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/brand-profile') && route.request().method() === 'GET') return route.fulfill(ok({ brand_name: 'Magen', onboarding_completed: true }));
+    if (path.endsWith('/brand-profile/health')) return route.fulfill(ok({ score: 40, level: 'Needs attention', filled: 10, total: 39, missing_count: 5, suggestions: [], used_in: {}, sections: {} }));
+    if (path.endsWith('/brand-profile/suggestions')) return route.fulfill(ok({ suggestions: [] }));
+    if (path.endsWith('/brand-profile/instructions')) return route.fulfill(ok({ instructions: [], history: [] }));
+    if (path.endsWith('/video-drafts')) return route.fulfill(ok([]));
+    return route.fulfill(ok({}));
+  });
+  await page.route(/\/jane-ads\//, (route) => route.fulfill({ json: { formats: [] } }));
+  await page.route(/\/brand-intel\/website-reads/, (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    if (path.endsWith('/latest')) return route.fulfill({ json: { status: 'none' } });
+    if (req.method() === 'POST') {
+      starts.push(JSON.parse(req.postData() || '{}'));
+      return route.fulfill({ status: 400, json: { detail: 'Connect your Instagram in Connected Accounts first, then Jane can read it.' } });
+    }
+    return route.fulfill({ json: { status: 'none' } });
+  });
+
+  await page.goto('/workspace/?tab=playbook');
+  await expect(page.getByText('Fill your Playbook from your website')).toBeVisible({ timeout: 30000 });
+  await page.locator('.pb-panel', { hasText: 'Fill your Playbook from your website' }).getByText('Fill your Playbook from your website').click();
+  await page.getByRole('button', { name: 'Read my Instagram' }).click();
+  await expect.poll(() => starts.length).toBe(1);
+  expect(starts[0]).toMatchObject({ source: 'instagram' });
+  await expect(page.getByRole('alert').filter({ hasText: /Connect your Instagram/ })).toBeVisible();
 });

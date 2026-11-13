@@ -12,13 +12,16 @@
 'use client';
 
 import { BrandProfileData, BrandProfileService } from '@/src/api/BrandProfileService';
+import { trackEvent } from '@/lib/analytics';
 import { useEffect, useRef, useState } from 'react';
 
 export interface WizardAudienceValue {
   description: string;
   city: string;
-  /** The Playbook product picked, when one was (the description is composed from it). */
+  /** The Playbook product picked (kept for drafts saved before several could be picked). */
   product?: string;
+  /** The Playbook products picked — one, or a few to test (the description is composed from them). */
+  products?: string[];
   /** Who the product is for, when a product was picked. */
   who?: string;
 }
@@ -41,6 +44,14 @@ function splitProduct(p: string): { name: string; price: string } {
   return m ? { name: m[1].trim(), price: m[2].trim() } : { name: p.trim(), price: '' };
 }
 
+const MAX_PRODUCTS = 3;
+
+/** "A", "A and B", "A, B and C". */
+export function listProducts(products: string[]): string {
+  const p = products.map((x) => x.trim()).filter(Boolean);
+  return p.length <= 1 ? (p[0] ?? '') : `${p.slice(0, -1).join(', ')} and ${p[p.length - 1]}`;
+}
+
 export function composeDescription(product: string, who: string): string {
   const p = product.trim();
   const w = who.trim();
@@ -51,9 +62,12 @@ export function composeDescription(product: string, who: string): string {
 export default function WizardAudienceStep({
   value,
   onChange,
+  fromPlaybook = true,
 }: {
   value: WizardAudienceValue;
   onChange: (next: WizardAudienceValue) => void;
+  /** Playbook products and pre-filling are rolled out in stages; off, this is the plain description step. */
+  fromPlaybook?: boolean;
 }) {
   const [profile, setProfile] = useState<BrandProfileData | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -72,10 +86,11 @@ export default function WizardAudienceStep({
     };
   }, []);
 
-  const products = (profile?.key_products_services ?? []).filter(Boolean).slice(0, 12);
-  const playbookWho = (profile?.ideal_customer_profile || '').trim();
-  const playbookArea = (profile?.customer_location || '').trim();
-  const custom = !value.product;
+  const products = fromPlaybook ? (profile?.key_products_services ?? []).filter(Boolean).slice(0, 12) : [];
+  const playbookWho = fromPlaybook ? (profile?.ideal_customer_profile || '').trim() : '';
+  const playbookArea = fromPlaybook ? (profile?.customer_location || '').trim() : '';
+  const picked = value.products ?? (value.product ? [value.product] : []);
+  const custom = picked.length === 0;
 
   // Fill who-it's-for and the area from the Playbook once, without overwriting anything typed.
   useEffect(() => {
@@ -83,20 +98,30 @@ export default function WizardAudienceStep({
     prefilled.current = true;
     const next = { ...value };
     if (!next.city && playbookArea) next.city = playbookArea;
-    if (!next.description && products.length && !next.product) {
-      next.product = products[0];
+    if (!next.description && products.length && !next.product && !next.products?.length) {
+      next.products = [products[0]];
       next.who = playbookWho;
       next.description = composeDescription(products[0], playbookWho);
     }
-    if (next.city !== value.city || next.product !== value.product) onChange(next);
+    if (next.city !== value.city || next.products !== value.products) onChange(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
+  const [limitNote, setLimitNote] = useState(false);
   const pick = (product: string) => {
     const who = value.who ?? playbookWho;
-    onChange({ ...value, product, who, description: composeDescription(product, who) });
+    const has = picked.includes(product);
+    if (!has && picked.length >= MAX_PRODUCTS) {
+      setLimitNote(true);
+      return;
+    }
+    setLimitNote(false);
+    const next = has ? picked.filter((p) => p !== product) : [...picked, product];
+    if (!has) trackEvent('builder_product_picked', { count: next.length });
+    onChange({ ...value, product: undefined, products: next, who, description: composeDescription(listProducts(next), who) });
   };
-  const pickCustom = () => onChange({ ...value, product: undefined, who: undefined, description: '' });
+  const pickCustom = () =>
+    onChange({ ...value, product: undefined, products: [], who: undefined, description: '' });
 
   const addToPlaybook = async (checked: boolean) => {
     setSaveToPlaybook(checked);
@@ -119,16 +144,18 @@ export default function WizardAudienceStep({
         {products.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span style={labelText}>What are you advertising?</span>
-            <span style={{ fontSize: 11.5, color: '#7a7270', marginTop: -4 }}>From your Brand Playbook.</span>
-            <div role="radiogroup" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
+            <span style={{ fontSize: 11.5, color: '#7a7270', marginTop: -4 }}>
+              From your Brand Playbook. Pick one, or up to {MAX_PRODUCTS} to test in one campaign.
+            </span>
+            <div role="group" aria-label="What are you advertising?" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
               {products.map((p) => {
                 const { name, price } = splitProduct(p);
-                const on = value.product === p;
+                const on = picked.includes(p);
                 return (
                   <button
                     key={p}
                     type="button"
-                    role="radio"
+                    role="checkbox"
                     aria-checked={on}
                     onClick={() => pick(p)}
                     style={cardStyle(on)}
@@ -138,11 +165,16 @@ export default function WizardAudienceStep({
                   </button>
                 );
               })}
-              <button type="button" role="radio" aria-checked={custom} onClick={pickCustom} style={{ ...cardStyle(custom), borderStyle: custom ? 'solid' : 'dashed' }}>
+              <button type="button" role="checkbox" aria-checked={custom} onClick={pickCustom} style={{ ...cardStyle(custom), borderStyle: custom ? 'solid' : 'dashed' }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#1a0a12' }}>Something else</span>
                 <span style={{ fontSize: 11.5, color: '#7a7270' }}>Describe it</span>
               </button>
             </div>
+            {limitNote && (
+              <span role="status" style={{ fontSize: 11.5, color: '#9a5b00' }}>
+                Up to {MAX_PRODUCTS} at a time — untick one to swap it.
+              </span>
+            )}
           </div>
         )}
 
@@ -158,7 +190,7 @@ export default function WizardAudienceStep({
               rows={4}
               style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
             />
-            {loaded && profile && value.description.trim().length > 2 && (
+            {fromPlaybook && loaded && profile && value.description.trim().length > 2 && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: '#7a7270', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
@@ -169,7 +201,7 @@ export default function WizardAudienceStep({
                 {savedToPlaybook ? `Added “${savedToPlaybook}” to your Playbook` : 'Also add this to my Playbook’s products'}
               </label>
             )}
-            {loaded && !products.length && (
+            {fromPlaybook && loaded && !products.length && (
               <span style={{ fontSize: 11.5, color: '#7a7270' }}>
                 Tip: add your products to your Brand Playbook and you can pick them here next time.
               </span>
@@ -182,7 +214,7 @@ export default function WizardAudienceStep({
               type="text"
               value={value.who ?? ''}
               onChange={(e) =>
-                onChange({ ...value, who: e.target.value, description: composeDescription(value.product ?? '', e.target.value) })
+                onChange({ ...value, who: e.target.value, description: composeDescription(listProducts(picked), e.target.value) })
               }
               placeholder="e.g. Companies moving staff daily, travellers going to the airport"
               style={inputStyle}

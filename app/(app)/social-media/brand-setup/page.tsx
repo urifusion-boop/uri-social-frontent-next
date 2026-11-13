@@ -21,6 +21,7 @@ import { CampaignService, AdFormat } from '@/src/api/CampaignService';
 import { AdFormatGalleryCard } from '@/src/components/app/workspace/AdFormatGallery';
 import { MdOutlineCampaign } from 'react-icons/md';
 import WebsiteFirstStep from '@/src/components/app/brand-intel/WebsiteFirstStep';
+import { useFeatures } from '@/src/hooks/useFeatures';
 import { HexColorPicker } from 'react-colorful';
 import Navbar from '@/components/Navbar';
 import { trackEvent } from '@/lib/analytics';
@@ -1029,6 +1030,7 @@ function BrandSetupPageContent() {
   const [fastTrack, setFastTrack] = useState<Step[] | null>(null);
   // The voice the website showed, kept unless the owner takes the voice quiz.
   const [websiteVoice, setWebsiteVoice] = useState('');
+  const { flags } = useFeatures();
 
   // A saved value can be a plain string ("a, b") from an older single-string
   // save, or already an array — audience_age_range/region are both typed
@@ -1193,7 +1195,8 @@ function BrandSetupPageContent() {
   };
 
   // The path through setup: every step, or the shorter one after the website was read.
-  const order: readonly Step[] = fastTrack ?? STEPS;
+  // Website-first setup is rolled out in stages; without it, setup is the full flow as before.
+  const order: readonly Step[] = fastTrack ?? (flags.website_playbook ? STEPS : STEPS.filter((s) => s !== 'website'));
   const pos = Math.max(0, order.indexOf(STEPS[step]));
   const goTo = (target: Step) => {
     saveStepProgress(STEPS[step], target);

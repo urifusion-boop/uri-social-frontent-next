@@ -72,6 +72,15 @@ export default function PlaybookWebsitePanel({ profile, onProfileUpdate, disable
     await start(url.trim(), force);
   };
 
+  const readAccount = async (source: 'instagram' | 'facebook') => {
+    if (disabledReason) {
+      setError(disabledReason);
+      return;
+    }
+    setOpen(true);
+    await start('', false, source);
+  };
+
   const subtitle = running
     ? `Reading ${host}… you can leave this page`
     : read?.status === 'failed'
@@ -137,6 +146,16 @@ export default function PlaybookWebsitePanel({ profile, onProfileUpdate, disable
                 />
                 <button type="button" onClick={() => begin(Boolean(lastRead))} disabled={starting} style={btn('primary', starting)}>
                   {starting ? 'Starting…' : lastRead ? 'Read again' : 'Read my website'}
+                </button>
+              </div>
+              <div style={{ fontSize: 12, color: C.muted, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                No website, or want more?
+                <button type="button" disabled={starting} onClick={() => void readAccount('instagram')} style={btn('link')}>
+                  Read my Instagram
+                </button>
+                ·
+                <button type="button" disabled={starting} onClick={() => void readAccount('facebook')} style={btn('link')}>
+                  Read my Facebook Page
                 </button>
               </div>
               {read?.status === 'failed' && (

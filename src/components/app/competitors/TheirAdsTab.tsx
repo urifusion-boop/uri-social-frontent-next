@@ -1,5 +1,6 @@
 'use client';
 
+import { trackEvent } from '@/lib/analytics';
 import { CampaignService } from '@/src/api/CampaignService';
 import { AdAnalysis, AdList, Competitor, CompetitorAd, CompetitorService } from '@/src/api/CompetitorService';
 import { Drawer } from '@mui/material';
@@ -23,6 +24,7 @@ const PLATFORMS = ['instagram', 'facebook', 'tiktok', 'other'];
 export default function TheirAdsTab({ competitors, competitorId, onCompetitorChange, onMakeOneLikeThis, onCounts }: Props) {
   const [list, setList] = useState<AdList | null>(null);
   const [angle, setAngle] = useState('');
+  const [platform, setPlatform] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
@@ -33,9 +35,9 @@ export default function TheirAdsTab({ competitors, competitorId, onCompetitorCha
   const load = useCallback(async () => {
     setError('');
     try {
-      const l = await CompetitorService.ads({ competitor_id: competitorId || undefined, angle: angle || undefined });
+      const l = await CompetitorService.ads({ competitor_id: competitorId || undefined, angle: angle || undefined, platform: platform || undefined });
       setList(l);
-      if (!competitorId && !angle) {
+      if (!competitorId && !angle && !platform) {
         const counts: Record<string, number> = {};
         for (const a of l.ads) if (a.competitor_id) counts[a.competitor_id] = (counts[a.competitor_id] ?? 0) + 1;
         onCounts(counts);
@@ -45,7 +47,7 @@ export default function TheirAdsTab({ competitors, competitorId, onCompetitorCha
     } finally {
       setLoading(false);
     }
-  }, [competitorId, angle, onCounts]);
+  }, [competitorId, angle, platform, onCounts]);
 
   useEffect(() => {
     setLoading(true);
@@ -72,7 +74,7 @@ export default function TheirAdsTab({ competitors, competitorId, onCompetitorCha
     if (!list?.next_before) return;
     setLoadingMore(true);
     try {
-      const next = await CompetitorService.ads({ competitor_id: competitorId || undefined, angle: angle || undefined, before: list.next_before });
+      const next = await CompetitorService.ads({ competitor_id: competitorId || undefined, angle: angle || undefined, platform: platform || undefined, before: list.next_before });
       setList({ ...next, ads: [...list.ads, ...next.ads] });
     } catch (e) {
       setError(errorText(e, "Couldn't load more ads."));
@@ -82,7 +84,7 @@ export default function TheirAdsTab({ competitors, competitorId, onCompetitorCha
   };
 
   const ads = list?.ads ?? [];
-  const filtered = Boolean(competitorId || angle);
+  const filtered = Boolean(competitorId || angle || platform);
 
   return (
     <div style={{ ...font, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -93,6 +95,14 @@ export default function TheirAdsTab({ competitors, competitorId, onCompetitorCha
             {competitors.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
+              </option>
+            ))}
+          </select>
+          <select aria-label="Platform" value={platform} onChange={(e) => setPlatform(e.target.value)} style={{ ...input, padding: '7px 10px', fontSize: 12.5 }}>
+            <option value="">All platforms</option>
+            {PLATFORMS.map((p) => (
+              <option key={p} value={p} style={{ textTransform: 'capitalize' }}>
+                {p.charAt(0).toUpperCase() + p.slice(1)}
               </option>
             ))}
           </select>
@@ -142,7 +152,7 @@ export default function TheirAdsTab({ competitors, competitorId, onCompetitorCha
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 10 }}>
           {ads.map((a) => (
             <button key={a.id} type="button" onClick={() => setOpen(a)} style={{ ...card, padding: 0, overflow: 'hidden', cursor: 'pointer', textAlign: 'left', gap: 0 }}>
-              <img src={a.image_url} alt={a.analysis && 'headline' in a.analysis ? a.analysis.headline : 'Competitor ad'} loading="lazy" style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', background: C.soft, display: 'block' }} />
+              <img src={a.thumb_url || a.image_url} alt={a.analysis && 'headline' in a.analysis ? a.analysis.headline : 'Competitor ad'} loading="lazy" style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', background: C.soft, display: 'block' }} />
               <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 3 }}>
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>{a.competitor_name || 'Competitor ad'}</span>
                 {a.status === 'analyzing' ? (
@@ -315,6 +325,7 @@ function AddAdForm({
     setError('');
     try {
       const { url } = await CampaignService.uploadMedia(file);
+      trackEvent('reference_ad_saved', { from: 'competitors', platform, linked: Boolean(competitorId) });
       onSaved(await CompetitorService.saveAd({ image_url: url, competitor_id: competitorId || undefined, platform, link: link.trim() }));
     } catch (err) {
       setError(errorText(err, "That didn't save. Try again."));

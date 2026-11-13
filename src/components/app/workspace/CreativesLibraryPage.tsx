@@ -10,6 +10,8 @@ import { useEffect, useState } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
 import { CampaignService, DraftSummary } from '@/src/api/CampaignService';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
+import { useFeatures } from '@/src/hooks/useFeatures';
+import MakeFromPicture from '@/src/components/app/competitors/MakeFromPicture';
 
 const PINK = '#C2185B';
 
@@ -35,6 +37,9 @@ function timeAgo(iso: string): string {
 }
 
 export default function CreativesLibraryPage({ onUseInWizard }: { onUseInWizard: (draft: DraftSummary) => void }) {
+  const { flags } = useFeatures();
+  // "Make one like this" from a creative the owner already has (PRD WS4; rolled out with Competitors).
+  const [makeFrom, setMakeFrom] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const [drafts, setDrafts] = useState<DraftSummary[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -150,11 +155,39 @@ export default function CreativesLibraryPage({ onUseInWizard }: { onUseInWizard:
                   >
                     Use in Campaign Builder
                   </button>
+                  {flags.competitors && d.image_url && (
+                    <button
+                      type="button"
+                      onClick={() => setMakeFrom(d.image_url)}
+                      style={{
+                        border: 'none',
+                        background: 'none',
+                        color: '#7a7270',
+                        padding: '2px 0',
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Make more like this
+                    </button>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
+      )}
+      {makeFrom && (
+        <MakeFromPicture
+          imageUrl={makeFrom}
+          from="creatives"
+          onClose={() => setMakeFrom(null)}
+          onUseInCampaign={(draft) => {
+            setMakeFrom(null);
+            onUseInWizard(draft);
+          }}
+        />
       )}
     </div>
   );

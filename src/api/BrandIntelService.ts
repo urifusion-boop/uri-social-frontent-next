@@ -4,6 +4,8 @@ import type { BrandProfileData } from '@/src/api/BrandProfileService';
 
 const BASE = `${BackendUrlEnum.INSIGHTS}/brand-intel/website-reads`;
 
+export type ReadSource = 'website' | 'instagram' | 'facebook';
+
 export type ReadStatus = 'queued' | 'running' | 'done' | 'failed' | 'none';
 
 export interface ReadStep {
@@ -47,8 +49,9 @@ export interface WebsiteRead {
 /** Reads a business's website and turns it into Brand Playbook suggestions. The read runs in the
  * background on the server, so the page can be left and the read picked up again later. */
 export class BrandIntelService {
-  static async start(url: string, force = false): Promise<WebsiteRead> {
-    const res = await UriHttpClient.getClient().post<WebsiteRead>(BASE, { url, force });
+  /** Read the website at `url`, or (source 'instagram' / 'facebook') the brand's own connected account. */
+  static async start(url: string, force = false, source: ReadSource = 'website'): Promise<WebsiteRead> {
+    const res = await UriHttpClient.getClient().post<WebsiteRead>(BASE, { url, force, source });
     return res.data;
   }
 

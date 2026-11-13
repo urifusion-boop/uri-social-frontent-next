@@ -1,5 +1,6 @@
 'use client';
 
+import { trackEvent } from '@/lib/analytics';
 import { BrandProfileService } from '@/src/api/BrandProfileService';
 import type { DraftSummary } from '@/src/api/CampaignService';
 import { AdAnalysis, CompetitorAd, CompetitorService, Recreation } from '@/src/api/CompetitorService';
@@ -25,6 +26,8 @@ export default function AdComposer({ ad, onClose, onUseInCampaign }: Props) {
   const [rec, setRec] = useState<Recreation | null>(null);
   const [starting, setStarting] = useState(false);
   const [using, setUsing] = useState<number | null>(null);
+  const [editing, setEditing] = useState<{ index: number; headline: string; text: string } | null>(null);
+  const [busyIndex, setBusyIndex] = useState<number | null>(null);
   const [error, setError] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const a = ad.analysis as AdAnalysis;
@@ -59,7 +62,8 @@ export default function AdComposer({ ad, onClose, onUseInCampaign }: Props) {
     timer.current = setTimeout(async () => {
       try {
         const next = await CompetitorService.recreation(r.id);
-        if (next.results.length > r.results.length) EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: next.results.length - r.results.length, operation: 'ad_recreate' });
+        if (next.results.length > r.results.length || (r.status === 'running' && next.status !== 'running'))
+          EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'ad_recreate' });
         setRec(next);
         follow(next);
       } catch {
@@ -73,6 +77,7 @@ export default function AdComposer({ ad, onClose, onUseInCampaign }: Props) {
     setError('');
     try {
       const r = await CompetitorService.recreate(ad.id, product, count);
+      trackEvent('recreation_started', { count, own_ad: !ad.competitor_id });
       setRec(r);
       follow({ ...r, poll_after_ms: 2500 });
     } catch (e) {
@@ -87,7 +92,9 @@ export default function AdComposer({ ad, onClose, onUseInCampaign }: Props) {
     setUsing(i);
     setError('');
     try {
-      onUseInCampaign(await CompetitorService.keepVersion(rec.id, i));
+      const draft = await CompetitorService.keepVersion(rec.id, i);
+      trackEvent('recreation_used', { index: i });
+      onUseInCampaign(draft);
     } catch (e) {
       setError(errorText(e, "That didn't open in the campaign builder. Try again."));
       setUsing(null);
@@ -95,6 +102,52 @@ export default function AdComposer({ ad, onClose, onUseInCampaign }: Props) {
   };
 
   const waiting = rec ? Math.max(0, rec.count - rec.results.length) : 0;
+
+  const saveWords = async () => {
+    if (!rec || !editing) return;
+    setBusyIndex(editing.index);
+    setError('');
+    try {
+      await CompetitorService.editVersion(rec.id, editing.index, editing.headline, editing.text);
+      trackEvent('recreation_edited');
+      setRec({ ...rec, results: rec.results.map((r, i) => (i === editing.index ? { ...r, headline: editing.headline.trim(), primary_text: editing.text.trim() } : r)) });
+      setEditing(null);
+    } catch (e) {
+      setError(errorText(e, "Those words didn't save. Try again."));
+    } finally {
+      setBusyIndex(null);
+    }
+  };
+
+  const remove = async (i: number) => {
+    if (!rec) return;
+    setBusyIndex(i);
+    setError('');
+    try {
+      setRec(await CompetitorService.removeVersion(rec.id, i));
+      trackEvent('recreation_removed');
+    } catch (e) {
+      setError(errorText(e, "That didn't remove. Try again."));
+    } finally {
+      setBusyIndex(null);
+    }
+  };
+
+  const redo = async (i: number) => {
+    if (!rec) return;
+    setBusyIndex(i);
+    setError('');
+    try {
+      const next = await CompetitorService.redoVersion(rec.id, i);
+      trackEvent('recreation_redo');
+      setRec(next);
+      follow({ ...next, poll_after_ms: 2500 });
+    } catch (e) {
+      setError(errorText(e, "Jane couldn't start on that just now. Try again."));
+    } finally {
+      setBusyIndex(null);
+    }
+  };
 
   return (
     <div role="dialog" aria-modal="true" aria-label="Make one like this" style={{ ...font, position: 'fixed', inset: 0, zIndex: 1300, background: '#FAF7F8', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
@@ -104,7 +157,7 @@ export default function AdComposer({ ad, onClose, onUseInCampaign }: Props) {
           <div style={{ fontSize: 12.5, color: C.muted }}>Your own version of {ad.competitor_name ? `${ad.competitor_name}'s` : 'this'} ad idea, in your brand.</div>
         </div>
         <button type="button" onClick={onClose} style={btn('quiet')}>
-          ✕ Close
+          ✕ Close{rec?.results.length ? ' · versions are kept in Creatives' : ''}
         </button>
       </div>
 
@@ -159,25 +212,70 @@ export default function AdComposer({ ad, onClose, onUseInCampaign }: Props) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <div style={{ fontSize: 15, fontWeight: 800, color: C.ink }}>For {rec.product || 'your business'}</div>
                   <div style={{ fontSize: 12.5, color: C.muted }} aria-live="polite">
-                    {rec.status === 'running' ? `${rec.results.length} of ${rec.count} ready` : rec.status === 'failed' ? '' : 'All ready'}
+                    {rec.status === 'running'
+                      ? rec.results.some((r) => r.redoing)
+                        ? 'Making one again…'
+                        : `${rec.results.length} of ${rec.count} ready`
+                      : rec.status === 'failed'
+                        ? ''
+                        : 'All ready'}
                   </div>
                 </div>
                 {rec.status === 'failed' && <Notice>{rec.error || "Jane couldn't finish these. Try again shortly."}</Notice>}
                 {error && <Notice>{error}</Notice>}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-                  {rec.results.map((r, i) => (
-                    <div key={r.image_url} style={{ ...card, padding: 0, overflow: 'hidden', gap: 0 }}>
-                      <img src={r.image_url} alt={r.headline} style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', display: 'block' }} />
-                      <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <div style={{ fontSize: 13.5, fontWeight: 800, color: C.ink }}>{r.headline}</div>
-                        <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.45 }}>{r.primary_text}</div>
-                        <button type="button" onClick={() => void use(i)} disabled={using !== null} style={btn('primary', using !== null)}>
-                          {using === i ? 'Opening…' : 'Use in a campaign →'}
-                        </button>
+                  {rec.results.map((r, i) => {
+                    const redoing = Boolean(r.redoing);
+                    const isEditing = editing?.index === i;
+                    return (
+                      <div key={`${r.image_url}-${i}`} style={{ ...card, padding: 0, overflow: 'hidden', gap: 0 }}>
+                        {redoing ? (
+                          <div className="cmp-shimmer" style={{ width: '100%', aspectRatio: '1 / 1' }} aria-label="Making it again" />
+                        ) : (
+                          <img src={r.image_url} alt={r.headline} style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', display: 'block' }} />
+                        )}
+                        <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {isEditing ? (
+                            <>
+                              <input id={`cmp-v${i}-headline`} aria-label="Headline" value={editing.headline} maxLength={40} onChange={(e) => setEditing({ ...editing, headline: e.target.value })} style={{ ...input, fontWeight: 700 }} />
+                              <textarea id={`cmp-v${i}-text`} aria-label="Caption" value={editing.text} rows={3} onChange={(e) => setEditing({ ...editing, text: e.target.value })} style={{ ...input, resize: 'vertical' }} />
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button type="button" disabled={busyIndex === i} onClick={() => void saveWords()} style={btn('primary', busyIndex === i)}>
+                                  {busyIndex === i ? 'Saving…' : 'Save words'}
+                                </button>
+                                <button type="button" onClick={() => setEditing(null)} style={btn('quiet')}>
+                                  Cancel
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div style={{ fontSize: 13.5, fontWeight: 800, color: C.ink }}>{redoing ? `Making version ${i + 1} again…` : r.headline}</div>
+                              {!redoing && <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.45 }}>{r.primary_text}</div>}
+                              <button type="button" onClick={() => void use(i)} disabled={using !== null || redoing} style={btn('primary', using !== null || redoing)}>
+                                {using === i ? 'Opening…' : 'Use in a campaign →'}
+                              </button>
+                              {!redoing && rec.status !== 'running' && (
+                                <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
+                                  <button type="button" onClick={() => setEditing({ index: i, headline: r.headline, text: r.primary_text })} style={btn('quiet')}>
+                                    Edit words
+                                  </button>
+                                  <button type="button" disabled={busyIndex !== null} onClick={() => void redo(i)} title="Makes this one again for 1 content credit" style={btn('quiet', busyIndex !== null)}>
+                                    Make again
+                                  </button>
+                                  <button type="button" disabled={busyIndex !== null} onClick={() => void remove(i)} style={btn('quiet', busyIndex !== null)}>
+                                    Remove
+                                  </button>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {rec.status === 'running' &&
+                    !rec.results.some((r) => r.redoing) &&
                     Array.from({ length: waiting }).map((_, i) => (
                       <div key={`wait-${i}`} style={{ ...card, padding: 0, overflow: 'hidden', gap: 0 }}>
                         <div className="cmp-shimmer" style={{ width: '100%', aspectRatio: '1 / 1' }} />

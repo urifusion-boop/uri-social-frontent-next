@@ -1,6 +1,7 @@
 'use client';
 
-import { BrandIntelService, WebsiteRead } from '@/src/api/BrandIntelService';
+import { trackEvent } from '@/lib/analytics';
+import { BrandIntelService, ReadSource, WebsiteRead } from '@/src/api/BrandIntelService';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const FAST_MS = 1500;
@@ -82,12 +83,13 @@ export function useWebsiteRead({ resume = true }: { resume?: boolean } = {}) {
   }, [resume, follow]);
 
   const start = useCallback(
-    async (url: string, force = false) => {
+    async (url: string, force = false, source: ReadSource = 'website') => {
       setStarting(true);
       setError('');
       polls.current = 0;
       try {
-        const r = await BrandIntelService.start(url, force);
+        const r = await BrandIntelService.start(url, force, source);
+        trackEvent('website_read_started', { source, again: force });
         setRead(r);
         follow(r);
         return r;

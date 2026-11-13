@@ -5,10 +5,11 @@
  * ads they run, and making the business's own version of an idea it likes.
  */
 import type { DraftSummary } from '@/src/api/CampaignService';
-import { CompetitorAd, CompetitorList, CompetitorService } from '@/src/api/CompetitorService';
+import { Competitor, CompetitorAd, CompetitorList, CompetitorService } from '@/src/api/CompetitorService';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AdComposer from './AdComposer';
+import CompetitorSheet from './CompetitorSheet';
 import BusinessesTab from './BusinessesTab';
 import TheirAdsTab from './TheirAdsTab';
 import { btn, C, errorText, font, Notice } from './ui';
@@ -30,6 +31,7 @@ export default function CompetitorsPage({
   const [adsFor, setAdsFor] = useState('');
   const [adCounts, setAdCounts] = useState<Record<string, number>>({});
   const [composing, setComposing] = useState<CompetitorAd | null>(null);
+  const [sheet, setSheet] = useState<Competitor | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const discovering = data?.discovery?.status === 'queued' || data?.discovery?.status === 'running';
@@ -121,6 +123,7 @@ export default function CompetitorsPage({
               setAdsFor(id);
               setTab('ads');
             }}
+            onOpen={setSheet}
           />
         ) : (
           <TheirAdsTab
@@ -132,6 +135,15 @@ export default function CompetitorsPage({
           />
         )}
       </div>
+      <CompetitorSheet
+        competitor={sheet}
+        onClose={() => setSheet(null)}
+        onSeeAds={(id) => {
+          setSheet(null);
+          setAdsFor(id);
+          setTab('ads');
+        }}
+      />
       {composing && <AdComposer ad={composing} onClose={() => setComposing(null)} onUseInCampaign={onUseInWizard} />}
     </div>
   );

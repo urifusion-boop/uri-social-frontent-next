@@ -14,6 +14,7 @@
  */
 'use client';
 import { CompetitorService } from '@/src/api/CompetitorService';
+import { useFeatures } from '@/src/hooks/useFeatures';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileEdit, Megaphone, MessageCircle, Sparkles, Wallet as WalletIcon } from 'lucide-react';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
@@ -186,6 +187,7 @@ export default function CampaignOverviewPage({
    *  the user click Resume a second time once they got there. */
   onResumeDraft: (draft: WizardDraft) => void;
 }) {
+  const { flags: featureFlags } = useFeatures();
   const [data, setData] = useState<DashboardHome | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -337,7 +339,7 @@ export default function CampaignOverviewPage({
           />
         </div>
 
-        <CompetitorsNudge onOpen={() => onNavigate('campaign-competitors')} />
+        {featureFlags.competitors && <CompetitorsNudge onOpen={() => onNavigate('campaign-competitors')} />}
 
         {suggestions.length > 0 && (
           <div style={card}>

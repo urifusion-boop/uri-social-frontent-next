@@ -6,6 +6,7 @@
  */
 'use client';
 
+import { trackEvent } from '@/lib/analytics';
 import { BudgetOption, CampaignService } from '@/src/api/CampaignService';
 import { useEffect, useState } from 'react';
 
@@ -35,13 +36,16 @@ export default function WizardBudgetStep({
   platformCount = 1,
   // Which platforms the campaign runs on, for the suggested amounts ('' = Jane picks → Meta's rules).
   platforms = ['meta'],
+  suggest = true,
 }: {
   value: WizardBudgetValue;
   onChange: (next: WizardBudgetValue) => void;
   platformCount?: number;
   platforms?: string[];
+  /** Suggested amounts are rolled out in stages; off, the step is the plain amount box. */
+  suggest?: boolean;
 }) {
-  const suggested = useBudgetSuggestions(platforms, value.days);
+  const suggested = useBudgetSuggestions(suggest ? platforms : [], value.days, suggest);
   const perPlatform =
     platformCount > 1 && typeof value.amountNgn === 'number' && value.amountNgn > 0
       ? Math.round(value.amountNgn / platformCount)
@@ -91,7 +95,10 @@ export default function WizardBudgetStep({
                   <button
                     key={o.label}
                     type="button"
-                    onClick={() => onChange({ ...value, amountNgn: o.amount_ngn })}
+                    onClick={() => {
+                      trackEvent('budget_suggestion_picked', { label: o.label, recommended: o.recommended, ads: o.ads, days: o.days });
+                      onChange({ ...value, amountNgn: o.amount_ngn });
+                    }}
                     title={o.detail}
                     aria-pressed={isOn}
                     style={{
@@ -173,11 +180,15 @@ export default function WizardBudgetStep({
 
 /** Suggested amounts for the platforms picked. Several platforms: each tier is the sum of every
  * platform's tier, since the total is split evenly across them. A failed lookup just shows none. */
-function useBudgetSuggestions(platforms: string[], days: number) {
+function useBudgetSuggestions(platforms: string[], days: number, enabled = true) {
   const [state, setState] = useState<{ options: BudgetOption[]; note: string }>({ options: [], note: '' });
-  const key = `${platforms.join(',')}|${days}`;
+  const key = `${platforms.join(',')}|${days}|${enabled}`;
   useEffect(() => {
     let alive = true;
+    if (!enabled) {
+      setState({ options: [], note: '' });
+      return;
+    }
     const list = platforms.length ? platforms : ['meta'];
     Promise.all(list.map((p) => CampaignService.getBudgetSuggestions(p || 'meta', days)))
       .then((all) => {

@@ -155,8 +155,16 @@ export default function WebsiteFirstStep({ initialUrl = '', onApplied, onManual 
           {error}
         </div>
       )}
-      <div style={{ fontSize: 13, color: C.muted }}>
-        No website?{' '}
+      <div style={{ fontSize: 13, color: C.muted, display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
+        No website?
+        <button type="button" disabled={starting} onClick={() => void start('', false, 'instagram')} style={linkBtn}>
+          Read my Instagram
+        </button>
+        ·
+        <button type="button" disabled={starting} onClick={() => void start('', false, 'facebook')} style={linkBtn}>
+          Read my Facebook Page
+        </button>
+        ·
         <button type="button" onClick={() => onManual(url.trim() || undefined)} style={linkBtn}>
           Set up by hand
         </button>

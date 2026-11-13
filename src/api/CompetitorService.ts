@@ -50,6 +50,8 @@ export interface AdAnalysis {
 export interface CompetitorAd {
   id: string;
   image_url: string;
+  /** A small copy for grids (falls back to image_url). */
+  thumb_url?: string;
   competitor_id: string;
   competitor_name: string;
   platform: string;
@@ -74,7 +76,7 @@ export interface Recreation {
   product: string;
   count: number;
   status: 'running' | 'done' | 'failed';
-  results: { image_url: string; headline: string; primary_text: string; angle: string; draft_id?: string }[];
+  results: { image_url: string; headline: string; primary_text: string; angle: string; draft_id?: string; redoing?: boolean }[];
   error: string;
   reference: { image_url: string; competitor_name: string; analysis: AdAnalysis };
   poll_after_ms?: number;
@@ -112,7 +114,7 @@ export class CompetitorService {
     return (await UriHttpClient.getClient().patch<Competitor>(`${BASE}/${id}`, { kind })).data;
   }
 
-  static async ads(params: { competitor_id?: string; angle?: string; before?: string } = {}): Promise<AdList> {
+  static async ads(params: { competitor_id?: string; angle?: string; platform?: string; before?: string } = {}): Promise<AdList> {
     return (await UriHttpClient.getClient().get<AdList>(`${BASE}/ads`, { params })).data;
   }
 
@@ -136,6 +138,18 @@ export class CompetitorService {
 
   static async recreation(id: string): Promise<Recreation> {
     return (await UriHttpClient.getClient().get<Recreation>(`${BASE}/recreations/${id}`)).data;
+  }
+
+  static async editVersion(id: string, index: number, headline: string, primary_text: string) {
+    return (await UriHttpClient.getClient().patch(`${BASE}/recreations/${id}/versions/${index}`, { headline, primary_text })).data;
+  }
+
+  static async removeVersion(id: string, index: number): Promise<Recreation> {
+    return (await UriHttpClient.getClient().delete<Recreation>(`${BASE}/recreations/${id}/versions/${index}`)).data;
+  }
+
+  static async redoVersion(id: string, index: number): Promise<Recreation> {
+    return (await UriHttpClient.getClient().post<Recreation>(`${BASE}/recreations/${id}/versions/${index}/redo`)).data;
   }
 
   static async keepVersion(id: string, index: number): Promise<DraftSummary> {

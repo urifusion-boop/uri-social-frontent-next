@@ -1,5 +1,6 @@
 'use client';
 
+import { trackEvent } from '@/lib/analytics';
 import { Competitor, CompetitorList, CompetitorService } from '@/src/api/CompetitorService';
 import { useState } from 'react';
 import { btn, C, card, errorText, font, input, linkLabel, Notice, pill, Steps } from './ui';
@@ -13,10 +14,11 @@ interface Props {
   onSeeAds: (competitorId: string) => void;
   onOpenPlaybook: () => void;
   adCounts: Record<string, number>;
+  onOpen: (c: Competitor) => void;
 }
 
 /** Who the business is up against: Jane's suggestions to confirm, the ones kept, and adding one. */
-export default function BusinessesTab({ data, loading, discovering, onDiscover, onChange, onSeeAds, onOpenPlaybook, adCounts }: Props) {
+export default function BusinessesTab({ data, loading, discovering, onDiscover, onChange, onSeeAds, onOpenPlaybook, adCounts, onOpen }: Props) {
   const [adding, setAdding] = useState(false);
   const suggested = data?.suggested ?? [];
   const active = data?.active ?? [];
@@ -89,7 +91,7 @@ export default function BusinessesTab({ data, loading, discovering, onDiscover, 
           </div>
           <Grid>
             {suggested.map((c) => (
-              <CompetitorCard key={c.id} c={c} reasons={data?.reasons ?? []} onChanged={replace} suggestion />
+              <CompetitorCard key={c.id} c={c} reasons={data?.reasons ?? []} onChanged={replace} suggestion onOpen={() => onOpen(c)} />
             ))}
           </Grid>
         </section>
@@ -118,7 +120,7 @@ export default function BusinessesTab({ data, loading, discovering, onDiscover, 
           {adding && <AddForm onDone={() => setAdding(false)} onAdded={replace} />}
           <Grid>
             {active.map((c) => (
-              <CompetitorCard key={c.id} c={c} reasons={data?.reasons ?? []} onChanged={replace} adCount={adCounts[c.id] ?? 0} onSeeAds={() => onSeeAds(c.id)} />
+              <CompetitorCard key={c.id} c={c} reasons={data?.reasons ?? []} onChanged={replace} adCount={adCounts[c.id] ?? 0} onSeeAds={() => onSeeAds(c.id)} onOpen={() => onOpen(c)} />
             ))}
           </Grid>
         </section>
@@ -139,6 +141,7 @@ function CompetitorCard({
   suggestion = false,
   adCount = 0,
   onSeeAds,
+  onOpen,
 }: {
   c: Competitor;
   reasons: { value: string; label: string }[];
@@ -146,6 +149,7 @@ function CompetitorCard({
   suggestion?: boolean;
   adCount?: number;
   onSeeAds?: () => void;
+  onOpen?: () => void;
 }) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -167,7 +171,9 @@ function CompetitorCard({
     <div style={{ ...card, borderColor: suggestion ? '#F3C6D8' : C.line }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 14.5, fontWeight: 800, color: C.ink }}>{c.name}</div>
+          <button type="button" onClick={onOpen} style={{ ...font, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', fontSize: 14.5, fontWeight: 800, color: C.ink }}>
+            {c.name}
+          </button>
           {c.location && <div style={{ fontSize: 12, color: C.muted }}>{c.location}</div>}
         </div>
         {suggestion ? (
@@ -219,7 +225,10 @@ function CompetitorCard({
           <div style={{ fontSize: 12, fontWeight: 700, color: C.body }}>Why not?</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {reasons.map((r) => (
-              <button key={r.value} type="button" disabled={busy} onClick={() => void act(() => CompetitorService.remove(c.id, r.value))} style={{ ...btn('ghost', busy), padding: '4px 10px', fontSize: 12 }}>
+              <button key={r.value} type="button" disabled={busy} onClick={() => {
+                trackEvent('competitor_removed', { reason: r.value, source: c.source });
+                void act(() => CompetitorService.remove(c.id, r.value));
+              }} style={{ ...btn('ghost', busy), padding: '4px 10px', fontSize: 12 }}>
                 {r.label}
               </button>
             ))}
@@ -232,7 +241,10 @@ function CompetitorCard({
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 'auto' }}>
           {suggestion ? (
             <>
-              <button type="button" disabled={busy} onClick={() => void act(() => CompetitorService.keep(c.id))} style={btn('primary', busy)}>
+              <button type="button" disabled={busy} onClick={() => {
+                trackEvent('competitor_kept', { kind: c.kind });
+                void act(() => CompetitorService.keep(c.id));
+              }} style={btn('primary', busy)}>
                 Keep
               </button>
               <button type="button" disabled={busy} onClick={() => setAsking(true)} style={btn('quiet')}>
@@ -273,6 +285,7 @@ function AddForm({ onDone, onAdded }: { onDone: () => void; onAdded: (c: Competi
     setError('');
     const isIg = /instagram\.com|^@/.test(link.trim());
     try {
+      trackEvent('competitor_added', { by: isIg ? 'instagram' : link.trim() ? 'website' : 'name' });
       onAdded(await CompetitorService.add({ name: name.trim(), website: isIg ? '' : link.trim(), instagram: isIg ? link.trim() : '' }));
       onDone();
     } catch (err) {

@@ -9,6 +9,9 @@
  *     BASE_URL=http://localhost:3002 npx playwright test e2e/builder-products-and-budgets.spec.ts --project=chromium
  */
 import { test, expect, type Page } from '@playwright/test';
+import { mockFeatures } from './feature-flags';
+
+test.beforeEach(async ({ page }) => mockFeatures(page));
 
 const ok = (responseData: unknown) => ({ json: { status: true, responseCode: 200, responseMessage: 'ok', responseData } });
 
@@ -83,13 +86,18 @@ test('the Playbook products are offered as cards with who and where pre-filled',
   await toAudienceStep(page);
 
   await expect(page.getByText('What are you advertising?')).toBeVisible();
-  await expect(page.getByRole('radio', { name: /Airport runs/ })).toHaveAttribute('aria-checked', 'true');
-  await expect(page.getByRole('radio', { name: /Wedding cars/ })).toContainText('from ₦80,000');
+  await expect(page.getByRole('checkbox', { name: /Airport runs/ })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('checkbox', { name: /Wedding cars/ })).toContainText('from ₦80,000');
   await expect(page.getByPlaceholder(/Companies moving staff daily/)).toHaveValue('Companies moving staff daily in Lekki');
   await expect(page.getByPlaceholder('e.g. Lekki, Lagos')).toHaveValue('Lekki, Lagos');
 
-  await page.getByRole('radio', { name: /Staff buses/ }).click();
-  await expect(page.getByRole('radio', { name: /Staff buses/ })).toHaveAttribute('aria-checked', 'true');
+  // Several can be picked to test in one campaign, up to three.
+  await page.getByRole('checkbox', { name: /Staff buses/ }).click();
+  await expect(page.getByRole('checkbox', { name: /Staff buses/ })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('checkbox', { name: /Airport runs/ })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('checkbox', { name: /Wedding cars/ }).click();
+  await page.getByRole('checkbox', { name: /Wedding cars/ }).click();
+  await expect(page.getByText('Up to 3 at a time')).toHaveCount(0);
   await page.getByRole('button', { name: 'Next →' }).click();
 
   // Budget: suggestions that say what they buy; tapping one fills the amount.
@@ -107,7 +115,7 @@ test('something else keeps the free description and can be added to the Playbook
   const { saved } = await setup(page);
   await toAudienceStep(page);
 
-  await page.getByRole('radio', { name: /Something else/ }).click();
+  await page.getByRole('checkbox', { name: /Something else/ }).click();
   const box = page.getByPlaceholder(/custom birthday cakes/);
   await box.fill('Corporate retreat shuttles — HR teams planning offsites');
   await page.getByText('Also add this to my Playbook’s products').click();
@@ -116,10 +124,76 @@ test('something else keeps the free description and can be added to the Playbook
   await expect(page.getByRole('button', { name: 'Next →' })).toBeEnabled();
 });
 
+test('with the switches off, the builder is exactly today’s', async ({ page }) => {
+  const { budgetCalls } = await setup(page);
+  await mockFeatures(page, false);
+  await toAudienceStep(page);
+  await expect(page.getByText("What are you promoting, and who's it for?")).toBeVisible();
+  await expect(page.getByRole('checkbox')).toHaveCount(0);
+  await page.getByPlaceholder(/custom birthday cakes/).fill('Airport runs for busy travellers');
+  await page.getByPlaceholder('e.g. Lekki, Lagos').fill('Lekki, Lagos');
+  await page.getByRole('button', { name: 'Next →' }).click();
+  await expect(page.getByPlaceholder('e.g. 15000')).toBeVisible();
+  await expect(page.getByText('Suggested')).toHaveCount(0);
+  expect(budgetCalls).toHaveLength(0);
+});
+
 test('a Playbook with no products gets today’s description box and a tip', async ({ page }) => {
   await setup(page, { brand_name: 'Magen', onboarding_completed: true });
   await toAudienceStep(page);
   await expect(page.getByText("What are you promoting, and who's it for?")).toBeVisible();
   await expect(page.getByText(/add your products to your Brand Playbook/)).toBeVisible();
-  await expect(page.getByRole('radio')).toHaveCount(0);
+  await expect(page.getByRole('checkbox')).toHaveCount(0);
+});
+
+test('the Creative step can start from a screenshot of an ad the owner liked', async ({ page }) => {
+  await setup(page);
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+  const analysis = { headline: 'Never miss a flight', angle: 'problem', hook: '', offer: '', cta: 'Book now', customer_problem: '', format: 'photo', layout: 'photo', why_it_works: 'Fear first, then a fixed price.' };
+  const saved: Record<string, unknown>[] = [];
+  let ready = false;
+  await page.route(/\/jane-ads\/creative\/upload/, (route) => {
+    if (route.request().url().includes('signature')) return route.fulfill({ status: 500, json: {} });
+    return route.fulfill({ json: { url: 'https://cdn.uri/liked.png', is_video: false } });
+  });
+  await page.route(/\/competitors\//, (route) => {
+    if (!['fetch', 'xhr'].includes(route.request().resourceType())) return route.continue();
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    const ad = { id: 'cad_7', image_url: PNG, competitor_id: '', competitor_name: '', platform: '', link: '', note: 'An ad I liked', analysis, angle_label: 'Problem / solution', error: '', created_at: '' };
+    if (path.endsWith('/competitors/ads') && req.method() === 'POST') {
+      saved.push(JSON.parse(req.postData() || '{}'));
+      return route.fulfill({ json: { ...ad, status: 'analyzing' } });
+    }
+    if (path.endsWith('/competitors/ads')) {
+      const out = { ads: [{ ...ad, status: ready ? 'ready' : 'analyzing' }], next_before: null, angles: [] };
+      ready = true;
+      return route.fulfill({ json: out });
+    }
+    const rec = { id: 'rec_7', ad_id: 'cad_7', product: 'Airport runs', count: 1, error: '', reference: { image_url: PNG, competitor_name: '', analysis } };
+    if (path.endsWith('/recreate')) return route.fulfill({ json: { ...rec, status: 'running', results: [] } });
+    if (path.endsWith('/use')) return route.fulfill({ json: { draft_id: 'draft_77', platform: 'instagram', content: 'Fixed-price airport runs.', image_url: PNG, created_at: '' } });
+    if (path.includes('/recreations/')) {
+      return route.fulfill({ json: { ...rec, status: 'done', results: [{ image_url: PNG, headline: 'Fly calm with Magen', primary_text: 'Fixed-price airport runs.', angle: 'problem' }], poll_after_ms: 300 } });
+    }
+    return route.fulfill({ json: {} });
+  });
+
+  await toAudienceStep(page);
+  await page.getByRole('button', { name: 'Next →' }).click();
+  await page.getByRole('button', { name: /₦47,000/ }).click();
+  await page.getByRole('button', { name: 'Next →' }).click();
+
+  await expect(page.getByText('Start from an ad I like')).toBeVisible();
+  await page.getByLabel('Screenshot of an ad you liked').setInputFiles({ name: 'liked.png', mimeType: 'image/png', buffer: Buffer.from(PNG.split(',')[1], 'base64') });
+  const composer = page.getByRole('dialog', { name: 'Make one like this' });
+  await expect(composer.getByRole('button', { name: /^Make my version/ })).toBeVisible({ timeout: 20000 });
+  expect(saved[0]).toMatchObject({ image_url: 'https://cdn.uri/liked.png', note: 'An ad I liked' });
+  await composer.getByRole('button', { name: '1', exact: true }).click();
+  await composer.getByRole('button', { name: 'Make my version', exact: true }).click();
+  await expect(composer.getByText('Fly calm with Magen')).toBeVisible();
+  await composer.getByRole('button', { name: 'Use in a campaign →' }).click();
+
+  await expect(composer).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Next →' })).toBeEnabled();
 });
