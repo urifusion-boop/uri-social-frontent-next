@@ -216,6 +216,28 @@ export interface VideoFromStoryboardPayload {
   avatar_voice?: string;
 }
 
+/** A music track from Instagram's licensed catalogue (Instagram Audio API) — Reels only. */
+export interface InstagramAudioTrack {
+  audio_id: string;
+  title: string;
+  artist: string;
+  duration_seconds: number;
+  cover_url?: string | null;
+  /** A temporary link (about 1.5 days) to a preview of the track; may be missing. */
+  preview_url?: string | null;
+}
+
+/** The track saved on a Reel draft, with its mix: both volumes are 1-100 (Instagram's own range). */
+export interface InstagramAudioChoice {
+  audio_id: string;
+  title: string;
+  artist: string;
+  /** The music. */
+  audio_volume: number;
+  /** The Reel's own sound. */
+  video_volume: number;
+}
+
 export interface VideoDraft {
   id: string;
   user_id: string;
@@ -225,6 +247,7 @@ export interface VideoDraft {
   platforms: string[];
   status: string;
   created_at: string;
+  instagram_audio?: InstagramAudioChoice | null;
 }
 
 export interface VideoEditJob {
@@ -869,6 +892,26 @@ export class SocialMediaAgentService {
     const response = await UriHttpClient.getClient().patch(
       `${socialMediaAgentRoutes.deleteDraft}/${draftId}/tiktok-auto-add-music`,
       { enabled }
+    );
+    return response.data;
+  }
+
+  /** Music for Instagram Reels only (Instagram's API has no audio option for images, carousels or Stories). */
+  static async searchInstagramAudio(query?: string): Promise<UriResponse<{ tracks: InstagramAudioTrack[] }>> {
+    const response = await UriHttpClient.getClient().get(socialMediaAgentRoutes.instagramAudioSearch, {
+      params: query?.trim() ? { q: query.trim() } : {},
+    });
+    return response.data;
+  }
+
+  /** Save (or, with null, remove) the music track on a Reel draft; it is posted with the Reel. */
+  static async setInstagramAudio(
+    draftId: string,
+    audio: InstagramAudioChoice | null
+  ): Promise<UriResponse<{ instagram_audio: InstagramAudioChoice | null }>> {
+    const response = await UriHttpClient.getClient().patch(
+      `${socialMediaAgentRoutes.deleteDraft}/${draftId}/instagram-audio`,
+      { audio }
     );
     return response.data;
   }

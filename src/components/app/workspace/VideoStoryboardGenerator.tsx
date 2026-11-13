@@ -12,6 +12,7 @@ import {
   TikTokPostSettings,
 } from '@/src/api/SocialMediaAgentService';
 import TikTokPostDialog from './TikTokPostDialog';
+import InstagramMusicPicker from './InstagramMusicPicker';
 import { useBrandLogo, useLogoChoice, logoPlacement, LOGO_WIDTH_PERCENT, type BrandLogo } from './useBrandLogo';
 import LogoToggle from './LogoToggle';
 import { describePublishJob, resumeTimeMs } from '@/src/utils/publishJobMessage.util';
@@ -1961,6 +1962,20 @@ export default function VideoStoryboardGenerator({
                             }
                           )}
                         </div>
+
+                        {/* Music is an Instagram Reels option only (Instagram's API has none for other formats). */}
+                        {selPlatform === 'instagram_reels' && (
+                          <InstagramMusicPicker
+                            draftId={d.id}
+                            value={d.instagram_audio}
+                            disabled={publishBlocked}
+                            onChange={(choice) =>
+                              setDrafts((prev) =>
+                                prev.map((x) => (x.id === d.id ? { ...x, instagram_audio: choice } : x))
+                              )
+                            }
+                          />
+                        )}
 
                         {/* Publish job error / rate-limit wait. A limit is shown as a notice, never a red failure. */}
                         {selJobMsg &&
