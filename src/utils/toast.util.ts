@@ -3,16 +3,19 @@ import { UriResponse } from '@/src/models/responses/UriResponse';
 import { toast } from 'react-hot-toast';
 
 export class ToastService {
-  static showToast(message: string, type: ToastTypeEnum = ToastTypeEnum.Success) {
+  // durationMs: keep a long explanation (e.g. why a post didn't publish) on screen long
+  // enough to read; omitted, the library's default applies as before.
+  static showToast(message: string, type: ToastTypeEnum = ToastTypeEnum.Success, durationMs?: number) {
+    const opts = durationMs ? { duration: durationMs } : undefined;
     switch (type) {
       case ToastTypeEnum.Success:
-        toast.success(message);
+        toast.success(message, opts);
         break;
       case ToastTypeEnum.Error:
-        toast.error(message);
+        toast.error(message, opts);
         break;
       default:
-        toast(message);
+        toast(message, opts);
         break;
     }
   }

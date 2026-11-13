@@ -7,7 +7,12 @@ import DraftLogoMover, { logoMoveTarget } from './DraftLogoMover';
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import { queuedNotice, queuedPublish } from '@/src/utils/publishJobMessage.util';
+import {
+  failedPublish,
+  PUBLISH_FAILURE_TOAST_MS,
+  queuedNotice,
+  queuedPublish,
+} from '@/src/utils/publishJobMessage.util';
 import { parseApiDate } from '@/src/utils/apiDate.util';
 import { PLATFORM_META, firstSlideImage, mediaMeta, isImagePending } from './GeneratedContentCard';
 import CanvasEditor from './canvas-editor/CanvasEditor';
@@ -166,7 +171,12 @@ export default function DraftDetailView({
         ...(datetime ? { scheduled_datetime: new Date(datetime).toISOString() } : {}),
       });
       const queued = option === 'immediate' ? queuedPublish(res.responseData, id) : null;
-      if (res.status) {
+      // The network refused it just now (e.g. Facebook's identity check): say why, not "Published!".
+      const failed = option === 'immediate' ? failedPublish(res.responseData, id) : null;
+      if (failed) {
+        ToastService.showToast(failed, ToastTypeEnum.Error, PUBLISH_FAILURE_TOAST_MS);
+        onRefresh();
+      } else if (res.status) {
         if (queued) ToastService.showToast(queuedNotice(queued), ToastTypeEnum.Warning);
         else ToastService.showToast(option === 'immediate' ? 'Published!' : 'Scheduled!', ToastTypeEnum.Success);
         onRefresh();

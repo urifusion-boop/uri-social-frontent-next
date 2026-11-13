@@ -22,7 +22,14 @@ import {
 } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import { describePublishJob, queuedNotice, queuedPublish, resumeTimeMs } from '@/src/utils/publishJobMessage.util';
+import {
+  describePublishJob,
+  failedPublish,
+  PUBLISH_FAILURE_TOAST_MS,
+  queuedNotice,
+  queuedPublish,
+  resumeTimeMs,
+} from '@/src/utils/publishJobMessage.util';
 import TikTokPostDialog from '../workspace/TikTokPostDialog';
 import { PLATFORM_META, firstSlideImage, mediaMeta } from './GeneratedContentCard';
 import LogoRepositionModal from './LogoRepositionModal';
@@ -180,8 +187,13 @@ export default function GeneratedDraftEditor({
       const queued = option === 'immediate' ? queuedPublish(res.responseData, id) : null;
       // The backend answers status:true and lists drafts it did not accept in errors[].
       const refused = option === 'schedule' ? res.responseData?.errors?.find((e) => e.draft_id === id) : undefined;
+      // The network refused it just now (e.g. Facebook's identity check): say why, not "Published!".
+      const failed = option === 'immediate' ? failedPublish(res.responseData, id) : null;
       if (refused) {
         ToastService.showToast(refused.error, ToastTypeEnum.Error);
+      } else if (failed) {
+        ToastService.showToast(failed, ToastTypeEnum.Error, PUBLISH_FAILURE_TOAST_MS);
+        onRefresh();
       } else if (res.status) {
         ToastService.showToast(
           queued

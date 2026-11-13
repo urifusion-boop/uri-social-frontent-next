@@ -149,6 +149,21 @@ export function queuedPublish(result: ApproveResult | null | undefined, draftId?
   return match?.publish_result ?? null;
 }
 
+// How long a "didn't publish" explanation stays up: these are full sentences telling the owner
+// what to do, and the default few seconds vanished before they could be read.
+export const PUBLISH_FAILURE_TOAST_MS = 15000;
+
+// Approve answers status:true even when the network refused the post right then; the refusal is in
+// approved_drafts[].publish_result. The owner-facing reason (already in plain words), or null when it
+// went out, is going out, or is queued.
+export function failedPublish(result: ApproveResult | null | undefined, draftId?: string): string | null {
+  const match = (result?.approved_drafts ?? []).find((a) => !draftId || a.draft_id === draftId);
+  const pr = match?.publish_result;
+  if (!pr || pr.success || pr.queued || pr.publish_status === 'queued' || pr.status === 'confirming') return null;
+  const name = match?.platform ? match.platform.charAt(0).toUpperCase() + match.platform.slice(1) : 'the platform';
+  return pr.error || `This post couldn't be published to ${name}. Please try again.`;
+}
+
 export function queuedNotice(result: ApprovePublishResult): string {
   const at = formatResumeAt(result.resume_at);
   // The backend words the time in UTC; show it in the viewer's own time zone instead.

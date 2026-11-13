@@ -22,7 +22,7 @@ import { MdChevronLeft, MdChevronRight, MdMoreVert, MdSearch } from 'react-icons
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import { queuedNotice } from '@/src/utils/publishJobMessage.util';
+import { failedPublish, PUBLISH_FAILURE_TOAST_MS, queuedNotice } from '@/src/utils/publishJobMessage.util';
 import { parseApiDate } from '@/src/utils/apiDate.util';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import GeneratedContentCard, { firstSlideImage } from '../GeneratedContentCard';
@@ -305,8 +305,16 @@ export default function ContentLibraryPage() {
     const errs = res.responseData?.errors ?? [];
     // Held back by a rate limit or a post ahead of it: counted apart, not as published.
     const queued = approved.filter((a) => a.publish_result?.queued || a.publish_result?.publish_status === 'queued');
-    const done = approved.length - queued.length;
+    // Refused by the network just now (e.g. Facebook's identity check): counted as failed, with the reason.
+    const refused = approved.map((a) => failedPublish(res.responseData, a.draft_id)).filter((m): m is string => !!m);
+    const done = approved.length - queued.length - refused.length;
     if (done) ToastService.showToast(`${done} ${okVerb}.`, ToastTypeEnum.Success);
+    if (refused.length)
+      ToastService.showToast(
+        refused.length === 1 ? refused[0] : `${refused.length} didn't publish. ${refused[0]}`,
+        ToastTypeEnum.Error,
+        PUBLISH_FAILURE_TOAST_MS
+      );
     if (queued.length) {
       const single = queued.length === 1 ? queued[0].publish_result : undefined;
       ToastService.showToast(
