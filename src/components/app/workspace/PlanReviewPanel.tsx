@@ -33,6 +33,9 @@ type Props = {
   /** Field keys to leave off the form (e.g. 'locations' on a TikTok plan). Display only:
    * the stored plan keeps the field and the launch still uses it. */
   hiddenFieldKeys?: string[];
+  /** Changes when the ad's words were changed somewhere else (Jane, through Ask), so the
+   * panel re-reads them instead of showing the old headline and caption. */
+  refreshKey?: string;
 };
 
 const CARD: React.CSSProperties = {
@@ -89,7 +92,7 @@ function parseEdit(field: PlanField, text: string): unknown {
   return text;
 }
 
-export default function PlanReviewPanel({ planId, onSaved, onDirtyChange, hiddenFieldKeys }: Props) {
+export default function PlanReviewPanel({ planId, onSaved, onDirtyChange, hiddenFieldKeys, refreshKey }: Props) {
   const [fields, setFields] = useState<PlanField[] | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -114,7 +117,7 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange, hidden
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   // Live-caught 2026-09-22: this was declared AFTER the loadError/!fields early
   // returns below, so React saw 7 hooks called while still loading (fields ===

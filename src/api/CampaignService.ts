@@ -413,7 +413,11 @@ export interface AdFormat {
 }
 
 export interface PlanAskResult {
-  kind: 'question' | 'challenge' | 'new_campaign';
+  // 'edit_ad': Jane changed an ad's words on request — the new words come back in
+  // `creative` (the first ad) or `concepts` (the others).
+  kind: 'question' | 'challenge' | 'edit_ad' | 'new_campaign';
+  ad_number?: number;
+  concepts?: AdsPlanAd[];
   answer?: string;
   what_if?: { changed: string; original: CampaignSummary; hypothetical: CampaignSummary };
   // present when kind === 'challenge' — the re-derived plan, shown as a preview until

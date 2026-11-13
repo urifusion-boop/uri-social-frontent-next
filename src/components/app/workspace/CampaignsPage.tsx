@@ -3736,6 +3736,13 @@ function PlanAskBox({
     setError('');
     try {
       const result = await CampaignService.askAboutPlan(planId, q);
+      // Jane changed an ad's words: show the new ones right away.
+      if (result.kind === 'edit_ad' && (result.creative || result.concepts)) {
+        onPlanUpdated({
+          ...(result.creative ? { creative: result.creative } : {}),
+          ...(result.concepts ? { concepts: result.concepts } : {}),
+        });
+      }
       setAnswer(result);
       setLastQuestion(q);
       setQuestion('');
@@ -3768,7 +3775,7 @@ function PlanAskBox({
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && ask()}
-          placeholder="Ask Jane about this plan — e.g. why this budget?"
+          placeholder="Ask Jane about this plan, or what to change — e.g. why this budget? Make the headline shorter"
           disabled={asking}
           style={{ flex: 1, border: '1px solid #e5d9c8', borderRadius: 8, padding: '7px 10px', fontSize: 12.5 }}
         />
@@ -4862,6 +4869,7 @@ export function ResultCard({
               // TikTok names states and cities, not neighbourhoods, so the pockets Jane
               // plans on (Ikoyi, Lekki, ...) are not something the client can review here.
               hiddenFieldKeys={result.plan?.platforms?.[0]?.platform === 'tiktok' ? ['locations'] : undefined}
+              refreshKey={`${result.creative?.headline ?? ''}|${result.creative?.primary_text ?? ''}`}
               onDirtyChange={setUnsavedEdits}
               onSaved={(refreshed) =>
                 onResultChange({

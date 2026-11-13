@@ -122,6 +122,16 @@ async function mockJaneAds(page: Page) {
         },
       });
     }
+    if (q.includes('headline')) {
+      return route.fulfill({
+        json: {
+          kind: 'edit_ad',
+          ad_number: 1,
+          answer: "Done — ad 1's headline now reads “Lunch is Ready”.",
+          creative: { ...PLANNED_RESULT.creative, headline: 'Lunch is Ready' },
+        },
+      });
+    }
     // Plain "why" question.
     return route.fulfill({
       json: {
@@ -145,7 +155,7 @@ test('ask a why-question and see the answer', async ({ page }) => {
   await input.press('Enter');
 
   await expect(page.getByText('Fresh Lunch')).toBeVisible();
-  await expect(page.getByRole('button', { name: /Looks good — launch it/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Looks good — launch/i })).toBeVisible();
 
   const askInput = page.getByPlaceholder(/Ask Jane about this plan/i);
   await expect(askInput).toBeVisible();
@@ -199,4 +209,27 @@ test('a challenge shows a preview and only replaces the plan on confirm', async 
   // Now the card reflects the re-derived plan.
   await expect(page.getByText('Fresh Lunch for Professionals')).toBeVisible();
   await expect(page.getByText(/Updated: targeting young professionals/i)).toBeVisible();
+});
+
+test('telling Jane to change the headline changes the ad on screen', async ({ page }) => {
+  await fakeAuth(page);
+  await mockJaneAds(page);
+  await page.route('**/jane-ads/meta/plan/plan_test/fields', (r) =>
+    r.fulfill({ json: { plan_id: 'plan_test', fields: [] } })
+  );
+  await page.goto('/workspace/?tab=campaigns');
+
+  await expect(page.getByRole('heading', { name: 'Campaigns' })).toBeVisible({ timeout: 20000 });
+  const input = page.getByPlaceholder(/Tell Jane what you want to promote/i);
+  await input.fill('get me more whatsapp messages for my restaurant, budget 20000');
+  await input.press('Enter');
+  await expect(page.getByText('Fresh Lunch', { exact: true })).toBeVisible();
+
+  const askInput = page.getByPlaceholder(/Ask Jane about this plan/i);
+  await askInput.fill('Change the headline to Lunch is Ready');
+  await page.getByRole('button', { name: 'Ask' }).click({ force: true });
+
+  await expect(page.getByText(/headline now reads/i)).toBeVisible();
+  await expect(page.getByText('Lunch is Ready', { exact: true })).toBeVisible();
+  await expect(page.getByText('Fresh Lunch', { exact: true })).toHaveCount(0);
 });

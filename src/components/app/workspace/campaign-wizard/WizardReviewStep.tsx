@@ -39,6 +39,7 @@ import type { WizardCreativeChoice } from './WizardCreativeStep';
 import type { MultiWizardPlatform, WizardPlatformValue } from './WizardPlatformStep';
 import WizardAssetAttestation from './WizardAssetAttestation';
 import { WizardReviewChoice, WizardReviewSnapshot } from './wizardDraft';
+import { EventBus, EVENTS } from '@/src/services/EventBus';
 
 const PINK = '#C2185B';
 
@@ -337,6 +338,8 @@ export default function WizardReviewStep({
         ...extra,
       } as PlanFromMessagePayload);
       setSlot({ result: res, loading: false, working: false, error: '' });
+      // A finished plan carries an ad Jane made (a credit) — let the header badge re-read.
+      if (res.stage === 'planned') EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'ad_plan' });
     } catch (e) {
       const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
       setSlot((s) => ({ ...s, loading: false, working: false, error: msg }));
@@ -409,6 +412,7 @@ export default function WizardReviewStep({
         ...extra,
       } as PlanFromMessagePayload);
       setSlots((s) => ({ ...s, [p]: { result: res, loading: false, working: false, error: '' } }));
+      if (res.stage === 'planned') EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'ad_plan' });
     } catch (e) {
       const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
       setSlots((s) => ({ ...s, [p]: { result: prior?.result ?? null, loading: false, working: false, error: msg } }));
