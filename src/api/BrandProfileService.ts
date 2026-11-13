@@ -57,6 +57,11 @@ export interface BrandProfileData {
   brand_name?: string;
   industry?: string;
   website?: string;
+  // Website → Playbook: the site's social profiles, where each field's value came from, and
+  // when the website was last read (see BrandIntelService).
+  social_links?: Record<string, string>;
+  field_sources?: Record<string, { source: 'website' | 'you'; basis: 'stated' | 'inferred'; value?: unknown; page?: string; at?: string }>;
+  website_read?: { url: string; read_id: string; at?: string } | null;
   product_description?: string;
   tagline?: string;
   key_products_services?: string[];

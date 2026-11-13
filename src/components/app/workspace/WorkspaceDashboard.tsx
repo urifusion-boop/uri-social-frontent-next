@@ -11,6 +11,7 @@ import GoogleAdsChooser, { continueWithGoogle, GoogleAdsReturn } from './GoogleA
 import GoogleAdsLinkPanel from './GoogleAdsLinkPanel';
 import GoogleAdsModePicker from './GoogleAdsModePicker';
 import TellJane from './TellJane';
+import PlaybookWebsitePanel from '@/src/components/app/brand-intel/PlaybookWebsitePanel';
 import type { PlaybookHealthData } from '@/src/api/BrandProfileService';
 import { V3Service } from '@/src/api/V3Service';
 import {
@@ -6393,7 +6394,64 @@ const PbSection = ({ title, children }: { title: string; children: ReactNode }) 
 const PbUsedInContext = React.createContext<{
   usedIn: Record<string, string[]>;
   sections: Record<string, string[]>;
+  /** Row label -> where its current value came from, while it still holds what the website gave it. */
+  sources?: Record<string, 'website' | 'guess'>;
 }>({ usedIn: {}, sections: {} });
+
+// Playbook row labels for the fields Website → Playbook can fill.
+const PB_SOURCE_LABELS: Record<string, string> = {
+  brand_name: 'Brand name',
+  industry: 'Industry',
+  website: 'Website',
+  product_description: 'Description',
+  tagline: 'Tagline',
+  key_products_services: 'Key products / services',
+  price_range: 'Price range',
+  unique_selling_proposition: 'What makes you different',
+  customer_pain_points: 'Customer pain points',
+  customer_needs: 'Customer needs',
+  why_customers_choose_us: 'Why customers choose you',
+  common_questions: 'Common questions customers ask',
+};
+
+const pbNorm = (v: unknown): string =>
+  JSON.stringify(Array.isArray(v) ? [...v].map((x) => String(x).trim().toLowerCase()).sort() : String(v ?? '').trim().toLowerCase());
+
+/** Which rows still show what the website gave them: once the owner edits one, it's theirs. */
+const playbookSources = (profile: BrandProfileData | null): Record<string, 'website' | 'guess'> => {
+  const out: Record<string, 'website' | 'guess'> = {};
+  for (const [key, src] of Object.entries(profile?.field_sources ?? {})) {
+    const label = PB_SOURCE_LABELS[key];
+    if (!label || src.source !== 'website') continue;
+    if (pbNorm(src.value) !== pbNorm((profile as Record<string, unknown>)[key])) continue;
+    out[label] = src.basis === 'inferred' ? 'guess' : 'website';
+  }
+  return out;
+};
+
+const PbSourceTag = ({ label }: { label: string }) => {
+  const source = React.useContext(PbUsedInContext).sources?.[label];
+  if (!source) return null;
+  const guess = source === 'guess';
+  return (
+    <span
+      title={guess ? "Jane's reading of your website — edit it if it's not quite right" : 'Taken from your website'}
+      style={{
+        marginLeft: 6,
+        padding: '1px 7px',
+        borderRadius: 999,
+        fontSize: 9.5,
+        fontWeight: 700,
+        letterSpacing: 0,
+        textTransform: 'none',
+        background: guess ? '#FFFBEB' : '#ECFDF5',
+        color: guess ? '#92400E' : '#047857',
+      }}
+    >
+      {guess ? "Jane's guess" : 'From your website'}
+    </span>
+  );
+};
 
 const PbUsedIn = ({ label }: { label: string }) => {
   const usedIn = React.useContext(PbUsedInContext).usedIn[label];
@@ -6474,6 +6532,7 @@ const PbRow = ({
         }}
       >
         {label}
+        {!editing && <PbSourceTag label={label} />}
         {tooltip && (
           <BrandTooltip title={tooltip} arrow placement="right">
             <span style={{ display: 'inline-flex', cursor: 'help', textTransform: 'none' }}>
@@ -7333,7 +7392,9 @@ const PlaybookPage = ({
   const ALL_APPROVAL = APPROVAL_OPTIONS;
 
   return (
-    <PbUsedInContext.Provider value={{ usedIn: health?.used_in ?? {}, sections: health?.sections ?? {} }}>
+    <PbUsedInContext.Provider
+      value={{ usedIn: health?.used_in ?? {}, sections: health?.sections ?? {}, sources: playbookSources(profile) }}
+    >
       <PbEditContext.Provider value={{ onEdit: editAt, onEditSection: jumpToSection, hideEmpty }}>
         <SubPage
           title="Brand Playbook"
@@ -7478,6 +7539,11 @@ const PlaybookPage = ({
             )}
           </div>
 
+          <PlaybookWebsitePanel
+            profile={profile}
+            onProfileUpdate={onProfileUpdate}
+            disabledReason={editing ? 'Save or cancel your edits first, then read your website.' : undefined}
+          />
           <TellJane
             profile={profile}
             onProfileUpdate={onProfileUpdate}
