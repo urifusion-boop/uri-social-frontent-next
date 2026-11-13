@@ -194,10 +194,13 @@ export default function ContentLibraryPage() {
         byId.set(vd.id, {
           id: vd.id,
           draft_id: vd.id,
-          platform: (vd.platforms ?? [])[0] ?? 'instagram',
+          // The video screens name a target "instagram_reels" / "facebook_reels"; a draft's platform is the
+          // network ("instagram"), which is what the connected-accounts check and posting look up.
+          platform: ((vd.platforms ?? [])[0] ?? 'instagram').replace(/_reels$/, ''),
           content: vd.content,
           video_url: vd.video_url,
           post_type: 'reel',
+          instagram_audio: vd.instagram_audio,
           status: vd.status as ContentDraft['status'],
           created_at: vd.created_at,
           has_image: false,
