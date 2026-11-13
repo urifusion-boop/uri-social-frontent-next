@@ -603,6 +603,9 @@ export interface ContentDraft {
   // boolean, which triggers TikTok's own automatic background-music pick.
   // Ignored for video/reel drafts (both by TikTok/Outstand and by our own publish code).
   tiktok_auto_add_music?: boolean;
+  // Instagram Reel drafts only: the licensed music track picked for the Reel (Instagram's API has no audio
+  // option for images, carousels or Stories). Posted with the Reel, whether now or scheduled.
+  instagram_audio?: InstagramAudioChoice | null;
   // Logo-free background + exactly where the logo landed on it, saved at
   // generation time — present only for content generated after manual
   // logo reposition shipped. Both absent means this draft can't be

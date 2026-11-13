@@ -10,6 +10,7 @@ import { queuedNotice, queuedPublish } from '@/src/utils/publishJobMessage.util'
 import { parseApiDate } from '@/src/utils/apiDate.util';
 import { PLATFORM_META, firstSlideImage, mediaMeta, isImagePending } from './GeneratedContentCard';
 import CanvasEditor from './canvas-editor/CanvasEditor';
+import InstagramMusicPicker from '../workspace/InstagramMusicPicker';
 import { UriHttpClient } from '@/src/configs/http.config';
 
 const PINK = '#CD1B78';
@@ -82,6 +83,8 @@ export default function DraftDetailView({
   const isConnected =
     connectedPlatforms === null || connectedPlatforms.map((p) => p.toLowerCase()).includes(platformKey);
   const tiktokNeedsFullFlow = platformKey === 'tiktok' && !draft.video_url;
+  // Music can only go on an Instagram Reel (video); Instagram's API has no audio option for other formats.
+  const isInstagramReel = platformKey === 'instagram' && !!draft.video_url && statusKey !== 'published';
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -430,6 +433,17 @@ export default function DraftDetailView({
                   {draft.hashtags.map((h) => `#${h.replace(/^#+/, '')}`).join(' ')}
                 </Typography>
               </>
+            )}
+
+            {isInstagramReel && (
+              <Box sx={{ mb: 2 }}>
+                <InstagramMusicPicker
+                  draftId={id}
+                  value={draft.instagram_audio}
+                  disabled={busy}
+                  onChange={(choice) => setDraft((d) => ({ ...d, instagram_audio: choice }))}
+                />
+              </Box>
             )}
 
             {isCarousel && totalSlides > 0 && (

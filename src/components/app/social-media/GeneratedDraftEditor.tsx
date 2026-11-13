@@ -24,6 +24,7 @@ import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { describePublishJob, queuedNotice, queuedPublish, resumeTimeMs } from '@/src/utils/publishJobMessage.util';
 import TikTokPostDialog from '../workspace/TikTokPostDialog';
+import InstagramMusicPicker from '../workspace/InstagramMusicPicker';
 import { PLATFORM_META, firstSlideImage, mediaMeta } from './GeneratedContentCard';
 import LogoRepositionModal from './LogoRepositionModal';
 import DescribeImageEditControls from './DescribeImageEditControls';
@@ -88,6 +89,8 @@ export default function GeneratedDraftEditor({
   const isConnected =
     connectedPlatforms === null || connectedPlatforms.map((p) => p.toLowerCase()).includes(platformKey);
   const isTiktokPhoto = platformKey === 'tiktok' && !draft.video_url;
+  // Music can only go on an Instagram Reel (video); Instagram's API has no audio option for other formats.
+  const isInstagramReel = platformKey === 'instagram' && !!draft.video_url && draft.status !== 'published';
   const activeLogoPlacement = isCarousel ? currentSlide?.logo_placement : draft.logo_placement;
   const currentImageVersion = isCarousel ? currentSlide?.image_version : draft.image_version;
   const resolveMediaUrl = (url: string) => {
@@ -604,6 +607,14 @@ export default function GeneratedDraftEditor({
           >
             {saving ? 'Saving…' : 'Save caption changes'}
           </Button>
+        )}
+
+        {isInstagramReel && (
+          <InstagramMusicPicker
+            draftId={id}
+            value={draft.instagram_audio}
+            onChange={(choice) => setDraft((d) => ({ ...d, instagram_audio: choice }))}
+          />
         )}
 
         {isTiktokPhoto && (
