@@ -456,6 +456,7 @@ export default function CampaignWizard({
               value={budget}
               onChange={setBudget}
               platformCount={platform.mode === 'multi' ? Math.max(platform.multi.length, 1) : 1}
+              platforms={platform.mode === 'multi' ? platform.multi : [platform.single || 'meta']}
             />
           )}
           {step === 'creative' && (

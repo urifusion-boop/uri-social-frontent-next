@@ -6,6 +6,9 @@
  */
 'use client';
 
+import { BudgetOption, CampaignService } from '@/src/api/CampaignService';
+import { useEffect, useState } from 'react';
+
 export interface WizardBudgetValue {
   amountNgn: number | '';
   days: number;
@@ -30,11 +33,15 @@ export default function WizardBudgetStep({
   // picked — shows the even split live, same number the Review step's
   // budget_ngn_override will actually use, so there's no surprise later.
   platformCount = 1,
+  // Which platforms the campaign runs on, for the suggested amounts ('' = Jane picks → Meta's rules).
+  platforms = ['meta'],
 }: {
   value: WizardBudgetValue;
   onChange: (next: WizardBudgetValue) => void;
   platformCount?: number;
+  platforms?: string[];
 }) {
+  const suggested = useBudgetSuggestions(platforms, value.days);
   const perPlatform =
     platformCount > 1 && typeof value.amountNgn === 'number' && value.amountNgn > 0
       ? Math.round(value.amountNgn / platformCount)
@@ -46,29 +53,7 @@ export default function WizardBudgetStep({
           ? `What's the total spend across all ${platformCount} platforms, and over how many days?`
           : 'What do you want to spend, and over how many days?'}
       </p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 420 }}>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1a0a12' }}>
-            {platformCount > 1 ? 'Total budget (₦)' : 'Budget (₦)'}
-          </span>
-          <input
-            type="number"
-            min={0}
-            inputMode="numeric"
-            value={value.amountNgn}
-            onChange={(e) => onChange({ ...value, amountNgn: e.target.value === '' ? '' : Number(e.target.value) })}
-            placeholder="e.g. 15000"
-            style={inputStyle}
-          />
-          {perPlatform != null && (
-            <span
-              style={{ fontSize: 11.5, color: '#7a7270', background: '#f7f5f8', borderRadius: 9, padding: '7px 10px' }}
-            >
-              <b style={{ color: '#1a0a12' }}>{platformCount} platforms selected</b> → ₦{perPlatform.toLocaleString()}{' '}
-              per platform.
-            </span>
-          )}
-        </label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 560 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1a0a12' }}>How many days should it run?</span>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -96,7 +81,128 @@ export default function WizardBudgetStep({
             })}
           </div>
         </div>
+        {suggested.options.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1a0a12' }}>Suggested</span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
+              {suggested.options.map((o) => {
+                const isOn = value.amountNgn === o.amount_ngn;
+                return (
+                  <button
+                    key={o.label}
+                    type="button"
+                    onClick={() => onChange({ ...value, amountNgn: o.amount_ngn })}
+                    title={o.detail}
+                    aria-pressed={isOn}
+                    style={{
+                      textAlign: 'left',
+                      border: isOn ? '1.5px solid #C2185B' : '1px solid #ece8e6',
+                      boxShadow: isOn ? '0 0 0 3px rgba(194,24,91,.10)' : 'none',
+                      background: '#fff',
+                      borderRadius: 12,
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 3,
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 15, fontWeight: 800, color: '#1a0a12' }}>
+                        ₦{o.amount_ngn.toLocaleString()}
+                      </span>
+                      {o.recommended && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 800,
+                            textTransform: 'uppercase',
+                            letterSpacing: '.06em',
+                            color: '#C2185B',
+                            background: 'rgba(194,24,91,.08)',
+                            borderRadius: 6,
+                            padding: '2px 6px',
+                          }}
+                        >
+                          Recommended
+                        </span>
+                      )}
+                    </span>
+                    <span style={{ fontSize: 12, color: '#1a0a12', fontWeight: 600 }}>{o.what}</span>
+                    <span style={{ fontSize: 11.5, color: '#7a7270', lineHeight: 1.4 }}>{o.detail}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {suggested.note && <span style={{ fontSize: 11.5, color: '#7a7270' }}>{suggested.note}</span>}
+          </div>
+        )}
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1a0a12' }}>
+            {suggested.options.length > 0
+              ? platformCount > 1
+                ? 'Or type a total (₦)'
+                : 'Or type your own amount (₦)'
+              : platformCount > 1
+                ? 'Total budget (₦)'
+                : 'Budget (₦)'}
+          </span>
+          <input
+            type="number"
+            min={0}
+            inputMode="numeric"
+            value={value.amountNgn}
+            onChange={(e) => onChange({ ...value, amountNgn: e.target.value === '' ? '' : Number(e.target.value) })}
+            placeholder="e.g. 15000"
+            style={inputStyle}
+          />
+          {perPlatform != null && (
+            <span
+              style={{ fontSize: 11.5, color: '#7a7270', background: '#f7f5f8', borderRadius: 9, padding: '7px 10px' }}
+            >
+              <b style={{ color: '#1a0a12' }}>{platformCount} platforms selected</b> → ₦{perPlatform.toLocaleString()}{' '}
+              per platform.
+            </span>
+          )}
+        </label>
       </div>
     </div>
   );
+}
+
+/** Suggested amounts for the platforms picked. Several platforms: each tier is the sum of every
+ * platform's tier, since the total is split evenly across them. A failed lookup just shows none. */
+function useBudgetSuggestions(platforms: string[], days: number) {
+  const [state, setState] = useState<{ options: BudgetOption[]; note: string }>({ options: [], note: '' });
+  const key = `${platforms.join(',')}|${days}`;
+  useEffect(() => {
+    let alive = true;
+    const list = platforms.length ? platforms : ['meta'];
+    Promise.all(list.map((p) => CampaignService.getBudgetSuggestions(p || 'meta', days)))
+      .then((all) => {
+        if (!alive) return;
+        if (all.length === 1) {
+          setState({ options: all[0].options, note: all[0].note });
+          return;
+        }
+        const tiers = Math.min(...all.map((a) => a.options.length));
+        const options = Array.from({ length: tiers }, (_, i) => {
+          const parts = all.map((a) => a.options[i]);
+          return {
+            ...parts[0],
+            amount_ngn: parts.reduce((sum, o) => sum + o.amount_ngn, 0),
+            what: `Across ${all.length} platforms`,
+            detail: parts.map((o, j) => `${list[j] || 'meta'}: ₦${o.amount_ngn.toLocaleString()}`).join(' · '),
+          };
+        });
+        setState({ options, note: all.find((a) => a.note)?.note ?? '' });
+      })
+      .catch(() => alive && setState({ options: [], note: '' }));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return state;
 }
