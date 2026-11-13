@@ -94,6 +94,7 @@ import CampaignBuilderPage from '@/src/components/app/workspace/campaign-wizard/
 import type { WizardDraft } from '@/src/components/app/workspace/campaign-wizard/wizardDraft';
 import CampaignOverviewPage from '@/src/components/app/workspace/campaign-wizard/CampaignOverviewPage';
 import CampaignGrowthPage from '@/src/components/app/workspace/campaign-wizard/CampaignGrowthPage';
+import CompetitorsPage from '@/src/components/app/competitors/CompetitorsPage';
 import CampaignWalletPage from '@/src/components/app/workspace/campaign-wizard/CampaignWalletPage';
 import CampaignRevenuePage from '@/src/components/app/workspace/campaign-wizard/CampaignRevenuePage';
 import CreativesLibraryPage from '@/src/components/app/workspace/CreativesLibraryPage';
@@ -221,6 +222,13 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       <>
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
         <circle cx="12" cy="12" r="3" />
+      </>
+    ),
+    target: (
+      <>
+        <circle cx="12" cy="12" r="10" />
+        <circle cx="12" cy="12" r="6" />
+        <circle cx="12" cy="12" r="2" />
       </>
     ),
     arrowUp: (
@@ -11391,6 +11399,13 @@ export default function WorkspaceDashboard() {
       onClick: () => goTo('campaign-growth'),
     },
     {
+      id: 'campaign-competitors',
+      icon: 'target',
+      label: 'Competitors',
+      active: nav === 'campaign-competitors',
+      onClick: () => goTo('campaign-competitors'),
+    },
+    {
       id: 'campaign-wallet',
       icon: 'trending',
       // Not the same balance as "Budget & Billing" below — this is what Jane
@@ -11635,6 +11650,7 @@ export default function WorkspaceDashboard() {
           'campaign-wizard',
           'campaign-overview',
           'campaign-growth',
+          'campaign-competitors',
           'campaign-wallet',
           'campaign-revenue',
         ].includes(nav)
@@ -12225,6 +12241,7 @@ export default function WorkspaceDashboard() {
       />
     ),
     'campaign-growth': <CampaignGrowthPage />,
+    'campaign-competitors': <CompetitorsPage onNavigate={goTo} onUseInWizard={handleUseDraftInWizard} />,
     'campaign-wallet': <CampaignWalletPage />,
     'campaign-revenue': <CampaignRevenuePage />,
     creatives: <CreativesLibraryPage onUseInWizard={handleUseDraftInWizard} />,
