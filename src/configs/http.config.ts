@@ -3,7 +3,7 @@ import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { STORE_KEYS } from './store.config';
 
 // Any call that connects, finalizes or disconnects a social account goes to a /connect/ or
-// /connections/ path (Facebook, Instagram, TikTok, LinkedIn, X, Outstand). When one succeeds,
+// /connections/ path (Facebook, Instagram, TikTok, LinkedIn, X). When one succeeds,
 // the connected-accounts tracker (src/hooks/useConnectedAccounts) is told to refresh.
 const CONNECTION_CHANGE = /(^|\/)(connect|connections)(\/|$|\?)/;
 

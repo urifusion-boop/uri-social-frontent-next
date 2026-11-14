@@ -4,25 +4,19 @@ import { AxiosResponse } from 'axios';
 import { loadConnections } from '@/src/hooks/useConnectedAccounts';
 
 // One connected page/account for a platform that can have more than one
-// (Facebook, Instagram, TikTok — anything routed through Outstand or a
-// direct flow that supports multiple pages). `outstand_account_id` is
-// present for Outstand-managed accounts; direct-OAuth accounts (Facebook
-// direct, Instagram direct) key on `id` instead, surfaced here the same way
-// so the Connected Accounts dropdown can treat both uniformly.
+// (Facebook, Instagram, TikTok). Keyed on the connection's own `id`.
 export interface ConnectedAccountEntry {
-  outstand_account_id?: string;
   id?: string;
   username?: string;
   account_name?: string;
   connected_via?: string;
   profile_picture_url?: string;
-  // Only ever explicitly false when Outstand itself has flagged this
-  // connection unhealthy (its own isActive flag) — undefined/null means
-  // Outstand didn't report a status for this account/network at all, and
-  // must not be treated as a problem (a stale token only shows up here
-  // once Outstand's own record catches up; it is NOT a live token check —
-  // an attempt to actually publish can still fail even when this is true).
+  // False when the account can't publish until it is reconnected (see needs_reconnect).
   is_active?: boolean | null;
+  // Set by the backend when a publish showed the login has lapsed, or the account was
+  // connected the old way and must be connected again; reconnect_reason says why.
+  needs_reconnect?: boolean;
+  reconnect_reason?: string;
 }
 
 export interface PlatformStatus {
@@ -32,13 +26,12 @@ export interface PlatformStatus {
   connected_at?: string;
   phone?: string;
   linked_at?: string;
-  outstand_account_id?: string;
   ig_user_id?: string;
   connected_via?: string;
   active_author_urn?: string;
   pages?: LinkedInPage[];
   // Every connected page/account for this platform — the single fields above
-  // (outstand_account_id, account_name, etc.) mirror accounts[0] for anything
+  // (account_name, etc.) mirror accounts[0] for anything
   // that hasn't been updated to render the full list yet. Empty/absent when
   // the platform doesn't support multiple accounts.
   accounts?: ConnectedAccountEntry[];

@@ -380,8 +380,8 @@ export interface VideoPublishJob {
 // What the TikTok Post screen shows and enforces. Fetched fresh each time that
 // screen opens (TikTok Content Sharing Guidelines).
 export interface TikTokCreatorInfo {
-  // How the account is connected: direct TikTok login, or through Outstand.
-  connection_type?: 'direct' | 'outstand';
+  // How the account is connected (TikTok login).
+  connection_type?: 'direct';
   creator_nickname: string;
   creator_username: string;
   creator_avatar_url: string;
@@ -481,9 +481,11 @@ export interface SocialConnection {
   fan_count?: number;
   status?: 'active' | 'expired';
   page_id?: string;
-  outstand_account_id?: string;
+  id?: string;
   ig_user_id?: string;
   connected_via?: string;
+  needs_reconnect?: boolean;
+  reconnect_reason?: string;
 }
 
 export interface LogoPlacement {
@@ -601,7 +603,7 @@ export interface ContentDraft {
   // TikTok single-image/carousel only (Music PRD MUS-PRD-01 §2.2/§8) — TikTok's
   // Content Posting API has no track-selection field for photo posts, just this
   // boolean, which triggers TikTok's own automatic background-music pick.
-  // Ignored for video/reel drafts (both by TikTok/Outstand and by our own publish code).
+  // Ignored for video/reel drafts (both by TikTok and by our own publish code).
   tiktok_auto_add_music?: boolean;
   // Instagram Reel drafts only: the licensed music track picked for the Reel (Instagram's API has no audio
   // option for images, carousels or Stories). Posted with the Reel, whether now or scheduled.

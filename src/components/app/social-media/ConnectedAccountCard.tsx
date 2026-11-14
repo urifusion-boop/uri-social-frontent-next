@@ -50,8 +50,8 @@ const ConnectedAccountCard = ({ connection, onDisconnect }: ConnectedAccountCard
         connection.connected_via?.startsWith('facebook_direct')
       ) {
         response = await SocialMediaAgentService.disconnectFacebookDirect();
-      } else if (connection.outstand_account_id) {
-        response = await SocialMediaAgentService.disconnectPlatform(connection.outstand_account_id);
+      } else if (connection.id) {
+        response = await SocialMediaAgentService.disconnectPlatform(connection.id);
       } else {
         ToastService.showToast('Could not disconnect. Please try again.', ToastTypeEnum.Error);
         return;

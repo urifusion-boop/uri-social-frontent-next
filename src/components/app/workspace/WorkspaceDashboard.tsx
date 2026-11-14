@@ -37,7 +37,7 @@ import {
   PlatformStatus,
   SocialConnectionService,
 } from '@/src/api/SocialConnectionService';
-import { AvailablePage, SocialAccountService } from '@/src/api/SocialAccountService';
+import { SocialAccountService } from '@/src/api/SocialAccountService';
 import { AdFormat, CampaignService, DraftSummary, PlanVariant } from '@/src/api/CampaignService';
 import { AdFormatGalleryCard } from '@/src/components/app/workspace/AdFormatGallery';
 import { useAuth } from '@/src/providers/AuthProvider';
@@ -2705,10 +2705,8 @@ const PLATFORMS = [
     label: 'TikTok',
     color: '#010101',
     bg: '#F0F0F0',
-    // Outstand is no longer offered for new connections: TikTok connects with TikTok
-    // login only ('tiktok_direct_oauth', /connect/tiktok-direct/*, with the
-    // pending->finalize step on return). Accounts already connected through Outstand
-    // keep posting that way and are labelled "via Outstand" below.
+    // TikTok connects with TikTok login ('tiktok_direct_oauth', /connect/tiktok-direct/*,
+    // with the pending->finalize step on return).
     flow: 'tiktok_direct_oauth',
     tooltip: 'Connect your TikTok account to publish images and videos directly to TikTok.',
   },
@@ -2778,23 +2776,11 @@ const ConnectionsPage = ({
   // step Meta's ads connection doesn't have: after OAuth, the brand still has to
   // link an existing Google Ads account or create one fresh under URI's MCC.
 
-  // Facebook/Instagram OAuth callback state
-  const [phase, setPhase] = useState<'idle' | 'pending' | 'finalizing'>('idle');
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
-  const [availablePages, setAvailablePages] = useState<AvailablePage[]>([]);
-  const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
-  const [networkName, setNetworkName] = useState('');
-  // Which platform initiated the Outstand connect (used to filter the page picker)
-  const [pendingPlatform, setPendingPlatform] = useState<string>('');
+  // Connect callback state
   // Set when Meta OAuth rejects or returns empty pages — shows platform-specific fix guide
   const [connectError, setConnectError] = useState<{ platform: string; error: string } | null>(null);
 
-  // Instagram-direct picker — separate from the Outstand pending-connection
-  // state above on purpose. The direct-OAuth flow never touches Outstand, so
-  // reusing sessionToken/availablePages/phase here would mean threading a
-  // second, structurally different data shape through logic (multi-select,
-  // auto-pages, network filtering) that's specific to Outstand's picker. A
-  // non-null token is what shows this panel.
+  // Instagram-direct picker: a non-null token is what shows this panel.
   const [igPendingToken, setIgPendingToken] = useState<string | null>(null);
   const [igCandidates, setIgCandidates] = useState<
     Array<{ ig_user_id: string; page_name?: string; username?: string; profile_picture_url?: string }>
@@ -2934,14 +2920,12 @@ const ConnectionsPage = ({
         next.facebook = {
           linked: !!conns.facebook?.length,
           account_name: fbConn?.account_name || fbConn?.page_name || fbConn?.username,
-          outstand_account_id: fbConn?.outstand_account_id,
           connected_via: fbConn?.connected_via,
           accounts: conns.facebook ?? [],
         };
         next.instagram = {
           linked: !!conns.instagram?.length,
           account_name: igConn?.account_name || igConn?.page_name || igConn?.username,
-          outstand_account_id: igConn?.outstand_account_id,
           ig_user_id: igConn?.ig_user_id,
           connected_via: igConn?.connected_via,
           accounts: conns.instagram ?? [],
@@ -2949,7 +2933,6 @@ const ConnectionsPage = ({
         next.tiktok = {
           linked: !!conns.tiktok?.length,
           account_name: ttConn?.account_name || ttConn?.username,
-          outstand_account_id: ttConn?.outstand_account_id,
           connected_via: ttConn?.connected_via,
           accounts: conns.tiktok ?? [],
         };
@@ -3015,7 +2998,6 @@ const ConnectionsPage = ({
   // Handle OAuth callback params (after Facebook/Instagram OAuth redirect back here)
   useEffect(() => {
     const connected = searchParams.get('connected');
-    const token = searchParams.get('sessionToken');
     if (connected === 'instagram_direct') {
       const igUserId = searchParams.get('ig_user_id') ?? '';
       const igUsername = searchParams.get('username') ?? 'Instagram';
@@ -3170,54 +3152,6 @@ const ConnectionsPage = ({
             ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error)
           );
       }
-    } else if (connected === 'direct') {
-      // Outstand's "direct" callback shape — account_id/username/network
-      // returned immediately (TikTok, X), no session-token page-selection
-      // step. Previously unhandled here entirely, so the connection never
-      // got saved until someone tried to publish.
-      const accountId = searchParams.get('account_id') ?? '';
-      const network = searchParams.get('network') ?? '';
-      const username = searchParams.get('username') ?? '';
-      const networkUniqueId = searchParams.get('network_unique_id') ?? '';
-      router.replace('/workspace/?tab=connections');
-      if (accountId && network) {
-        SocialAccountService.finalizeOutstandDirect(accountId, network, username, networkUniqueId)
-          .then((res) => {
-            if (res.status) {
-              ToastService.showToast(`${username || network} connected!`, ToastTypeEnum.Success);
-              posthog.capture('social_account_connected', { platform: network, username });
-              try {
-                sessionStorage.removeItem('social_connections_cache');
-              } catch {
-                /* noop */
-              }
-              loadStatuses();
-            } else {
-              ToastService.showToast(`${network} connection failed. Please try again.`, ToastTypeEnum.Error);
-            }
-          })
-          .catch(() => ToastService.showToast(`${network} connection failed. Please try again.`, ToastTypeEnum.Error));
-      }
-    } else if (connected === 'pending' && token) {
-      setSessionToken(token);
-      setPhase('pending');
-      const storedPlatform = localStorage.getItem('outstand_connect_platform') ?? '';
-      if (storedPlatform) {
-        setPendingPlatform(storedPlatform);
-        localStorage.removeItem('outstand_connect_platform');
-      }
-      router.replace('/workspace/?tab=connections');
-      SocialAccountService.getPendingConnection(token)
-        .then((res) => {
-          if (res.status && res.responseData) {
-            setAvailablePages(res.responseData.available_pages ?? []);
-            setNetworkName(res.responseData.network ?? '');
-          }
-        })
-        .catch(() => {
-          ToastService.showToast('Could not load accounts. Please try again.', ToastTypeEnum.Error);
-          setPhase('idle');
-        });
     } else if (connected === 'true') {
       const platform = searchParams.get('platform') ?? '';
       const username = searchParams.get('username') ? decodeURIComponent(searchParams.get('username')!) : platform;
@@ -3237,43 +3171,13 @@ const ConnectionsPage = ({
       if (typeof window !== 'undefined' && window.opener) window.close();
     } else if (connected === 'false') {
       const err = searchParams.get('error') ?? '';
-      const storedPlatform = localStorage.getItem('outstand_connect_platform') ?? '';
-      localStorage.removeItem('outstand_connect_platform');
+      const storedPlatform = localStorage.getItem('uri_connect_platform') ?? '';
+      localStorage.removeItem('uri_connect_platform');
       setConnectError({ platform: storedPlatform, error: err });
       router.replace('/workspace/?tab=connections');
       if (typeof window !== 'undefined' && window.opener) window.close();
     }
   }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleFinalize = async () => {
-    if (!sessionToken || selectedPageIds.length === 0) return;
-    setPhase('finalizing');
-    try {
-      const res = await SocialAccountService.finalizeConnection(sessionToken, selectedPageIds);
-      if (res.status) {
-        const names = (res.responseData?.accounts_connected ?? []).map((a) => a.account_name || a.username).join(', ');
-        ToastService.showToast(`Connected: ${names}`, ToastTypeEnum.Success);
-        setPhase('idle');
-        setSessionToken(null);
-        setAvailablePages([]);
-        setSelectedPageIds([]);
-        setPendingPlatform('');
-        // Bust DraftCard's cached connected_platforms so it reflects the new connection immediately.
-        try {
-          sessionStorage.removeItem('social_connections_cache');
-        } catch {
-          /* noop */
-        }
-        loadStatuses();
-      } else {
-        ToastService.showToast('Finalization failed. Please try again.', ToastTypeEnum.Error);
-        setPhase('pending');
-      }
-    } catch {
-      ToastService.showToast('Finalization failed. Please try again.', ToastTypeEnum.Error);
-      setPhase('pending');
-    }
-  };
 
   const handleFinalizeInstagramPending = async () => {
     if (!igPendingToken || igSelected.size === 0) return;
@@ -3361,32 +3265,12 @@ const ConnectionsPage = ({
   };
 
   const handleConnect = async (id: string, flow: string) => {
-    if (flow === 'outstand_oauth') {
-      setConnecting(id);
-      try {
-        const res = await SocialAccountService.initiateConnection([id], 'settings');
-        const authUrl = res.responseData?.auth_urls?.[id];
-        if (res.status && authUrl) {
-          localStorage.setItem('outstand_connect_source', 'settings');
-          localStorage.setItem('outstand_connect_platform', id); // track which platform initiated
-          redirectOrWarn(authUrl, id);
-          return;
-        }
-        ToastService.showToast('Could not start connection. Please try again.', ToastTypeEnum.Error);
-      } catch {
-        ToastService.showToast('Connection failed. Please try again.', ToastTypeEnum.Error);
-      } finally {
-        setConnecting(null);
-      }
-      return;
-    }
     if (flow === 'instagram_direct') {
       setConnecting(id);
       // Recorded so the connected=false error-redirect handler (see the
       // useEffect above) knows to show Instagram's specific fix guide rather
-      // than the generic fallback — the outstand_oauth branch already does
-      // this for its own flows, this path just never had.
-      localStorage.setItem('outstand_connect_platform', id);
+      // than the generic fallback.
+      localStorage.setItem('uri_connect_platform', id);
       // Redirect to the Meta/Facebook Login flow for Instagram Business Account connection
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
       redirectOrWarn(`${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`, id);
@@ -3397,14 +3281,14 @@ const ConnectionsPage = ({
       // Meta's own sign-in, through URI's app: the Page is connected directly and its posts go
       // straight to Facebook. Meta returns here (?connected=facebook_direct) and the effect above
       // finishes the connection.
-      localStorage.setItem('outstand_connect_platform', id);
+      localStorage.setItem('uri_connect_platform', id);
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
       window.location.href = `${apiBase}/social-media/connect/facebook-direct/initiate?source=settings`;
       return;
     }
     if (flow === 'tiktok_direct_oauth') {
       setConnecting(id);
-      // Direct TikTok Login Kit flow (FILE_UPLOAD posting, bypasses Outstand) —
+      // Direct TikTok Login Kit flow (FILE_UPLOAD posting) —
       // same full-page redirect shape as Instagram/Facebook direct above.
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
       window.location.href = `${apiBase}/social-media/connect/tiktok-direct/initiate?source=settings`;
@@ -3545,7 +3429,7 @@ const ConnectionsPage = ({
   // account, so a second connected page for the same platform had no way to
   // be reached at all — this is the fix for that.
   const handleDisconnectAccount = async (platform: string, account: ConnectedAccountEntry) => {
-    const disconnectKey = `${platform}:${account.outstand_account_id || account.id}`;
+    const disconnectKey = `${platform}:${account.id}`;
     setDisconnecting(disconnectKey);
     try {
       if (account.connected_via?.startsWith('facebook_direct')) {
@@ -3555,11 +3439,11 @@ const ConnectionsPage = ({
         const res = await SocialMediaAgentService.disconnectTikTokDirect();
         if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
       } else if (platform === 'instagram' && account.connected_via?.startsWith('instagram_direct')) {
-        const igId = account.id || account.outstand_account_id;
+        const igId = account.id;
         if (!igId) throw new Error('Missing account id');
         await SocialMediaAgentService.disconnectInstagramDirect(igId);
-      } else if (account.outstand_account_id) {
-        const res = await SocialMediaAgentService.disconnectPlatform(account.outstand_account_id);
+      } else if (account.id) {
+        const res = await SocialMediaAgentService.disconnectPlatform(account.id);
         if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
       } else {
         throw new Error('Could not identify this account to disconnect');
@@ -3584,7 +3468,7 @@ const ConnectionsPage = ({
 
   // "Disconnect All" — the main row's button once at least one page/account is
   // connected. One backend call handles every connected account for this
-  // platform (Outstand-managed and direct-OAuth alike), rather than looping
+  // platform, rather than looping
   // individual disconnect calls client-side.
   const handleDisconnectAllPlatform = async (platform: string) => {
     setDisconnecting(`${platform}:all`);
@@ -3605,33 +3489,6 @@ const ConnectionsPage = ({
       setDisconnecting(null);
     }
   };
-
-  if (phase === 'finalizing') {
-    return (
-      <SubPage
-        title="Connected Accounts"
-        icon="share"
-        desc="Manage your social media platform connections"
-        onJane={onJane}
-        isMobile={isMobile}
-        onOpenSectionNav={onOpenSectionNav}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0', gap: 14 }}>
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              border: '3px solid #edecea',
-              borderTopColor: '#C2185B',
-              borderRadius: '50%',
-              animation: 'spin 0.8s linear infinite',
-            }}
-          />
-          <div style={{ fontSize: 13.5, fontWeight: 600, color: '#374151' }}>Connecting your accounts...</div>
-        </div>
-      </SubPage>
-    );
-  }
 
   return (
     <SubPage
@@ -3786,260 +3643,6 @@ const ConnectionsPage = ({
         </div>
       )}
 
-      {phase === 'pending' && (
-        <div
-          style={{
-            background: '#F9FAFB',
-            border: '1.5px solid #E0DEF7',
-            borderRadius: 14,
-            padding: '20px 18px',
-            marginBottom: 16,
-          }}
-        >
-          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111', marginBottom: 6 }}>
-            Choose {networkName || 'accounts'} to connect
-          </div>
-          <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 14 }}>
-            Select which accounts you want to manage through URI Social.
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-            {(() => {
-              // Filter pages to only show the platform that initiated the connect.
-              // Outstand returns type:'page' for Facebook pages and type:'instagram_account' (or similar)
-              // for Instagram accounts. Ensure clicking "Connect Facebook" never shows IG accounts.
-              const OUTSTAND_FACEBOOK_TYPES = new Set(['page', 'facebook', 'facebook_page']);
-              const OUTSTAND_INSTAGRAM_TYPES = new Set(['instagram', 'instagram_account', 'instagram_business']);
-              const platformPages = pendingPlatform
-                ? availablePages.filter((p) => {
-                    const rawType = (p.type ?? '').toLowerCase();
-                    const rawNetwork = (p.network ?? '').toLowerCase();
-                    if (pendingPlatform === 'facebook') {
-                      // Accept pages that are Facebook-type or have no type info
-                      if (rawNetwork) return rawNetwork === 'facebook';
-                      return !rawType || OUTSTAND_FACEBOOK_TYPES.has(rawType);
-                    }
-                    if (pendingPlatform === 'instagram') {
-                      if (rawNetwork) return rawNetwork === 'instagram';
-                      return !rawType || OUTSTAND_INSTAGRAM_TYPES.has(rawType);
-                    }
-                    return true;
-                  })
-                : availablePages;
-              const selectablePages = platformPages.filter((p) => !p.auto_connect);
-              const autoPages = platformPages.filter((p) => p.auto_connect);
-              if (selectablePages.length === 0) {
-                return (
-                  <div
-                    style={{
-                      background: '#FFF7ED',
-                      border: '1.5px solid #FDBA74',
-                      borderRadius: 12,
-                      padding: '16px 18px',
-                    }}
-                  >
-                    {pendingPlatform === 'instagram' ? (
-                      <>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E', marginBottom: 8 }}>
-                          No Instagram Business account found
-                        </div>
-                        <div style={{ fontSize: 12, color: '#78350F', lineHeight: 1.8 }}>
-                          Instagram Personal accounts cannot be connected. You need a{' '}
-                          <strong>Business or Creator account</strong> linked to a Facebook Page.
-                        </div>
-                        <ol
-                          style={{ margin: '10px 0 0 16px', padding: 0, fontSize: 12, color: '#78350F', lineHeight: 2 }}
-                        >
-                          <li>
-                            Open the <strong>Instagram app</strong> → Profile → Menu (☰) → Settings → Account
-                          </li>
-                          <li>
-                            Tap <strong>Switch to Professional Account</strong> → choose <strong>Business</strong> or{' '}
-                            <strong>Creator</strong>
-                          </li>
-                          <li>
-                            Go to Settings → Account → <strong>Linked Accounts</strong> → connect your Facebook Page
-                          </li>
-                          <li>
-                            Close this panel and tap <strong>Connect</strong> on Instagram again
-                          </li>
-                        </ol>
-                      </>
-                    ) : pendingPlatform === 'facebook' ? (
-                      <>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E', marginBottom: 8 }}>
-                          No Facebook Pages found
-                        </div>
-                        <div style={{ fontSize: 12, color: '#78350F', lineHeight: 1.8 }}>
-                          The Facebook API only connects to <strong>Pages</strong>, not personal profiles. You must be
-                          an <strong>Admin or Editor</strong> of a Page.
-                        </div>
-                        <ol
-                          style={{ margin: '10px 0 0 16px', padding: 0, fontSize: 12, color: '#78350F', lineHeight: 2 }}
-                        >
-                          <li>
-                            Make sure you logged in with the Facebook account that{' '}
-                            <strong>owns or manages your Page</strong>
-                          </li>
-                          <li>
-                            No Page yet?{' '}
-                            <a
-                              href="https://www.facebook.com/pages/create"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{ color: '#1877F2' }}
-                            >
-                              Create a Facebook Page
-                            </a>{' '}
-                            — it only takes a minute
-                          </li>
-                          <li>
-                            Already have a Page but not admin? Ask the owner to add you as <strong>Admin</strong> in
-                            Page Settings → Page Roles
-                          </li>
-                          <li>
-                            Once sorted, close this panel and tap <strong>Connect</strong> on Facebook again
-                          </li>
-                        </ol>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E', marginBottom: 6 }}>
-                          No accounts found
-                        </div>
-                        <div style={{ fontSize: 12, color: '#78350F' }}>
-                          Make sure you have admin access to at least one Page and that your account meets the platform
-                          requirements, then try connecting again.
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              }
-              return (
-                <>
-                  {selectablePages.map((page) => {
-                    const isSelected = selectedPageIds.includes(page.id);
-                    return (
-                      <div
-                        key={page.id}
-                        onClick={() =>
-                          setSelectedPageIds((prev) =>
-                            prev.includes(page.id) ? prev.filter((x) => x !== page.id) : [...prev, page.id]
-                          )
-                        }
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 12,
-                          padding: '11px 14px',
-                          borderRadius: 10,
-                          border: `2px solid ${isSelected ? '#C2185B' : '#edecea'}`,
-                          background: isSelected ? '#FDF2F8' : '#fff',
-                          cursor: 'pointer',
-                          transition: 'all .15s',
-                        }}
-                      >
-                        {page.profilePictureUrl ? (
-                          <img
-                            src={page.profilePictureUrl}
-                            alt={page.name}
-                            style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }}
-                          />
-                        ) : (
-                          <div
-                            style={{
-                              width: 36,
-                              height: 36,
-                              borderRadius: '50%',
-                              background: '#E7F0FD',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: 16,
-                            }}
-                          >
-                            📘
-                          </div>
-                        )}
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{page.name}</div>
-                          {page.username && <div style={{ fontSize: 11.5, color: '#9CA3AF' }}>@{page.username}</div>}
-                        </div>
-                        <div
-                          style={{
-                            width: 18,
-                            height: 18,
-                            borderRadius: '50%',
-                            border: `2px solid ${isSelected ? '#C2185B' : '#ddd'}`,
-                            background: isSelected ? '#C2185B' : '#fff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          {isSelected && (
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {autoPages.length > 0 && (
-                    <div style={{ fontSize: 11.5, color: '#6B7280', padding: '6px 4px' }}>
-                      Instagram Business Account{autoPages.length > 1 ? 's' : ''} linked to your page
-                      {autoPages.length > 1 ? 's' : ''} will be connected automatically.
-                    </div>
-                  )}
-                </>
-              );
-            })()}
-          </div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={handleFinalize}
-              disabled={selectedPageIds.length === 0}
-              style={{
-                padding: '8px 20px',
-                borderRadius: 8,
-                border: 'none',
-                background: selectedPageIds.length > 0 ? '#C2185B' : '#edecea',
-                color: selectedPageIds.length > 0 ? '#fff' : '#aaa',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: selectedPageIds.length > 0 ? 'pointer' : 'not-allowed',
-                fontFamily: 'var(--wf)',
-              }}
-            >
-              Connect{' '}
-              {selectedPageIds.length > 0
-                ? `${selectedPageIds.length} account${selectedPageIds.length !== 1 ? 's' : ''}`
-                : 'accounts'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPhase('idle');
-                setSessionToken(null);
-                setAvailablePages([]);
-                setSelectedPageIds([]);
-                setPendingPlatform('');
-              }}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#9CA3AF',
-                fontSize: 12.5,
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                fontFamily: 'var(--wf)',
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
       {/* OAuth failure — show platform-specific fix guide */}
       {connectError && (
         <div
@@ -4612,13 +4215,11 @@ const ConnectionsPage = ({
                         }}
                       >
                         {(s?.accounts ?? []).map((account, idx) => {
-                          const accountKey = account.outstand_account_id || account.id || String(idx);
+                          const accountKey = account.id || String(idx);
                           const rowBusy = disconnecting === `${p.id}:${accountKey}`;
-                          // Outstand is no longer used, so an account still connected through
-                          // it can't publish — prompt a direct reconnect (Meta / TikTok login).
-                          const viaOutstand =
-                            (p.id === 'tiktok' || p.id === 'facebook') &&
-                            !account.connected_via?.startsWith(`${p.id}_direct`);
+                          // An account that can't publish until it is connected again (its login
+                          // lapsed, or it was connected the old way): offer a reconnect.
+                          const needsReconnect = Boolean(account.needs_reconnect) || account.connected_via === 'outstand';
                           return (
                             <div
                               key={accountKey}
@@ -4636,7 +4237,7 @@ const ConnectionsPage = ({
                               <span style={{ fontSize: 12.5, color: '#333', fontWeight: 500, minWidth: 0 }}>
                                 {account.account_name || account.username || 'Connected page'}
 
-                                {viaOutstand && (
+                                {needsReconnect && (
                                   <span
                                     style={{
                                       display: 'block',
@@ -4646,26 +4247,19 @@ const ConnectionsPage = ({
                                       marginTop: 2,
                                     }}
                                   >
-                                    This account needs to be reconnected to keep publishing.
+                                    {account.reconnect_reason || 'This account needs to be reconnected to keep publishing.'}
                                   </span>
                                 )}
-                                {/* is_active is only ever explicitly false when Outstand itself
-                                  has flagged this connection unhealthy — undefined/null means
-                                  Outstand didn't report a status at all and must not be shown
-                                  as a problem (see social_account_service.get_user_connections). */}
-                                {account.is_active === false && (
+                                {/* is_active is false only when the account is flagged unhealthy;
+                                  undefined means no status and is not shown as a problem. */}
+                                {account.is_active === false && !needsReconnect && (
                                   <span style={{ color: '#c62828', fontWeight: 700 }}> — needs reconnecting</span>
                                 )}
                               </span>
-                              {viaOutstand && (
+                              {needsReconnect && (
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    handleConnect(
-                                      p.id,
-                                      p.id === 'tiktok' ? 'tiktok_direct_oauth' : 'facebook_direct_oauth'
-                                    )
-                                  }
+                                  onClick={() => handleConnect(p.id, p.flow)}
                                   disabled={isBusy}
                                   style={{
                                     padding: '4px 10px',

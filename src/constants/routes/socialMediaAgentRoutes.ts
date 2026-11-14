@@ -5,9 +5,6 @@ const URI_INSIGHTS_PATH = BackendUrlEnum.INSIGHTS + '/social-media';
 
 type ISocialMediaAgentApi =
   | 'connectFacebookToken'
-  | 'initiateConnection'
-  | 'pendingConnection'
-  | 'finalizeConnection'
   | 'getConnections'
   | 'disconnectPlatform'
   | 'disconnectAllForPlatform'
@@ -112,9 +109,6 @@ type ISocialMediaAgentApi =
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
-  initiateConnection: '/connect/initiate',
-  pendingConnection: '/connect/pending',
-  finalizeConnection: '/connect/finalize',
   getConnections: '/connections',
   disconnectPlatform: '/connections/account',
   disconnectAllForPlatform: '/connections/platform',

@@ -17,7 +17,7 @@ import { IS_PRODUCTION } from '@/src/configs/env.config';
  * Connection state is owned by the parent (InboxDashboard) and passed in, so
  * the top bar's "channels connected" summary and this page can never
  * disagree. Instagram and Facebook connect straight to Meta from here: the inbox
- * needs the Page's own token, which a connection made through Outstand never has.
+ * needs the Page's own token (a direct Facebook connection holds it).
  */
 
 const FONT = "'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
