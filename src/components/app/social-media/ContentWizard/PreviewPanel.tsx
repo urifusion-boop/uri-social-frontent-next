@@ -215,7 +215,8 @@ function FacebookPreview({ brand, previewImage, previewVideo, captionText, capti
       <MediaBox
         previewImage={previewImage}
         previewVideo={previewVideo}
-        aspect="1.91 / 1"
+        // Facebook feed posts are generated 4:5 (same as Instagram), so preview them in that shape.
+        aspect="4 / 5"
         emptyLabel="AI image will appear here"
       />
       <Box sx={{ display: 'flex', borderTop: '1px solid #F3F4F6', mt: 0.5 }}>
