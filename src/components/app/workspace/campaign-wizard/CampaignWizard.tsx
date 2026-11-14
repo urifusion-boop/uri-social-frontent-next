@@ -17,6 +17,7 @@ import WizardPlatformStep, { WizardPlatformValue } from './WizardPlatformStep';
 import WizardGooglePlacementStep from './WizardGooglePlacementStep';
 import WizardAudienceStep, { WizardAudienceValue } from './WizardAudienceStep';
 import WizardBudgetStep, { WizardBudgetValue } from './WizardBudgetStep';
+import { useFeatures } from '@/src/hooks/useFeatures';
 import WizardCreativeStep, { WizardCreativeChoice } from './WizardCreativeStep';
 import WizardReviewStep from './WizardReviewStep';
 import { deleteWizardDraft, saveWizardDraft, WizardDraft, WizardReviewSnapshot } from './wizardDraft';
@@ -93,6 +94,7 @@ export default function CampaignWizard({
   const [objective, setObjective] = useState<WizardObjectiveValue | null>(null);
   const [platform, setPlatform] = useState<WizardPlatformValue>(DEFAULT_PLATFORM);
   const [googlePlacement, setGooglePlacement] = useState<GooglePlacement>('search');
+  const { flags: featureFlags } = useFeatures();
   const [audience, setAudience] = useState<WizardAudienceValue>({ description: '', city: '' });
   const [budget, setBudget] = useState<WizardBudgetValue>({ amountNgn: '', days: 7 });
   const [creative, setCreative] = useState<WizardCreativeChoice | null>(null);
@@ -450,12 +452,16 @@ export default function CampaignWizard({
               previewImageUrl={creative && creative.creative_source !== 'generate' ? creative.previewUrl : undefined}
             />
           )}
-          {step === 'audience' && <WizardAudienceStep value={audience} onChange={setAudience} />}
+          {step === 'audience' && (
+            <WizardAudienceStep value={audience} onChange={setAudience} fromPlaybook={featureFlags.builder_products} />
+          )}
           {step === 'budget' && (
             <WizardBudgetStep
               value={budget}
               onChange={setBudget}
               platformCount={platform.mode === 'multi' ? Math.max(platform.multi.length, 1) : 1}
+              platforms={platform.mode === 'multi' ? platform.multi : [platform.single || 'meta']}
+              suggest={featureFlags.budget_suggestions}
             />
           )}
           {step === 'creative' && (

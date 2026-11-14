@@ -11,6 +11,7 @@ import GoogleAdsChooser, { continueWithGoogle, GoogleAdsReturn } from './GoogleA
 import GoogleAdsLinkPanel from './GoogleAdsLinkPanel';
 import GoogleAdsModePicker from './GoogleAdsModePicker';
 import TellJane from './TellJane';
+import PlaybookWebsitePanel from '@/src/components/app/brand-intel/PlaybookWebsitePanel';
 import type { PlaybookHealthData } from '@/src/api/BrandProfileService';
 import { V3Service } from '@/src/api/V3Service';
 import {
@@ -94,6 +95,8 @@ import CampaignBuilderPage from '@/src/components/app/workspace/campaign-wizard/
 import type { WizardDraft } from '@/src/components/app/workspace/campaign-wizard/wizardDraft';
 import CampaignOverviewPage from '@/src/components/app/workspace/campaign-wizard/CampaignOverviewPage';
 import CampaignGrowthPage from '@/src/components/app/workspace/campaign-wizard/CampaignGrowthPage';
+import CompetitorsPage from '@/src/components/app/competitors/CompetitorsPage';
+import { useFeatures } from '@/src/hooks/useFeatures';
 import CampaignWalletPage from '@/src/components/app/workspace/campaign-wizard/CampaignWalletPage';
 import CampaignRevenuePage from '@/src/components/app/workspace/campaign-wizard/CampaignRevenuePage';
 import CreativesLibraryPage from '@/src/components/app/workspace/CreativesLibraryPage';
@@ -222,6 +225,13 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       <>
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
         <circle cx="12" cy="12" r="3" />
+      </>
+    ),
+    target: (
+      <>
+        <circle cx="12" cy="12" r="10" />
+        <circle cx="12" cy="12" r="6" />
+        <circle cx="12" cy="12" r="2" />
       </>
     ),
     arrowUp: (
@@ -6715,7 +6725,64 @@ const PbSection = ({ title, children }: { title: string; children: ReactNode }) 
 const PbUsedInContext = React.createContext<{
   usedIn: Record<string, string[]>;
   sections: Record<string, string[]>;
+  /** Row label -> where its current value came from, while it still holds what the website gave it. */
+  sources?: Record<string, 'website' | 'guess'>;
 }>({ usedIn: {}, sections: {} });
+
+// Playbook row labels for the fields Website → Playbook can fill.
+const PB_SOURCE_LABELS: Record<string, string> = {
+  brand_name: 'Brand name',
+  industry: 'Industry',
+  website: 'Website',
+  product_description: 'Description',
+  tagline: 'Tagline',
+  key_products_services: 'Key products / services',
+  price_range: 'Price range',
+  unique_selling_proposition: 'What makes you different',
+  customer_pain_points: 'Customer pain points',
+  customer_needs: 'Customer needs',
+  why_customers_choose_us: 'Why customers choose you',
+  common_questions: 'Common questions customers ask',
+};
+
+const pbNorm = (v: unknown): string =>
+  JSON.stringify(Array.isArray(v) ? [...v].map((x) => String(x).trim().toLowerCase()).sort() : String(v ?? '').trim().toLowerCase());
+
+/** Which rows still show what the website gave them: once the owner edits one, it's theirs. */
+const playbookSources = (profile: BrandProfileData | null): Record<string, 'website' | 'guess'> => {
+  const out: Record<string, 'website' | 'guess'> = {};
+  for (const [key, src] of Object.entries(profile?.field_sources ?? {})) {
+    const label = PB_SOURCE_LABELS[key];
+    if (!label || src.source !== 'website') continue;
+    if (pbNorm(src.value) !== pbNorm((profile as Record<string, unknown>)[key])) continue;
+    out[label] = src.basis === 'inferred' ? 'guess' : 'website';
+  }
+  return out;
+};
+
+const PbSourceTag = ({ label }: { label: string }) => {
+  const source = React.useContext(PbUsedInContext).sources?.[label];
+  if (!source) return null;
+  const guess = source === 'guess';
+  return (
+    <span
+      title={guess ? "Jane's reading of your website — edit it if it's not quite right" : 'Taken from your website'}
+      style={{
+        marginLeft: 6,
+        padding: '1px 7px',
+        borderRadius: 999,
+        fontSize: 9.5,
+        fontWeight: 700,
+        letterSpacing: 0,
+        textTransform: 'none',
+        background: guess ? '#FFFBEB' : '#ECFDF5',
+        color: guess ? '#92400E' : '#047857',
+      }}
+    >
+      {guess ? "Jane's guess" : 'From your website'}
+    </span>
+  );
+};
 
 const PbUsedIn = ({ label }: { label: string }) => {
   const usedIn = React.useContext(PbUsedInContext).usedIn[label];
@@ -6796,6 +6863,7 @@ const PbRow = ({
         }}
       >
         {label}
+        {!editing && <PbSourceTag label={label} />}
         {tooltip && (
           <BrandTooltip title={tooltip} arrow placement="right">
             <span style={{ display: 'inline-flex', cursor: 'help', textTransform: 'none' }}>
@@ -6962,6 +7030,7 @@ const PlaybookPage = ({
   isMobile?: boolean;
   onOpenSectionNav?: () => void;
 }) => {
+  const { flags: features } = useFeatures();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -7655,7 +7724,9 @@ const PlaybookPage = ({
   const ALL_APPROVAL = APPROVAL_OPTIONS;
 
   return (
-    <PbUsedInContext.Provider value={{ usedIn: health?.used_in ?? {}, sections: health?.sections ?? {} }}>
+    <PbUsedInContext.Provider
+      value={{ usedIn: health?.used_in ?? {}, sections: health?.sections ?? {}, sources: playbookSources(profile) }}
+    >
       <PbEditContext.Provider value={{ onEdit: editAt, onEditSection: jumpToSection, hideEmpty }}>
         <SubPage
           title="Brand Playbook"
@@ -7800,6 +7871,13 @@ const PlaybookPage = ({
             )}
           </div>
 
+          {features.website_playbook && (
+            <PlaybookWebsitePanel
+              profile={profile}
+              onProfileUpdate={onProfileUpdate}
+              disabledReason={editing ? 'Save or cancel your edits first, then read your website.' : undefined}
+            />
+          )}
           <TellJane
             profile={profile}
             onProfileUpdate={onProfileUpdate}
@@ -11394,6 +11472,8 @@ export default function WorkspaceDashboard() {
   // other businesses' reasoning and performance, so it is hidden for everyone else —
   // and every endpoint behind it re-checks server-side regardless (CI-SPEC-01 §4.5).
   const [isAdsAdmin, setIsAdsAdmin] = useState(false);
+  // New capabilities rolled out in stages (staff first, then a share of brands).
+  const { flags: featureFlags } = useFeatures();
 
   useEffect(() => {
     CampaignService.billingAccess()
@@ -11646,6 +11726,17 @@ export default function WorkspaceDashboard() {
       active: nav === 'campaign-growth',
       onClick: () => goTo('campaign-growth'),
     },
+    ...(featureFlags.competitors
+      ? [
+          {
+            id: 'campaign-competitors',
+            icon: 'target',
+            label: 'Competitors',
+            active: nav === 'campaign-competitors',
+            onClick: () => goTo('campaign-competitors'),
+          },
+        ]
+      : []),
     {
       id: 'campaign-wallet',
       icon: 'trending',
@@ -11891,6 +11982,7 @@ export default function WorkspaceDashboard() {
           'campaign-wizard',
           'campaign-overview',
           'campaign-growth',
+          'campaign-competitors',
           'campaign-wallet',
           'campaign-revenue',
         ].includes(nav)
@@ -12481,6 +12573,7 @@ export default function WorkspaceDashboard() {
       />
     ),
     'campaign-growth': <CampaignGrowthPage />,
+    'campaign-competitors': <CompetitorsPage onNavigate={goTo} onUseInWizard={handleUseDraftInWizard} />,
     'campaign-wallet': <CampaignWalletPage />,
     'campaign-revenue': <CampaignRevenuePage />,
     creatives: <CreativesLibraryPage onUseInWizard={handleUseDraftInWizard} />,

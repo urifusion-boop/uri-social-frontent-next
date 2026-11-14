@@ -45,6 +45,7 @@ test('a scheduled post shows its time in the viewer’s own time zone', async ({
     if (path.includes('brand-profile')) return route.fulfill(ok({ brand_name: 'E2E', onboarding_completed: true }));
     if (path.endsWith('/content-calendar')) return route.fulfill(ok({ drafts: [SCHEDULED] }));
     if (path.endsWith('/scheduled')) return route.fulfill(ok({ scheduled_drafts: [SCHEDULED] }));
+    if (path.endsWith('/video-drafts')) return route.fulfill(ok([]));
     if (path.endsWith('/connections')) {
       return route.fulfill(ok({ connections: {}, connected_platforms: ['tiktok'], total_connections: 1 }));
     }

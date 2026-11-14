@@ -13,6 +13,8 @@
  * side by side instead of a single column of near-identical cards.
  */
 'use client';
+import { CompetitorService } from '@/src/api/CompetitorService';
+import { useFeatures } from '@/src/hooks/useFeatures';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileEdit, Megaphone, MessageCircle, Sparkles, Wallet as WalletIcon } from 'lucide-react';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
@@ -185,6 +187,7 @@ export default function CampaignOverviewPage({
    *  the user click Resume a second time once they got there. */
   onResumeDraft: (draft: WizardDraft) => void;
 }) {
+  const { flags: featureFlags } = useFeatures();
   const [data, setData] = useState<DashboardHome | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -335,6 +338,8 @@ export default function CampaignOverviewPage({
             value={delta.people_messaged !== null ? String(delta.people_messaged) : "Can't count yet"}
           />
         </div>
+
+        {featureFlags.competitors && <CompetitorsNudge onOpen={() => onNavigate('campaign-competitors')} />}
 
         {suggestions.length > 0 && (
           <div style={card}>
@@ -567,5 +572,51 @@ export default function CampaignOverviewPage({
         </div>
       </div>
     </PageShell>
+  );
+}
+
+/** "Jane found N businesses like yours" after a search, or a quiet invite to look when the brand
+ * has no competitors yet. Says nothing once competitors are set up and nothing is waiting. */
+function CompetitorsNudge({ onOpen }: { onOpen: () => void }) {
+  const [state, setState] = useState<{ suggested: number; active: number; searched: boolean } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    CompetitorService.list()
+      .then((l) => alive && setState({ suggested: l.suggested.length, active: l.active.length, searched: Boolean(l.discovery) }))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (!state || (state.suggested === 0 && (state.active > 0 || state.searched))) return null;
+  const found = state.suggested > 0;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      style={{
+        ...card,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        cursor: 'pointer',
+        textAlign: 'left',
+        borderColor: found ? '#F3C6D8' : undefined,
+        fontFamily: 'inherit',
+      }}
+    >
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ fontSize: 14, fontWeight: 800, color: '#1a0a12' }}>
+          {found ? `Jane found ${state.suggested} business${state.suggested === 1 ? '' : 'es'} like yours` : "See who you're up against"}
+        </span>
+        <span style={{ fontSize: 12.5, color: '#7a7270' }}>
+          {found
+            ? 'Check them: keep the real competitors, and tell Jane which ones aren’t.'
+            : 'Jane can find businesses like yours from your Brand Playbook, and you can save the ads they run.'}
+        </span>
+      </span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: PINK, whiteSpace: 'nowrap' }}>{found ? 'Check them →' : 'Find competitors →'}</span>
+    </button>
   );
 }

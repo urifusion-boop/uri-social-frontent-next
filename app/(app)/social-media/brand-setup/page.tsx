@@ -20,6 +20,8 @@ import { getStyle } from '@/src/data/styleLibrary';
 import { CampaignService, AdFormat } from '@/src/api/CampaignService';
 import { AdFormatGalleryCard } from '@/src/components/app/workspace/AdFormatGallery';
 import { MdOutlineCampaign } from 'react-icons/md';
+import WebsiteFirstStep from '@/src/components/app/brand-intel/WebsiteFirstStep';
+import { useFeatures } from '@/src/hooks/useFeatures';
 import { HexColorPicker } from 'react-colorful';
 import Navbar from '@/components/Navbar';
 import { trackEvent } from '@/lib/analytics';
@@ -28,6 +30,7 @@ import posthog from 'posthog-js';
 // ─── Step order ──────────────────────────────────────────────────────────────
 const STEPS = [
   'welcome',
+  'website',
   'basics',
   'businessDetails',
   'identity',
@@ -62,6 +65,7 @@ type Step = (typeof STEPS)[number];
 // final review — 'preview' is saved via handleComplete instead).
 const STEP_FIELDS: Record<Step, (keyof BrandProfileData)[]> = {
   welcome: [],
+  website: [], // saved by Website → Playbook's own apply, not the wizard
   basics: ['brand_name', 'industry', 'website', 'product_description'],
   businessDetails: ['price_range', 'unique_selling_proposition', 'business_stage', 'business_priorities'],
   identity: ['logo_url', 'logo_position', 'logo_size', 'brand_colors'],
@@ -106,6 +110,35 @@ const STEP_FIELDS: Record<Step, (keyof BrandProfileData)[]> = {
   notifications: ['notification_events', 'notification_channel'],
   language: ['languages', 'region'],
   preview: [],
+};
+
+// Website → Playbook: once the website has answered most questions, setup only asks what it
+// couldn't: name and industry if still missing, the logo and colours, the voice if the site
+// didn't show one, the look of posts, and who the posts are for. Everything else keeps its
+// sensible default and stays editable in the Brand Playbook.
+const INDUSTRY_PRESETS = [
+  'Food & Beverage',
+  'Fashion & Beauty',
+  'Tech & SaaS',
+  'Health & Wellness',
+  'Real Estate',
+  'Education',
+  'E-commerce / Retail',
+  'Professional Services',
+  'Creative Agency',
+  'Finance & Fintech',
+  'Non-Profit',
+  'Entertainment',
+  'Other',
+];
+
+const fastTrackFor = (p: Partial<BrandProfileData>): Step[] => {
+  const steps: Step[] = ['website'];
+  if (!p.brand_name || !p.industry) steps.push('basics');
+  steps.push('identity');
+  if (!p.derived_voice) steps.push('personality');
+  steps.push('visualStyle', 'audience', 'preview');
+  return steps;
 };
 
 // ─── Shared micro-components ─────────────────────────────────────────────────
@@ -993,6 +1026,11 @@ function BrandSetupPageContent() {
   const [postFeedback, setPostFeedback] = useState('');
 
   const [resumedFromStep, setResumedFromStep] = useState<Step | null>(null);
+  // Set once the website's findings were applied: the shorter path through setup.
+  const [fastTrack, setFastTrack] = useState<Step[] | null>(null);
+  // The voice the website showed, kept unless the owner takes the voice quiz.
+  const [websiteVoice, setWebsiteVoice] = useState('');
+  const { flags } = useFeatures();
 
   // A saved value can be a plain string ("a, b") from an older single-string
   // save, or already an array — audience_age_range/region are both typed
@@ -1013,6 +1051,7 @@ function BrandSetupPageContent() {
   // fields the user never reached simply keep their already-blank defaults.
   const hydrateFromProfile = (profile: BrandProfileData) => {
     if (profile.brand_name) setBrandName(profile.brand_name);
+    if (profile.derived_voice) setWebsiteVoice(profile.derived_voice);
     if (profile.industry) setIndustry(profile.industry);
     if (profile.website) setWebsite(profile.website);
     if (profile.product_description) setProductDesc(profile.product_description);
@@ -1111,6 +1150,7 @@ function BrandSetupPageContent() {
         }
         if (profile) {
           hydrateFromProfile(profile);
+          if (profile.website_read && !profile.onboarding_completed) setFastTrack(fastTrackFor(profile));
           if (editMode && profile.onboarding_completed) {
             // Land on the summary, not back at "welcome" — Back still
             // reaches every real step from there, pre-filled.
@@ -1154,16 +1194,22 @@ function BrandSetupPageContent() {
     });
   };
 
+  // The path through setup: every step, or the shorter one after the website was read.
+  // Website-first setup is rolled out in stages; without it, setup is the full flow as before.
+  const order: readonly Step[] = fastTrack ?? (flags.website_playbook ? STEPS : STEPS.filter((s) => s !== 'website'));
+  const pos = Math.max(0, order.indexOf(STEPS[step]));
+  const goTo = (target: Step) => {
+    saveStepProgress(STEPS[step], target);
+    setStep(STEPS.indexOf(target));
+  };
   const next = () => {
     const leaving = STEPS[step];
-    const entering = STEPS[Math.min(step + 1, STEPS.length - 1)];
+    const entering = order[Math.min(pos + 1, order.length - 1)];
     trackEvent('onboarding_step_complete', { step: step, step_name: leaving });
-    saveStepProgress(leaving, entering);
-    setStep((s) => Math.min(s + 1, STEPS.length - 1));
+    goTo(entering);
   };
   const prev = () => {
-    saveStepProgress(STEPS[step], STEPS[Math.max(step - 1, 0)]);
-    setStep((s) => Math.max(s - 1, 0));
+    goTo(pos > 0 ? order[pos - 1] : STEPS[Math.max(step - 1, 0)]);
   };
   const toggle = <T,>(arr: T[], setArr: (v: T[]) => void, val: T, max?: number) =>
     setArr(arr.includes(val) ? arr.filter((x) => x !== val) : max && arr.length >= max ? arr : [...arr, val]);
@@ -1180,8 +1226,8 @@ function BrandSetupPageContent() {
   const connectedPlatforms = targetPlatforms.length > 0 ? targetPlatforms : ['Instagram', 'LinkedIn'];
 
   // Progress: ignore welcome (step 0) only
-  const progressibleSteps = STEPS.length - 1;
-  const progressStep = Math.max(0, step - 1);
+  const progressibleSteps = fastTrack ? fastTrack.length - 1 : STEPS.length - 1;
+  const progressStep = fastTrack ? pos : Math.max(0, step - 1);
   const progressPct = progressibleSteps > 0 ? (progressStep / progressibleSteps) * 100 : 0;
 
   // ─── Save & complete ─────────────────────────────────────────
@@ -1204,7 +1250,7 @@ function BrandSetupPageContent() {
     logo_size: logoSize,
     brand_colors: colors,
     personality_quiz: quiz,
-    derived_voice: deriveVoice(),
+    derived_voice: Object.keys(quiz || {}).length ? deriveVoice() : websiteVoice || deriveVoice(),
     voice_sample: voiceSample,
     sample_template_urls: sampleTemplateUrls.length > 0 ? sampleTemplateUrls : undefined,
     platform_tones: platformTones,
@@ -1384,12 +1430,34 @@ function BrandSetupPageContent() {
               ))}
             </Box>
             <Typography sx={{ fontSize: 11.5, color: '#9CA3AF', mb: 3 }}>
-              ⏱ About 5–7 minutes · Skip any step · Progress saves at the end
+              ⏱ About 2 minutes with your website, 5–7 without · Progress saves as you go
             </Typography>
             <CustomButton mode="primary" onClick={next} style={{ padding: '12px 32px' }}>
               Let's get started →
             </CustomButton>
           </Box>
+        );
+
+      // ══ WEBSITE (Website → Playbook) ════════════════════════════
+      case 'website':
+        return (
+          <WebsiteFirstStep
+            initialUrl={website}
+            onApplied={(updates) => {
+              hydrateFromProfile(updates as BrandProfileData);
+              const path = fastTrackFor({ ...buildProfilePayload(), ...updates });
+              setFastTrack(path);
+              trackEvent('onboarding_website_applied', { fields: Object.keys(updates).length, steps: path.length });
+              saveStepProgress('website', path[1]);
+              setStep(STEPS.indexOf(path[1]));
+            }}
+            onManual={(w) => {
+              if (w) setWebsite(w);
+              setFastTrack(null);
+              trackEvent('onboarding_website_skipped', {});
+              goTo('basics');
+            }}
+          />
         );
 
       // ══ BASICS ═══════════════════════════════════════════════════
@@ -1439,9 +1507,11 @@ function BrandSetupPageContent() {
                     'Non-Profit',
                     'Entertainment',
                     'Other',
-                  ].map((x) => (
-                    <option key={x}>{x}</option>
-                  ))}
+                  ]
+                    .concat(industry && !INDUSTRY_PRESETS.includes(industry) ? [industry] : [])
+                    .map((x) => (
+                      <option key={x}>{x}</option>
+                    ))}
                 </Box>
               </Grid>
               <Grid item xs={12} md={6}>
@@ -3807,9 +3877,12 @@ function BrandSetupPageContent() {
                 <Typography sx={{ fontSize: 11, fontWeight: 600, color: primary }}>
                   {Math.round(progressPct)}% complete
                 </Typography>
-                <Typography sx={{ fontSize: 11, color: '#9CA3AF' }}>
-                  {progressStep}/{progressibleSteps}
-                </Typography>
+                {/* On the website step the length of setup isn't known yet: the website decides it. */}
+                {STEPS[step] !== 'website' && (
+                  <Typography sx={{ fontSize: 11, color: '#9CA3AF' }}>
+                    {progressStep}/{progressibleSteps}
+                  </Typography>
+                )}
               </Box>
               <LinearProgress
                 variant="determinate"
@@ -3867,6 +3940,7 @@ function BrandSetupPageContent() {
                   >
                     {{
                       welcome: '',
+                      website: '🌐 Your Website',
                       connectAccounts: '🔗 Connect Accounts',
                       basics: '🏢 Brand Basics',
                       businessDetails: '🎯 Business Details',

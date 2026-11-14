@@ -412,6 +412,23 @@ export interface AdFormat {
   status: 'live' | 'built' | 'planned';
 }
 
+export interface BudgetOption {
+  amount_ngn: number;
+  label: string;
+  days: number;
+  ads: number;
+  what: string;
+  detail: string;
+  recommended: boolean;
+}
+
+export interface BudgetSuggestions {
+  platform: string;
+  days: number;
+  options: BudgetOption[];
+  note: string;
+}
+
 export interface PlanAskResult {
   // 'edit_ad': Jane changed an ad's words on request — the new words come back in
   // `creative` (the first ad) or `concepts` (the others).
@@ -1137,6 +1154,13 @@ export class CampaignService {
 
   /** The Visual Styles — Ads library (Brand Playbook section + the "Style: {name}"
    *  chip on a generated ad). Not brand-scoped — same list for everyone. */
+  /** Suggested budgets for the builder's budget step, worked out from the same rules the planner
+   *  enforces (daily floors, the fee, the longest run), each saying what it buys. */
+  static async getBudgetSuggestions(platform: string, days: number): Promise<BudgetSuggestions> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/budget-suggestions', { params: { platform, days } });
+    return res.data as BudgetSuggestions;
+  }
+
   static async getAdFormats(): Promise<{ formats: AdFormat[] }> {
     const res = await UriHttpClient.getClient().get('/jane-ads/ad-formats');
     return res.data as { formats: AdFormat[] };

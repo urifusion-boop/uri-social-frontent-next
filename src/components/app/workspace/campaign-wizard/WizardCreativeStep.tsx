@@ -8,7 +8,9 @@
  * even in the chat flow — see WizardReviewStep.tsx, which reuses it via ResultCard.
  */
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useFeatures } from '@/src/hooks/useFeatures';
+import MakeFromPicture from '@/src/components/app/competitors/MakeFromPicture';
 import { AssetAttestation, CampaignService, CreativeProvenanceInput, DraftSummary } from '@/src/api/CampaignService';
 import { useCreativePaths, VideoWhoPrompt } from '../CreativePathControls';
 import WizardAssetAttestation from './WizardAssetAttestation';
@@ -109,6 +111,10 @@ export default function WizardCreativeStep({
   // Same idea for a real video — "who's in it?" (CampaignsPage.tsx's pendingVideoWho).
   const [pendingVideoWho, setPendingVideoWho] = useState<string | null>(null);
   const creativePaths = useCreativePaths('');
+  const { flags } = useFeatures();
+  // "Start from an ad I like" (PRD WS4): a screenshot → Jane's own version → this campaign's ad.
+  const [likedAd, setLikedAd] = useState<File | null>(null);
+  const likedInput = useRef<HTMLInputElement | null>(null);
 
   const mode = value?.creative_source ?? null;
   const isTestMode = value?.creative_source === 'generate' && typeof value.concepts === 'number' && value.concepts >= 2;
@@ -423,6 +429,38 @@ export default function WizardCreativeStep({
               </div>
             ))}
           </div>
+        )}
+        {flags.competitors && (
+          <OptionCard
+            title="Start from an ad I like"
+            subtitle="Add a screenshot of an ad you liked. Jane makes your own version of the idea, in your brand."
+            isOn={false}
+            onClick={() => likedInput.current?.click()}
+          >
+            <input
+              ref={likedInput}
+              type="file"
+              accept="image/*"
+              hidden
+              aria-label="Screenshot of an ad you liked"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) setLikedAd(f);
+              }}
+            />
+          </OptionCard>
+        )}
+        {likedAd && (
+          <MakeFromPicture
+            file={likedAd}
+            from="builder"
+            onClose={() => setLikedAd(null)}
+            onUseInCampaign={(draft) => {
+              setLikedAd(null);
+              onChange({ creative_source: 'draft', draft_id: draft.draft_id, previewUrl: draft.image_url });
+            }}
+          />
         )}
         <OptionCard
           title="Use a past draft"
