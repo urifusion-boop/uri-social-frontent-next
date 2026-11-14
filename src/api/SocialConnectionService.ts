@@ -1,6 +1,7 @@
 import { UriHttpClient } from '@/src/configs/http.config';
 import { UriResponse } from '@/src/models/responses/UriResponse';
 import { AxiosResponse } from 'axios';
+import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 
 // One connected page/account for a platform that can have more than one
 // (Facebook, Instagram, TikTok — anything routed through Outstand or a
@@ -190,28 +191,20 @@ export class SocialConnectionService {
     linkedin?: { linked: boolean };
   }> {
     try {
-      const res: AxiosResponse<
-        UriResponse<
-          Array<{
-            platform: string;
-            connection_status?: string;
-          }>
-        >
-      > = await UriHttpClient.getClient().get('/social-media/debug/connections-raw');
-
-      if (!res.data.status || !res.data.responseData) {
+      // The brand's connected accounts, as every other screen reads them (no longer a debug endpoint).
+      const res = await SocialMediaAgentService.getConnections();
+      if (!res.status || !res.responseData) {
         return {};
       }
 
-      const connections = res.data.responseData;
       const status: {
         facebook?: { linked: boolean };
         instagram?: { linked: boolean };
         linkedin?: { linked: boolean };
       } = {};
 
-      for (const conn of connections) {
-        const platform = conn.platform?.toLowerCase();
+      for (const p of res.responseData.connected_platforms ?? []) {
+        const platform = p?.toLowerCase();
         if (platform === 'facebook' || platform === 'instagram' || platform === 'linkedin') {
           status[platform] = { linked: true };
         }
