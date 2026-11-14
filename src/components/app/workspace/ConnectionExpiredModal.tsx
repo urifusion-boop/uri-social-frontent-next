@@ -12,8 +12,8 @@ const POLL_INTERVAL_MS = 60000;
 /**
  * Global, auto-triggering modal for the "connection_disconnected" notification
  * type (see backend NotificationService.notify_connection_disconnected) —
- * fired when Outstand reports a connection no longer exists on its side
- * (revoked on the platform's end, not something the user did here).
+ * fired when a network stops accepting a connection (revoked or expired on the
+ * platform's end, not something the user did here).
  *
  * Polls independently of NotificationProvider's unread-count poll rather
  * than extending its shared interface, since this is a narrow, self-contained
