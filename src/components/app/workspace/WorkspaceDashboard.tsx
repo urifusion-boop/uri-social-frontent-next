@@ -115,6 +115,7 @@ import { useNotifications } from '@/src/providers/NotificationProvider';
 import { BrandTooltip } from '@/src/components/app/workspace/BrandTooltip';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { AuthService } from '@/src/api/AuthService';
+import { loadConnections, useConnectedAccounts } from '@/src/hooks/useConnectedAccounts';
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
@@ -910,7 +911,9 @@ const ContentManagerPage = ({
   const [syncImageOpen, setSyncImageOpen] = useState(false);
   const [v3Enabled, setV3Enabled] = useState(false);
   const [loadingV3Status, setLoadingV3Status] = useState(true);
-  const [hasConnections, setHasConnections] = useState<boolean | null>(null);
+  // "Connect your social accounts" shows when the brand has no publishing account connected
+  // (Facebook, Instagram, LinkedIn or TikTok) — from the shared connected-accounts tracker.
+  const connectedAccounts = useConnectedAccounts();
   const [createMode, setCreateMode] = useState<'generate' | 'upload'>('generate');
   // The 4-step wizard is now the only Generate Content experience — this
   // compared-side-by-side-behind-a-toggle phase
@@ -1277,22 +1280,8 @@ const ContentManagerPage = ({
       }
     };
 
-    const checkConnections = async () => {
-      console.log('🔍 [Connection Check - Workspace] Starting connection check...');
-      try {
-        const response = await SocialConnectionService.getConnectionStatus();
-        console.log('✅ [Connection Check - Workspace] Connection status response:', response);
-        const hasAny = !!(response.facebook?.linked || response.instagram?.linked || response.linkedin?.linked);
-        console.log('📊 [Connection Check - Workspace] Has any connections:', hasAny);
-        setHasConnections(hasAny);
-      } catch (error) {
-        console.error('❌ [Connection Check - Workspace] Error checking connections:', error);
-        setHasConnections(false);
-      }
-    };
 
     checkV3Status();
-    checkConnections();
   }, []);
 
   // Memoized deliberately: passed down as a prop to components (e.g.
@@ -1638,9 +1627,11 @@ const ContentManagerPage = ({
               'v3Enabled:',
               v3Enabled,
               'hasConnections:',
-              hasConnections
+              connectedAccounts.hasAny
             )}
-            {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
+            {connectedAccounts.loaded && !connectedAccounts.hasAny && (
+              <AccountConnectionBanner onConnect={handleConnectAccounts} />
+            )}
 
             {/* Create mode switcher — hidden while the wizard is active (the
                 only Generate Content experience now); shows in Upload
@@ -2879,7 +2870,7 @@ const ConnectionsPage = ({
         withTimeout(SocialConnectionService.linkedinStatus()),
         withTimeout(SocialConnectionService.xStatus()),
         withTimeout(SocialConnectionService.whatsappStatus()),
-        withTimeout(SocialMediaAgentService.getConnections()),
+        withTimeout(loadConnections({ force: true })),
         withTimeout(CampaignService.getMetaConnectionStatus()),
         withTimeout(CampaignService.getGoogleConnectionStatus()),
       ]);

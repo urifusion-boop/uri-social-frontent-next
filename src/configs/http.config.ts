@@ -1,5 +1,11 @@
 import axios, { AxiosError, AxiosInstance, AxiosResponse } from 'axios';
+import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { STORE_KEYS } from './store.config';
+
+// Any call that connects, finalizes or disconnects a social account goes to a /connect/ or
+// /connections/ path (Facebook, Instagram, TikTok, LinkedIn, X, Outstand). When one succeeds,
+// the connected-accounts tracker (src/hooks/useConnectedAccounts) is told to refresh.
+const CONNECTION_CHANGE = /(^|\/)(connect|connections)(\/|$|\?)/;
 
 class UriHttpClient {
   private static client: AxiosInstance;
@@ -54,6 +60,10 @@ class UriHttpClient {
       (response: AxiosResponse) => {
         console.log(`✅ [HTTP Response] ${response.config.method?.toUpperCase()} ${response.config.url} - Status: ${response.status}`);
         console.log(`📦 [HTTP Response Data]`, response.data);
+        const method = response.config.method?.toLowerCase();
+        if (method && method !== 'get' && CONNECTION_CHANGE.test(response.config.url ?? '')) {
+          EventBus.emit(EVENTS.CONNECTIONS_CHANGED);
+        }
         return response;
       },
       (error: AxiosError) => {

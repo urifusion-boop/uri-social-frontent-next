@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Box, Button, Typography } from '@mui/material';
-import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { ContentDraft } from '@/src/api/SocialMediaAgentService';
 import GeneratedContentCard from '../GeneratedContentCard';
 import GeneratedDraftEditor from '../GeneratedDraftEditor';
 import DraftDetailView from '../DraftDetailView';
 import { ContentWizardState } from './useContentWizardState';
+import { useConnectedAccounts } from '@/src/hooks/useConnectedAccounts';
 
 const PINK = '#CD1B78';
 
@@ -18,15 +19,11 @@ interface StepReviewScheduleProps {
 
 export default function StepReviewSchedule({ wizard, onGenerated, onStartOver }: StepReviewScheduleProps) {
   const drafts = wizard.generatedDrafts ?? [];
-  const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null);
+  const connectedAccounts = useConnectedAccounts();
+  // null until the connected accounts are known (from the shared connected-accounts tracker).
+  const connectedPlatforms = connectedAccounts.loaded ? connectedAccounts.platforms : null;
   const [editingDraft, setEditingDraft] = useState<ContentDraft | null>(null);
   const [viewingDraft, setViewingDraft] = useState<ContentDraft | null>(null);
-
-  useEffect(() => {
-    SocialMediaAgentService.getConnections()
-      .then((res) => setConnectedPlatforms(res.responseData?.connected_platforms ?? []))
-      .catch(() => setConnectedPlatforms([]));
-  }, []);
 
   // Scheduling/posting a card used to leave it sitting right here with
   // nothing to show for it — reported directly: "it's supposed to take me

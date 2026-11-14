@@ -23,6 +23,7 @@ import {
   VOICE_MANIFEST_URL,
   parseVoiceManifest,
 } from '@/src/components/app/workspace/voiceManifest';
+import { useConnectedAccounts } from '@/src/hooks/useConnectedAccounts';
 
 // Exported — reused as-is by DescribeVideoGenerator.tsx so the two entry
 // points (upload-first vs. describe-it) share one "turn a storyboard into
@@ -432,7 +433,9 @@ export default function VideoStoryboardGenerator({
   const [loadingDrafts, setLoadingDrafts] = useState(false);
 
   // Publish state
-  const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null);
+  const connectedAccounts = useConnectedAccounts();
+  // null until the connected accounts are known (from the shared connected-accounts tracker).
+  const connectedPlatforms = connectedAccounts.loaded ? connectedAccounts.platforms : null;
   // selectedPublishPlatform: { [draftId]: platform }
   const [selectedPublishPlatform, setSelectedPublishPlatform] = useState<Record<string, string>>({});
   // publishJobs: { [draftId:platform]: VideoPublishJob }
@@ -612,14 +615,6 @@ export default function VideoStoryboardGenerator({
       })
       .catch(() => {})
       .finally(() => setLoadingDrafts(false));
-
-    SocialMediaAgentService.getConnections()
-      .then((res) => {
-        if (res.status && res.responseData) {
-          setConnectedPlatforms(res.responseData.connected_platforms ?? []);
-        }
-      })
-      .catch(() => setConnectedPlatforms([]));
   }, [reloadKey]);
 
   const generateCaption = async () => {

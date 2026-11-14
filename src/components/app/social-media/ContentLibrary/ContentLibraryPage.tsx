@@ -29,6 +29,7 @@ import GeneratedContentCard, { firstSlideImage } from '../GeneratedContentCard';
 import GeneratedDraftEditor from '../GeneratedDraftEditor';
 import DraftDetailView from '../DraftDetailView';
 import SyncImageDialog from '../SyncImageDialog';
+import { useConnectedAccounts } from '@/src/hooks/useConnectedAccounts';
 
 const PINK = '#CD1B78';
 
@@ -164,7 +165,9 @@ export default function ContentLibraryPage() {
   });
   // Same gate DraftCard applies before publishing a single draft — fetched
   // once here too, so bulk actions can't silently skip it.
-  const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null);
+  const connectedAccounts = useConnectedAccounts();
+  // null until the connected accounts are known (from the shared connected-accounts tracker).
+  const connectedPlatforms = connectedAccounts.loaded ? connectedAccounts.platforms : null;
   const [bulkScheduleOpen, setBulkScheduleOpen] = useState(false);
   const [bulkScheduleAt, setBulkScheduleAt] = useState('');
   const [bulkDenyOpen, setBulkDenyOpen] = useState(false);
@@ -219,9 +222,6 @@ export default function ContentLibraryPage() {
 
   useEffect(() => {
     load();
-    SocialMediaAgentService.getConnections()
-      .then((res) => setConnectedPlatforms(res.responseData?.connected_platforms ?? []))
-      .catch(() => setConnectedPlatforms([]));
   }, []);
 
   const counts = useMemo(() => {
