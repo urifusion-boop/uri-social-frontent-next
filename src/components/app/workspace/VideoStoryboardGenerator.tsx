@@ -7,10 +7,12 @@ import {
   VideoDraft,
   VideoClip,
   VideoJob,
+  VIDEO_SERVICE_UNAVAILABLE,
   VideoPublishJob,
   TikTokPostSettings,
 } from '@/src/api/SocialMediaAgentService';
 import TikTokPostDialog from './TikTokPostDialog';
+import InstagramMusicPicker from './InstagramMusicPicker';
 import { useBrandLogo, useLogoChoice, logoPlacement, LOGO_WIDTH_PERCENT, type BrandLogo } from './useBrandLogo';
 import LogoToggle from './LogoToggle';
 import { describePublishJob, resumeTimeMs } from '@/src/utils/publishJobMessage.util';
@@ -21,6 +23,7 @@ import {
   VOICE_MANIFEST_URL,
   parseVoiceManifest,
 } from '@/src/components/app/workspace/voiceManifest';
+import { useConnectedAccounts } from '@/src/hooks/useConnectedAccounts';
 
 // Exported — reused as-is by DescribeVideoGenerator.tsx so the two entry
 // points (upload-first vs. describe-it) share one "turn a storyboard into
@@ -430,7 +433,9 @@ export default function VideoStoryboardGenerator({
   const [loadingDrafts, setLoadingDrafts] = useState(false);
 
   // Publish state
-  const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null);
+  const connectedAccounts = useConnectedAccounts();
+  // null until the connected accounts are known (from the shared connected-accounts tracker).
+  const connectedPlatforms = connectedAccounts.loaded ? connectedAccounts.platforms : null;
   // selectedPublishPlatform: { [draftId]: platform }
   const [selectedPublishPlatform, setSelectedPublishPlatform] = useState<Record<string, string>>({});
   // publishJobs: { [draftId:platform]: VideoPublishJob }
@@ -610,14 +615,6 @@ export default function VideoStoryboardGenerator({
       })
       .catch(() => {})
       .finally(() => setLoadingDrafts(false));
-
-    SocialMediaAgentService.getConnections()
-      .then((res) => {
-        if (res.status && res.responseData) {
-          setConnectedPlatforms(res.responseData.connected_platforms ?? []);
-        }
-      })
-      .catch(() => setConnectedPlatforms([]));
   }, [reloadKey]);
 
   const generateCaption = async () => {
@@ -1417,7 +1414,23 @@ export default function VideoStoryboardGenerator({
                   </div>
                 )}
 
-                {videoJob?.status === 'failed' && (
+                {/* Our video service being down is a notice, not a red failure of the customer's video. */}
+                {videoJob?.error_code === VIDEO_SERVICE_UNAVAILABLE && (
+                  <div
+                    role="status"
+                    style={{
+                      background: '#FFFBEB',
+                      border: '1px solid #FDE68A',
+                      borderRadius: 10,
+                      padding: '10px 14px',
+                      marginBottom: 14,
+                    }}
+                  >
+                    <p style={{ fontSize: 13, color: '#92400E', margin: 0 }}>{videoJob.error}</p>
+                  </div>
+                )}
+
+                {videoJob?.status === 'failed' && videoJob.error_code !== VIDEO_SERVICE_UNAVAILABLE && (
                   <div
                     style={{
                       background: '#FEF2F2',
@@ -1945,6 +1958,20 @@ export default function VideoStoryboardGenerator({
                           )}
                         </div>
 
+                        {/* Music is an Instagram Reels option only (Instagram's API has none for other formats). */}
+                        {selPlatform === 'instagram_reels' && (
+                          <InstagramMusicPicker
+                            draftId={d.id}
+                            value={d.instagram_audio}
+                            disabled={publishBlocked}
+                            onChange={(choice) =>
+                              setDrafts((prev) =>
+                                prev.map((x) => (x.id === d.id ? { ...x, instagram_audio: choice } : x))
+                              )
+                            }
+                          />
+                        )}
+
                         {/* Publish job error / rate-limit wait. A limit is shown as a notice, never a red failure. */}
                         {selJobMsg &&
                           (selJob?.status === 'failed' ||
@@ -2333,12 +2360,12 @@ export function SceneCard({
                   fontSize: 10,
                   fontWeight: 700,
                   color: '#fff',
-                  background: '#DC2626',
+                  background: clip.error_code === VIDEO_SERVICE_UNAVAILABLE ? '#D97706' : '#DC2626',
                   borderRadius: 4,
                   padding: '2px 7px',
                 }}
               >
-                Failed
+                {clip.error_code === VIDEO_SERVICE_UNAVAILABLE ? 'Not made' : 'Failed'}
               </span>
             )}
             {!clip.video_url && !clip.error && (
@@ -2498,10 +2525,11 @@ export function SceneCard({
             <p
               style={{
                 fontSize: 11.5,
-                color: '#f87171',
+                color: clip.error_code === VIDEO_SERVICE_UNAVAILABLE ? '#fbbf24' : '#f87171',
                 marginTop: 10,
                 padding: '7px 10px',
-                background: 'rgba(220,38,38,0.12)',
+                background:
+                  clip.error_code === VIDEO_SERVICE_UNAVAILABLE ? 'rgba(217,119,6,0.15)' : 'rgba(220,38,38,0.12)',
                 borderRadius: 6,
               }}
             >

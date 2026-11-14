@@ -36,8 +36,11 @@ const DraftEditor = ({ draft, onSaved, onCancel }: DraftEditorProps) => {
       } else {
         ToastService.showToast(response.responseMessage || 'Save failed', ToastTypeEnum.Error);
       }
-    } catch (err: any) {
-      ToastService.showToast(err?.data?.responseMessage || 'Save failed', ToastTypeEnum.Error);
+    } catch (err: unknown) {
+      ToastService.showToast(
+        (err as { data?: { responseMessage?: string } })?.data?.responseMessage || 'Save failed',
+        ToastTypeEnum.Error
+      );
     } finally {
       setLoading(false);
     }

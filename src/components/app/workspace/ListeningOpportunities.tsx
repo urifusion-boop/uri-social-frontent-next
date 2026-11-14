@@ -50,7 +50,7 @@ import {
 import { setAdTestSeed, setVideoSeed } from '@/src/utils/contentSeed';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { useConnectedAccounts } from '@/src/hooks/useConnectedAccounts';
 
 const PLATFORM_LABELS: Record<string, string> = {
   instagram: 'Instagram',
@@ -582,17 +582,8 @@ export default function ListeningOpportunities() {
   const [watchingOpen, setWatchingOpen] = useState(false);
   const [pulse, setPulse] = useState<MarketPulse[] | null>(null);
   const [pulseLoading, setPulseLoading] = useState(false);
-  const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
-
-  useEffect(() => {
-    SocialMediaAgentService.getConnections()
-      .then((res) => {
-        if (res.status) setConnectedPlatforms(res.responseData?.connected_platforms ?? []);
-      })
-      .catch(() => {
-        /* editable platform picker just falls back to the card's own suggestion */
-      });
-  }, []);
+  // From the shared connected-accounts tracker.
+  const { platforms: connectedPlatforms } = useConnectedAccounts();
 
   const toggleWatching = async () => {
     const opening = !watchingOpen;

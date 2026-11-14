@@ -94,9 +94,13 @@ export const EVENTS = {
 
   // Trial events
   TRIAL_UPDATED: 'trial:updated',
+
+  // A social account was connected or disconnected (fired by the HTTP client).
+  CONNECTIONS_CHANGED: 'connections:changed',
 } as const;
 
 export type EventData = {
+  [EVENTS.CONNECTIONS_CHANGED]: undefined;
   [EVENTS.CREDIT_UPDATED]: {
     creditsRemaining: number;
     creditBalance: number;

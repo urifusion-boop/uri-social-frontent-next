@@ -29,6 +29,7 @@ import GeneratedContentCard, { firstSlideImage } from '../GeneratedContentCard';
 import GeneratedDraftEditor from '../GeneratedDraftEditor';
 import DraftDetailView from '../DraftDetailView';
 import SyncImageDialog from '../SyncImageDialog';
+import { useConnectedAccounts } from '@/src/hooks/useConnectedAccounts';
 
 const PINK = '#CD1B78';
 
@@ -164,7 +165,9 @@ export default function ContentLibraryPage() {
   });
   // Same gate DraftCard applies before publishing a single draft — fetched
   // once here too, so bulk actions can't silently skip it.
-  const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null);
+  const connectedAccounts = useConnectedAccounts();
+  // null until the connected accounts are known (from the shared connected-accounts tracker).
+  const connectedPlatforms = connectedAccounts.loaded ? connectedAccounts.platforms : null;
   const [bulkScheduleOpen, setBulkScheduleOpen] = useState(false);
   const [bulkScheduleAt, setBulkScheduleAt] = useState('');
   const [bulkDenyOpen, setBulkDenyOpen] = useState(false);
@@ -197,10 +200,13 @@ export default function ContentLibraryPage() {
         byId.set(vd.id, {
           id: vd.id,
           draft_id: vd.id,
-          platform: (vd.platforms ?? [])[0] ?? 'instagram',
+          // The video screens name a target "instagram_reels" / "facebook_reels"; a draft's platform is the
+          // network ("instagram"), which is what the connected-accounts check and posting look up.
+          platform: ((vd.platforms ?? [])[0] ?? 'instagram').replace(/_reels$/, ''),
           content: vd.content,
           video_url: vd.video_url,
           post_type: 'reel',
+          instagram_audio: vd.instagram_audio,
           status: vd.status as ContentDraft['status'],
           created_at: vd.created_at,
           has_image: false,
@@ -216,9 +222,6 @@ export default function ContentLibraryPage() {
 
   useEffect(() => {
     load();
-    SocialMediaAgentService.getConnections()
-      .then((res) => setConnectedPlatforms(res.responseData?.connected_platforms ?? []))
-      .catch(() => setConnectedPlatforms([]));
   }, []);
 
   const counts = useMemo(() => {

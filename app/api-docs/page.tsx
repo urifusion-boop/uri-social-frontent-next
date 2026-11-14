@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { ScrollReveal } from '@/components/ScrollReveal';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { PublicFormsService } from '@/src/api/PublicFormsService';
 
 const endpoints = [
   { method: 'POST', path: '/v1/posts/generate', description: 'Generate a new post' },
@@ -16,9 +17,30 @@ const endpoints = [
 ];
 
 const ApiDocs = () => {
+  const [email, setEmail] = useState('');
+  const [honeypot, setHoneypot] = useState('');
+  const [sending, setSending] = useState(false);
+  const [joined, setJoined] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  const handleJoin = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (sending) return;
+    setSending(true);
+    setError(null);
+    try {
+      const res = await PublicFormsService.joinApiWaitlist({ email, website: honeypot });
+      setJoined(res.responseMessage || "You're on the list.");
+    } catch (err) {
+      setError(PublicFormsService.errorMessage(err, "We couldn't add you right now. Please try again in a moment."));
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <div className="min-h-screen">
@@ -126,12 +148,52 @@ const ApiDocs = () => {
               <p className="text-sm font-bold mb-4" style={{ color: 'hsl(var(--foreground) / 0.7)' }}>
                 Want early access?
               </p>
-              <button
-                className="comic-btn px-6 py-3 rounded-lg text-sm"
-                style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
-              >
-                Join the API Waitlist →
-              </button>
+              {joined ? (
+                <p role="status" className="text-sm font-black" style={{ color: 'hsl(142 60% 28%)' }}>
+                  {joined}
+                </p>
+              ) : (
+                <form onSubmit={handleJoin} className="flex flex-col sm:flex-row gap-3 justify-center max-w-lg mx-auto">
+                  {/* Honeypot: invisible to people, bots fill it in and get dropped server-side. */}
+                  <input
+                    type="text"
+                    name="website"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    aria-hidden="true"
+                    value={honeypot}
+                    onChange={(e) => setHoneypot(e.target.value)}
+                    style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }}
+                  />
+                  <input
+                    type="email"
+                    required
+                    aria-label="Email address"
+                    placeholder="you@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="flex-1 rounded-lg px-4 py-2.5 text-sm font-bold focus:outline-none"
+                    style={{
+                      border: '3px solid hsl(var(--foreground))',
+                      backgroundColor: 'hsl(var(--background))',
+                      color: 'hsl(var(--foreground))',
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={sending}
+                    className="comic-btn px-6 py-3 rounded-lg text-sm whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
+                  >
+                    {sending ? 'Joining…' : 'Join the API Waitlist →'}
+                  </button>
+                </form>
+              )}
+              {error && (
+                <p role="alert" className="text-sm font-bold mt-3" style={{ color: 'hsl(0 70% 45%)' }}>
+                  {error}
+                </p>
+              )}
               <p className="text-xs font-bold mt-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
                 The API is available on the Executive plan (₦50,000/mo).
               </p>

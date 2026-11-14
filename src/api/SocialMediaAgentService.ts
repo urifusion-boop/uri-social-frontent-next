@@ -146,7 +146,12 @@ export interface VideoClip {
   late?: boolean;
   latency_seconds?: number;
   error?: string;
+  /** Set when the scene wasn't made because video generation is down on our side (not because of the scene). */
+  error_code?: string;
 }
+
+/** `error_code` on a video job / clip when video generation is temporarily unavailable on our side. */
+export const VIDEO_SERVICE_UNAVAILABLE = 'video_service_unavailable';
 
 /** What was charged for a generated video, and what came back. Present only when the job was really charged. */
 export interface VideoJobBilling {
@@ -184,6 +189,8 @@ export interface VideoJob {
   current_scene: number;
   clips: VideoClip[];
   error: string | null;
+  /** VIDEO_SERVICE_UNAVAILABLE when `error` is a plain "try again later" message, not a failure of the video itself. */
+  error_code?: string | null;
   billing?: VideoJobBilling | null;
   // Live fal.ai queue status for whichever scene is generating right now —
   // only present while a fal.ai call is actually in flight (unset on
@@ -209,6 +216,28 @@ export interface VideoFromStoryboardPayload {
   avatar_voice?: string;
 }
 
+/** A music track from Instagram's licensed catalogue (Instagram Audio API) — Reels only. */
+export interface InstagramAudioTrack {
+  audio_id: string;
+  title: string;
+  artist: string;
+  duration_seconds: number;
+  cover_url?: string | null;
+  /** A temporary link (about 1.5 days) to a preview of the track; may be missing. */
+  preview_url?: string | null;
+}
+
+/** The track saved on a Reel draft, with its mix: both volumes are 1-100 (Instagram's own range). */
+export interface InstagramAudioChoice {
+  audio_id: string;
+  title: string;
+  artist: string;
+  /** The music. */
+  audio_volume: number;
+  /** The Reel's own sound. */
+  video_volume: number;
+}
+
 export interface VideoDraft {
   id: string;
   user_id: string;
@@ -218,6 +247,7 @@ export interface VideoDraft {
   platforms: string[];
   status: string;
   created_at: string;
+  instagram_audio?: InstagramAudioChoice | null;
 }
 
 export interface VideoEditJob {
@@ -573,6 +603,9 @@ export interface ContentDraft {
   // boolean, which triggers TikTok's own automatic background-music pick.
   // Ignored for video/reel drafts (both by TikTok/Outstand and by our own publish code).
   tiktok_auto_add_music?: boolean;
+  // Instagram Reel drafts only: the licensed music track picked for the Reel (Instagram's API has no audio
+  // option for images, carousels or Stories). Posted with the Reel, whether now or scheduled.
+  instagram_audio?: InstagramAudioChoice | null;
   // Logo-free background + exactly where the logo landed on it, saved at
   // generation time — present only for content generated after manual
   // logo reposition shipped. Both absent means this draft can't be
@@ -884,6 +917,26 @@ export class SocialMediaAgentService {
     const response = await UriHttpClient.getClient().patch(
       `${socialMediaAgentRoutes.deleteDraft}/${draftId}/tiktok-auto-add-music`,
       { enabled }
+    );
+    return response.data;
+  }
+
+  /** Music for Instagram Reels only (Instagram's API has no audio option for images, carousels or Stories). */
+  static async searchInstagramAudio(query?: string): Promise<UriResponse<{ tracks: InstagramAudioTrack[] }>> {
+    const response = await UriHttpClient.getClient().get(socialMediaAgentRoutes.instagramAudioSearch, {
+      params: query?.trim() ? { q: query.trim() } : {},
+    });
+    return response.data;
+  }
+
+  /** Save (or, with null, remove) the music track on a Reel draft; it is posted with the Reel. */
+  static async setInstagramAudio(
+    draftId: string,
+    audio: InstagramAudioChoice | null
+  ): Promise<UriResponse<{ instagram_audio: InstagramAudioChoice | null }>> {
+    const response = await UriHttpClient.getClient().patch(
+      `${socialMediaAgentRoutes.deleteDraft}/${draftId}/instagram-audio`,
+      { audio }
     );
     return response.data;
   }
@@ -1981,6 +2034,13 @@ export interface PerformancePost {
   impressions: number;
   reach: number;
   engagement_rate: number;
+  // Present when the platform reports them (Instagram saves, Facebook link clicks) or the post
+  // could be matched to its live post (TikTok / Instagram / Facebook direct connections).
+  saves?: number;
+  clicks?: number;
+  post_url?: string | null;
+  cover_url?: string | null;
+  duration?: number | null;
 }
 
 export interface PerformancePlatformSummary {
@@ -1991,6 +2051,25 @@ export interface PerformancePlatformSummary {
   comments: number;
   shares: number;
   avg_engagement_rate: number;
+  views?: number;
+  saves?: number;
+}
+
+// One connected account's share of the range (a brand can have several Instagram accounts,
+// Facebook Pages or TikTok accounts). `account_id` is null for posts whose account could not be
+// told, which the backend groups as "unattributed" rather than guessing.
+export interface PerformanceAccountSummary extends PerformancePlatformSummary {
+  account_id: string | null;
+  account_name: string;
+  platform: string;
+}
+
+// Something the user can fix to get fuller numbers — e.g. a TikTok connection made before
+// analytics access was requested has to be reconnected once.
+export interface PerformanceNotice {
+  platform: string;
+  code: string;
+  message: string;
 }
 
 export interface PerformanceData {
@@ -2005,12 +2084,15 @@ export interface PerformanceData {
     total_comments: number;
     total_shares: number;
     total_views: number;
+    total_saves?: number;
     avg_engagement_rate: number;
     insights_available?: boolean;
     insights_note?: string | null;
   };
   by_platform: Record<string, PerformancePlatformSummary>;
+  by_account?: PerformanceAccountSummary[];
   top_posts: PerformancePost[];
+  notices?: PerformanceNotice[];
 }
 
 export interface VideoIdea {
@@ -2210,19 +2292,57 @@ export interface AccountMetricItem {
   following_count: number | null;
   posts_count: number | null;
   engagement: {
-    views: number;
-    likes: number;
-    comments: number;
-    shares: number;
-    reposts: number;
-    quotes: number;
+    views: number | null;
+    likes: number | null;
+    comments: number | null;
+    shares: number | null;
+    reposts: number | null;
+    quotes: number | null;
+    // Direct Meta / TikTok connections add these (each only where the platform reports it).
+    reach?: number | null;
+    profile_views?: number | null;
+    saves?: number | null;
+    accounts_engaged?: number | null;
+    profile_link_taps?: number | null;
+    post_engagements?: number | null;
+    new_follows?: number | null;
+    videos_in_period?: number | null;
   } | null;
   engagement_note?: string;
-  platform_specific: Record<string, unknown>;
+  // TikTok direct: the connection predates analytics access and must be reconnected once.
+  needs_reconnect?: boolean;
+  platform_specific: AccountPlatformSpecific;
   period: {
     since: number;
     until: number;
   };
+}
+
+export interface DailyPoint {
+  date: string;
+  value: number;
+}
+
+export interface TikTokRecentVideo {
+  id: string;
+  title: string;
+  cover_url?: string | null;
+  share_url?: string | null;
+  created_at?: number;
+  duration?: number | null;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+}
+
+export interface AccountPlatformSpecific {
+  profile_picture_url?: string | null;
+  daily_reach?: DailyPoint[];
+  daily_views?: DailyPoint[];
+  total_likes_received?: number | null;
+  recent_videos?: TikTokRecentVideo[];
+  [key: string]: unknown;
 }
 
 export interface AccountMetricsData {
