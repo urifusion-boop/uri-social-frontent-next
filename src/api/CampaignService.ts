@@ -413,7 +413,11 @@ export interface AdFormat {
 }
 
 export interface PlanAskResult {
-  kind: 'question' | 'challenge' | 'new_campaign';
+  // 'edit_ad': Jane changed an ad's words on request — the new words come back in
+  // `creative` (the first ad) or `concepts` (the others).
+  kind: 'question' | 'challenge' | 'edit_ad' | 'new_campaign';
+  ad_number?: number;
+  concepts?: AdsPlanAd[];
   answer?: string;
   what_if?: { changed: string; original: CampaignSummary; hypothetical: CampaignSummary };
   // present when kind === 'challenge' — the re-derived plan, shown as a preview until
@@ -1021,6 +1025,17 @@ export class CampaignService {
       .data as PlanAdsState;
   }
 
+  /** Where a plan's launch actually stands — the launch request can outlast the
+   *  connection (a TikTok video is re-encoded first), so its own answer isn't final. */
+  static async getPlanStatus(planId: string): Promise<{
+    status: 'pending' | 'launching' | 'launched' | 'expired' | string;
+    campaign_id: string;
+    platform: string;
+    last_launch_error: string;
+  }> {
+    return (await UriHttpClient.getClient().get(`/jane-ads/meta/plan/${planId}/status`)).data;
+  }
+
   static async launchPlan(planId: string, allowOutOfArea = false): Promise<LaunchFromMessageResult> {
     // 4 minutes, matching planFromMessage. A launch does real work on Meta's side
     // (creative upload, then campaign -> ad set -> creative -> ad) and 2 minutes was
@@ -1058,12 +1073,26 @@ export class CampaignService {
   /** Upload the user's own photo or video to use as the campaign media. */
   static async uploadMedia(file: File): Promise<{ url: string; is_video: boolean }> {
     if (file.type.startsWith('video/')) {
-      return { url: await CampaignService.uploadVideoDirect(file), is_video: true };
+      try {
+        return { url: await CampaignService.uploadVideoDirect(file), is_video: true };
+      } catch (direct) {
+        // The browser can be barred from uploading straight to storage (e.g. the page is
+        // on www.urisocial.com and storage only lists urisocial.com) — that shows up as a
+        // network error, never reaching storage at all. Our own API takes the same video.
+        if ((direct as Error)?.message?.startsWith('Video must be under')) throw direct;
+        console.warn('[uploadMedia] direct video upload failed, sending through API', direct);
+        return CampaignService.uploadViaApi(file, 600000);
+      }
     }
+    return CampaignService.uploadViaApi(file);
+  }
+
+  private static async uploadViaApi(file: File, timeout?: number): Promise<{ url: string; is_video: boolean }> {
     const form = new FormData();
     form.append('file', file);
     const res = await UriHttpClient.getClient().post('/jane-ads/creative/upload', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      ...(timeout ? { timeout } : {}),
     });
     return res.data as { url: string; is_video: boolean };
   }
@@ -1075,17 +1104,29 @@ export class CampaignService {
     if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
       throw new Error(`Video must be under ${MAX_VIDEO_UPLOAD_BYTES / (1024 * 1024)} MB.`);
     }
-    const res = await UriHttpClient.getClient().post('/jane-ads/creative/upload-signature', null, {
-      params: { content_type: file.type || 'video/mp4' },
-    });
-    const signed = res.data as S3SignedUpload;
-    const put = await fetch(signed.put_url, {
-      method: 'PUT',
-      body: file,
-      headers: { 'Content-Type': file.type || 'video/mp4' },
-    });
-    if (!put.ok) throw new Error(`Video upload failed (${put.status}).`);
-    return signed.public_url;
+    const contentType = file.type || 'video/mp4';
+    // One retry with a fresh link: a phone/office connection dropping mid-upload is the
+    // usual failure, and the second try often goes through.
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await UriHttpClient.getClient().post('/jane-ads/creative/upload-signature', null, {
+        params: { content_type: contentType },
+      });
+      const signed = res.data as S3SignedUpload;
+      let put: Response;
+      try {
+        put = await fetch(signed.put_url, { method: 'PUT', body: file, headers: { 'Content-Type': contentType } });
+      } catch {
+        lastError = new Error('The upload was interrupted — check your connection and try again.');
+        continue;
+      }
+      if (put.ok) return signed.public_url;
+      lastError = new Error(
+        `The video upload was refused (${put.status}). Try again, or contact support if it keeps happening.`
+      );
+      if (put.status < 500) break;
+    }
+    throw lastError ?? new Error("Couldn't upload that video — try again.");
   }
 
   /** Recent drafts (with images) the user already created, to reuse as campaign media. */

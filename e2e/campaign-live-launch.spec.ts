@@ -38,7 +38,6 @@ async function dismissOverlays(page: import('@playwright/test').Page) {
   await page.keyboard.press('Escape').catch(() => undefined);
 }
 
-
 test.describe.configure({ mode: 'serial', timeout: 2_400_000 });
 
 test.skip(!process.env.RUN_LIVE, 'live launch — set RUN_LIVE=1 to spend real balance');
@@ -47,7 +46,10 @@ test('a campaign launched from the chat UI targets named locations for the brief
   // plan_ids minted during THIS run, so a stale card from a previous thread can never
   // satisfy the assertion.
   const ourPlanIds = new Set<string>();
-  const launches: { planId: string; body: Record<string, any> }[] = [];
+  const launches: {
+    planId: string;
+    body: { launch?: { campaign_id?: string; status?: string }; [key: string]: unknown };
+  }[] = [];
 
   page.on('response', async (r) => {
     const url = r.url();
@@ -60,7 +62,9 @@ test('a campaign launched from the chat UI targets named locations for the brief
         const planId = url.split('/plan/')[1].replace('/launch', '');
         launches.push({ planId, body: await r.json() });
       }
-    } catch { /* non-json response — ignore */ }
+    } catch {
+      /* non-json response — ignore */
+    }
   });
 
   // A launch that FAILS is silent otherwise, and that is exactly what needs seeing:
@@ -69,7 +73,11 @@ test('a campaign launched from the chat UI targets named locations for the brief
     const url = r.url();
     if (!url.includes('/jane-ads/meta/plan/') || !url.endsWith('/launch') || r.ok()) return;
     let detail = '';
-    try { detail = (await r.text()).slice(0, 300); } catch { /* body gone */ }
+    try {
+      detail = (await r.text()).slice(0, 300);
+    } catch {
+      /* body gone */
+    }
     console.log(`LAUNCH_FAILED status=${r.status()} ${detail}`);
   });
 
@@ -99,7 +107,7 @@ test('a campaign launched from the chat UI targets named locations for the brief
   await composer.fill(
     'I run a barbershop in Lagos. Get me more bookings on WhatsApp, budget 6000 naira. ' +
       'My customers are men who come in for regular haircuts and grooming. ' +
-      'Pick the best areas in Lagos yourself.',
+      'Pick the best areas in Lagos yourself.'
   );
   await page.keyboard.press('Enter');
 
@@ -117,13 +125,7 @@ test('a campaign launched from the chat UI targets named locations for the brief
   // default, and this brand's saved destination differs per environment (prod's is a
   // website). Accepting whatever is prefilled via "Use this" exercises the same flow
   // without rewriting a real brand's settings from a test.
-  const STEP_NAMES = [
-    /Build this ad/i,
-    /Use this style/i,
-    /^Use this$/,
-    /Let Jane create one/i,
-    /Choose this one/i,
-  ];
+  const STEP_NAMES = [/Build this ad/i, /Use this style/i, /^Use this$/, /Let Jane create one/i, /Choose this one/i];
 
   const launchBtn = page.getByText(/Looks good — launch it/i).first();
   for (let turn = 0; turn < 45; turn += 1) {
@@ -148,12 +150,10 @@ test('a campaign launched from the chat UI targets named locations for the brief
     }
 
     if (target) {
-      await target
-        .click({ timeout: 15_000 })
-        .catch(async () => {
-          await dismissOverlays(page);
-          await target.click({ force: true }).catch(() => undefined);
-        });
+      await target.click({ timeout: 15_000 }).catch(async () => {
+        await dismissOverlays(page);
+        await target.click({ force: true }).catch(() => undefined);
+      });
     } else if (await composer.isEditable().catch(() => false)) {
       await composer.fill('Yes, that works — go ahead and build the plan.');
       await page.keyboard.press('Enter');

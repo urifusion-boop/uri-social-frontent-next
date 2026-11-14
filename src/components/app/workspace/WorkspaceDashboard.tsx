@@ -1,5 +1,6 @@
 'use client';
 
+import { IS_PRODUCTION } from '@/src/configs/env.config';
 import posthog from 'posthog-js';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { BrandKeyDate, BrandProfileData, BrandProfileService, CustomFontEntry } from '@/src/api/BrandProfileService';
@@ -100,6 +101,7 @@ import InboxDashboard from '@/src/components/app/workspace/InboxDashboard';
 import RecordsPanel from '@/src/components/app/workspace/RecordsPanel';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import HomePage from '@/src/components/app/workspace/HomePage';
+import EscalationsPage from '@/src/components/app/workspace/EscalationsPage';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
 import WorkspaceAdWalletBadge from '@/src/components/app/workspace/WorkspaceAdWalletBadge';
 import WorkspaceProfileDropdown from '@/src/components/app/workspace/WorkspaceProfileDropdown';
@@ -113,7 +115,6 @@ import { useNotifications } from '@/src/providers/NotificationProvider';
 import { BrandTooltip } from '@/src/components/app/workspace/BrandTooltip';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { AuthService } from '@/src/api/AuthService';
-import { IS_PRODUCTION } from '@/src/configs/env.config';
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
@@ -918,7 +919,10 @@ const ContentManagerPage = ({
   // as a safety net — `contentWizardEnabled` is always true now, so it's
   // unreachable rather than removed.
   const contentWizardEnabled = true;
-  const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'>('chat');
+  const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'>(
+    // Edit Videos is hidden on prod, so prod opens on Generate.
+    IS_PRODUCTION ? 'generate' : 'chat'
+  );
   // The Generate tab is Describe It (DescribeVideoGenerator.tsx): a free-text brief with optional
   // reference images, then script -> scene images -> outcome-routed video. The older upload-first
   // generator is no longer offered; only its Saved Video Drafts list is kept (see below), because
@@ -1819,27 +1823,30 @@ const ContentManagerPage = ({
                   // { key: 'zapcap', label: '⚡ Produce my video' },
                   // { key: 'compose', label: '🎞 Compose' },
                 ] as { key: 'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'; label: string }[]
-              ).map((vt) => (
-                <button
-                  key={vt.key}
-                  onClick={() => setVideoTab(vt.key)}
-                  style={{
-                    flexShrink: 0,
-                    padding: isMobile ? '8px 14px' : '8px 18px',
-                    borderRadius: 10,
-                    border: videoTab === vt.key ? 'none' : '1.5px solid #E5E7EB',
-                    background: videoTab === vt.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
-                    color: videoTab === vt.key ? '#fff' : '#6B7280',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {vt.label}
-                </button>
-              ))}
+              )
+                // Edit Videos hidden on prod.
+                .filter((vt) => !(IS_PRODUCTION && vt.key === 'chat'))
+                .map((vt) => (
+                  <button
+                    key={vt.key}
+                    onClick={() => setVideoTab(vt.key)}
+                    style={{
+                      flexShrink: 0,
+                      padding: isMobile ? '8px 14px' : '8px 18px',
+                      borderRadius: 10,
+                      border: videoTab === vt.key ? 'none' : '1.5px solid #E5E7EB',
+                      background: videoTab === vt.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
+                      color: videoTab === vt.key ? '#fff' : '#6B7280',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {vt.label}
+                  </button>
+                ))}
             </div>
           </>
         )}
@@ -2690,7 +2697,7 @@ const PLATFORMS = [
     label: 'Facebook',
     color: '#1877F2',
     bg: '#E7F0FD',
-    flow: 'outstand_oauth',
+    flow: 'facebook_direct_oauth',
     tooltip: 'Connect your Facebook page to publish posts and pull engagement analytics directly into URI Social',
   },
   {
@@ -2707,16 +2714,12 @@ const PLATFORMS = [
     label: 'TikTok',
     color: '#010101',
     bg: '#F0F0F0',
-    // TikTok can be connected two ways, offered side by side on this card (see the
-    // two buttons below): through Outstand ('outstand_oauth', the default flow here),
-    // or directly with TikTok login ('tiktok_direct_oauth', /connect/tiktok-direct/*,
-    // with the pending->finalize step on return). Posting follows whichever is
-    // connected — a direct connection posts with the Content Posting API itself,
-    // an Outstand one posts through Outstand — and both go through the Post to
-    // TikTok screen.
-    flow: 'outstand_oauth',
-    tooltip:
-      'Connect your TikTok account to publish images and videos. Choose how: through Outstand, or directly with TikTok login. Posts are sent the way the account is connected.',
+    // Outstand is no longer offered for new connections: TikTok connects with TikTok
+    // login only ('tiktok_direct_oauth', /connect/tiktok-direct/*, with the
+    // pending->finalize step on return). Accounts already connected through Outstand
+    // keep posting that way and are labelled "via Outstand" below.
+    flow: 'tiktok_direct_oauth',
+    tooltip: 'Connect your TikTok account to publish images and videos directly to TikTok.',
   },
   // Ad platforms grouped together at the end (not interleaved with the organic
   // ones above) so the page can show them under their own "Ad Accounts" heading
@@ -2780,6 +2783,9 @@ const ConnectionsPage = ({
   const [adsWaLoaded, setAdsWaLoaded] = useState(false);
   const [liPages, setLiPages] = useState<LinkedInPagesData | null>(null);
   const [liPagesLoading, setLiPagesLoading] = useState(false);
+  // Google Ads account-selection panel (needs_account_selection state) — the extra
+  // step Meta's ads connection doesn't have: after OAuth, the brand still has to
+  // link an existing Google Ads account or create one fresh under URI's MCC.
 
   // Facebook/Instagram OAuth callback state
   const [phase, setPhase] = useState<'idle' | 'pending' | 'finalizing'>('idle');
@@ -2805,6 +2811,9 @@ const ConnectionsPage = ({
   const [igPickerLoading, setIgPickerLoading] = useState(false);
   const [igFinalizing, setIgFinalizing] = useState(false);
   const [igSelected, setIgSelected] = useState<Set<string>>(new Set());
+  // The same picker also lists Facebook Pages after a Meta login that manages several
+  // Pages (candidate.ig_user_id then holds the Page id).
+  const [pickerPlatform, setPickerPlatform] = useState<'instagram' | 'facebook'>('instagram');
 
   const WA_CACHE_KEY = 'uri_wa_connection';
 
@@ -3024,7 +3033,10 @@ const ConnectionsPage = ({
         SocialAccountService.finalizeInstagramDirect(igUserId)
           .then((res) => {
             if (res.status) {
-              ToastService.showToast(`Instagram @${igUsername} connected!`, ToastTypeEnum.Success);
+              ToastService.showToast(
+                `Instagram @${igUsername} connected! Want a different one? Tap Connect again and choose \u201cEdit access\u201d on Facebook\u2019s screen.`,
+                ToastTypeEnum.Success
+              );
               posthog.capture('social_account_connected', { platform: 'instagram', username: igUsername });
               try {
                 sessionStorage.removeItem('social_connections_cache');
@@ -3046,6 +3058,7 @@ const ConnectionsPage = ({
       const igToken = searchParams.get('token');
       router.replace('/workspace/?tab=connections');
       if (igToken) {
+        setPickerPlatform('instagram');
         setIgPendingToken(igToken);
         setIgPickerLoading(true);
         SocialMediaAgentService.getInstagramDirectPending(igToken)
@@ -3068,6 +3081,38 @@ const ConnectionsPage = ({
           })
           .finally(() => setIgPickerLoading(false));
       }
+    } else if (connected === 'facebook_pending') {
+      // The Meta login manages several Pages — let the owner choose which to connect.
+      const fbToken = searchParams.get('token');
+      router.replace('/workspace/?tab=connections');
+      if (fbToken) {
+        setPickerPlatform('facebook');
+        setIgPendingToken(fbToken);
+        setIgPickerLoading(true);
+        SocialMediaAgentService.getFacebookDirectPending(fbToken)
+          .then((res) => {
+            if (res.status && res.responseData) {
+              const candidates = (res.responseData.pages ?? []).map((p) => ({
+                ig_user_id: p.page_id,
+                page_name: p.page_name,
+                profile_picture_url: p.profile_picture_url,
+              }));
+              setIgCandidates(candidates);
+              setIgSelected(new Set());
+            } else {
+              ToastService.showToast(
+                res.responseMessage || 'Could not load your Facebook Pages. Please try again.',
+                ToastTypeEnum.Error
+              );
+              setIgPendingToken(null);
+            }
+          })
+          .catch(() => {
+            ToastService.showToast('Could not load your Facebook Pages. Please try again.', ToastTypeEnum.Error);
+            setIgPendingToken(null);
+          })
+          .finally(() => setIgPickerLoading(false));
+      }
     } else if (connected === 'facebook_direct') {
       const fbPageId = searchParams.get('fb_page_id') ?? '';
       const pageName = searchParams.get('page_name') ?? 'Facebook Page';
@@ -3076,7 +3121,10 @@ const ConnectionsPage = ({
         SocialAccountService.finalizeFacebookDirect(fbPageId)
           .then((res) => {
             if (res.status) {
-              ToastService.showToast(`${pageName} connected!`, ToastTypeEnum.Success);
+              ToastService.showToast(
+                `${pageName} connected! Want a different one? Tap Connect again and choose \u201cEdit access\u201d on Facebook\u2019s screen.`,
+                ToastTypeEnum.Success
+              );
               posthog.capture('social_account_connected', { platform: 'facebook', page_name: pageName });
               loadStatuses();
               warnIfInboxBlocked();
@@ -3241,14 +3289,23 @@ const ConnectionsPage = ({
     setIgFinalizing(true);
     try {
       const ids = Array.from(igSelected);
-      const res = await SocialMediaAgentService.finalizeInstagramDirectPending(igPendingToken, ids);
+      const isFb = pickerPlatform === 'facebook';
+      const res = isFb
+        ? await SocialMediaAgentService.finalizeFacebookDirectPending(igPendingToken, ids)
+        : await SocialMediaAgentService.finalizeInstagramDirectPending(igPendingToken, ids);
       if (res.status) {
         const count = res.responseData?.total ?? ids.length;
         ToastService.showToast(
-          count > 1 ? `${count} Instagram accounts connected!` : 'Instagram account connected!',
+          isFb
+            ? count > 1
+              ? `${count} Facebook Pages connected!`
+              : 'Facebook Page connected!'
+            : count > 1
+              ? `${count} Instagram accounts connected!`
+              : 'Instagram account connected!',
           ToastTypeEnum.Success
         );
-        posthog.capture('social_account_connected', { platform: 'instagram', count });
+        posthog.capture('social_account_connected', { platform: isFb ? 'facebook' : 'instagram', count });
         setIgPendingToken(null);
         setIgCandidates([]);
         setIgSelected(new Set());
@@ -3287,6 +3344,31 @@ const ConnectionsPage = ({
     }, 800);
   };
 
+  // A full-page redirect (window.location.href = ...) either unloads this
+  // page — in which case no JS here ever runs again — or it silently fails
+  // to navigate at all (blocked by the browser, a content filter, or the
+  // destination host being unreachable from this network), in which case
+  // this component is still mounted and nothing ever tells the user why.
+  // Live-reported: exactly this — click Connect, "it bounces back without
+  // any action... or even showing an error at all". There's no event for
+  // "navigation didn't happen"; the only signal is time passing while we're
+  // still here. If we're still here after a few seconds, say so instead of
+  // leaving the user staring at a stuck "Connecting…" state forever.
+  const redirectOrWarn = (url: string, platformId: string) => {
+    const stuckTimer = setTimeout(() => {
+      setConnecting((current) => (current === platformId ? null : current));
+      ToastService.showToast(
+        "Couldn't open the connection page — check your network connection (or a content/ad blocker) and try again.",
+        ToastTypeEnum.Error
+      );
+    }, 6000);
+    // Cleared automatically on real navigation since the whole page (and
+    // this timer with it) goes away; this is just a safety net for the
+    // case where it doesn't.
+    window.addEventListener('pagehide', () => clearTimeout(stuckTimer), { once: true });
+    window.location.href = url;
+  };
+
   const handleConnect = async (id: string, flow: string) => {
     if (flow === 'outstand_oauth') {
       setConnecting(id);
@@ -3296,7 +3378,7 @@ const ConnectionsPage = ({
         if (res.status && authUrl) {
           localStorage.setItem('outstand_connect_source', 'settings');
           localStorage.setItem('outstand_connect_platform', id); // track which platform initiated
-          window.location.href = authUrl;
+          redirectOrWarn(authUrl, id);
           return;
         }
         ToastService.showToast('Could not start connection. Please try again.', ToastTypeEnum.Error);
@@ -3316,7 +3398,7 @@ const ConnectionsPage = ({
       localStorage.setItem('outstand_connect_platform', id);
       // Redirect to the Meta/Facebook Login flow for Instagram Business Account connection
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
-      window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
+      redirectOrWarn(`${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`, id);
       return;
     }
     if (flow === 'facebook_direct_oauth') {
@@ -3581,11 +3663,17 @@ const ConnectionsPage = ({
           }}
         >
           <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111', marginBottom: 6 }}>
-            Choose which Instagram account(s) to connect
+            {pickerPlatform === 'facebook'
+              ? 'Choose which Facebook Page(s) to connect'
+              : 'Choose which Instagram account(s) to connect'}
           </div>
           <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 14 }}>
-            More than one of your Facebook Pages has a linked Instagram Business account — select one or more to
-            connect, just like when connecting Facebook Pages.
+            {pickerPlatform === 'facebook'
+              ? 'Select the Facebook Page(s) you want to post to.'
+              : 'More than one of your Facebook Pages has a linked Instagram Business account — select one or more to connect.'}{' '}
+            {
+              'Don\u2019t see one? Tap Connect again and choose \u201cEdit access\u201d on Facebook\u2019s screen to share it.'
+            }
           </div>
           {igPickerLoading ? (
             <div style={{ fontSize: 12.5, color: '#9CA3AF' }}>Loading accounts...</div>
@@ -3641,12 +3729,14 @@ const ConnectionsPage = ({
                           fontSize: 16,
                         }}
                       >
-                        📷
+                        {pickerPlatform === 'facebook' ? '📘' : '📷'}
                       </div>
                     )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
-                        {c.username ? `@${c.username}` : c.page_name || 'Instagram account'}
+                        {c.username
+                          ? `@${c.username}`
+                          : c.page_name || (pickerPlatform === 'facebook' ? 'Facebook Page' : 'Instagram account')}
                       </div>
                       {c.page_name && c.username && (
                         <div style={{ fontSize: 11.5, color: '#9CA3AF' }}>via {c.page_name}</div>
@@ -3675,7 +3765,11 @@ const ConnectionsPage = ({
                 fontFamily: 'var(--wf)',
               }}
             >
-              {igFinalizing ? 'Connecting...' : igSelected.size > 1 ? `Connect ${igSelected.size} accounts` : 'Connect'}
+              {igFinalizing
+                ? 'Connecting...'
+                : igSelected.size > 1
+                  ? `Connect ${igSelected.size} ${pickerPlatform === 'facebook' ? 'Pages' : 'accounts'}`
+                  : 'Connect'}
             </button>
             <button
               type="button"
@@ -4424,73 +4518,29 @@ const ConnectionsPage = ({
                           )}
                         </button>
                       ) : p.id === 'facebook' ? (
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleConnect('facebook', 'outstand_oauth')}
-                            disabled={isBusy}
-                            title="Connect through Outstand. Posts are sent through Outstand."
-                            style={{
-                              padding: '5px 12px',
-                              borderRadius: 7,
-                              border: '1px solid #edecea',
-                              background: '#fff',
-                              fontSize: 12,
-                              color: '#333',
-                              cursor: 'pointer',
-                              fontWeight: 600,
-                              fontFamily: 'var(--wf)',
-                              opacity: isBusy ? 0.5 : 1,
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {connecting === p.id ? 'Connecting...' : 'Connect via Outstand'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleConnect('facebook', 'facebook_direct_oauth')}
-                            disabled={isBusy}
-                            title="Log in with Meta directly. Posts are sent straight to your Facebook Page."
-                            style={{
-                              padding: '5px 12px',
-                              borderRadius: 7,
-                              border: 'none',
-                              background: p.color,
-                              fontSize: 12,
-                              color: '#fff',
-                              cursor: 'pointer',
-                              fontWeight: 600,
-                              fontFamily: 'var(--wf)',
-                              opacity: isBusy ? 0.5 : 1,
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {connecting === p.id ? 'Connecting...' : 'Connect with Meta'}
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleConnect('facebook', 'facebook_direct_oauth')}
+                          disabled={isBusy}
+                          title="Log in with Meta. Posts are sent straight to your Facebook Page."
+                          style={{
+                            padding: '5px 14px',
+                            borderRadius: 7,
+                            border: 'none',
+                            background: p.color,
+                            fontSize: 12,
+                            color: '#fff',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontFamily: 'var(--wf)',
+                            opacity: isBusy ? 0.5 : 1,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {connecting === p.id ? 'Connecting...' : 'Connect'}
+                        </button>
                       ) : p.id === 'tiktok' ? (
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleConnect('tiktok', 'outstand_oauth')}
-                            disabled={isBusy}
-                            title="Connect through Outstand. Posts are sent through Outstand."
-                            style={{
-                              padding: '5px 12px',
-                              borderRadius: 7,
-                              border: '1px solid #edecea',
-                              background: '#fff',
-                              fontSize: 12,
-                              color: '#333',
-                              cursor: 'pointer',
-                              fontWeight: 600,
-                              fontFamily: 'var(--wf)',
-                              opacity: isBusy ? 0.5 : 1,
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {connecting === p.id ? 'Connecting...' : 'Connect via Outstand'}
-                          </button>
                           <button
                             type="button"
                             onClick={() => handleConnect('tiktok', 'tiktok_direct_oauth')}
@@ -4510,7 +4560,7 @@ const ConnectionsPage = ({
                               whiteSpace: 'nowrap',
                             }}
                           >
-                            {connecting === p.id ? 'Connecting...' : 'Connect with TikTok login'}
+                            {connecting === p.id ? 'Connecting...' : 'Connect'}
                           </button>
                         </div>
                       ) : (
@@ -4573,6 +4623,11 @@ const ConnectionsPage = ({
                         {(s?.accounts ?? []).map((account, idx) => {
                           const accountKey = account.outstand_account_id || account.id || String(idx);
                           const rowBusy = disconnecting === `${p.id}:${accountKey}`;
+                          // Outstand is no longer used, so an account still connected through
+                          // it can't publish — prompt a direct reconnect (Meta / TikTok login).
+                          const viaOutstand =
+                            (p.id === 'tiktok' || p.id === 'facebook') &&
+                            !account.connected_via?.startsWith(`${p.id}_direct`);
                           return (
                             <div
                               key={accountKey}
@@ -4589,14 +4644,18 @@ const ConnectionsPage = ({
                             >
                               <span style={{ fontSize: 12.5, color: '#333', fontWeight: 500, minWidth: 0 }}>
                                 {account.account_name || account.username || 'Connected page'}
-                                {(p.id === 'tiktok' || p.id === 'facebook') && (
-                                  <span style={{ color: '#888', fontWeight: 400 }}>
-                                    {' · '}
-                                    {account.connected_via?.startsWith(`${p.id}_direct`)
-                                      ? p.id === 'tiktok'
-                                        ? 'TikTok login'
-                                        : 'Meta login'
-                                      : 'via Outstand'}
+
+                                {viaOutstand && (
+                                  <span
+                                    style={{
+                                      display: 'block',
+                                      color: '#a15c00',
+                                      fontWeight: 600,
+                                      fontSize: 11.5,
+                                      marginTop: 2,
+                                    }}
+                                  >
+                                    This account needs to be reconnected to keep publishing.
                                   </span>
                                 )}
                                 {/* is_active is only ever explicitly false when Outstand itself
@@ -4607,6 +4666,33 @@ const ConnectionsPage = ({
                                   <span style={{ color: '#c62828', fontWeight: 700 }}> — needs reconnecting</span>
                                 )}
                               </span>
+                              {viaOutstand && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleConnect(
+                                      p.id,
+                                      p.id === 'tiktok' ? 'tiktok_direct_oauth' : 'facebook_direct_oauth'
+                                    )
+                                  }
+                                  disabled={isBusy}
+                                  style={{
+                                    padding: '4px 10px',
+                                    borderRadius: 6,
+                                    border: 'none',
+                                    background: p.color,
+                                    fontSize: 11.5,
+                                    color: '#fff',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    fontFamily: 'var(--wf)',
+                                    opacity: isBusy ? 0.5 : 1,
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  Reconnect
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() =>
@@ -5260,28 +5346,30 @@ const PerformancePage = ({
           marginBottom: 14,
         }}
       >
-        {(['posts', 'accounts', 'intel'] as const).map((v) => (
-          <button
-            key={v}
-            onClick={() => setView(v)}
-            style={{
-              padding: '5px 16px',
-              borderRadius: 18,
-              border: 'none',
-              background: view === v ? '#fff' : 'transparent',
-              color: view === v ? '#C2185B' : '#888',
-              fontSize: 12.5,
-              fontWeight: view === v ? 700 : 500,
-              cursor: 'pointer',
-              fontFamily: 'var(--wf)',
-              boxShadow: view === v ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
-              transition: 'all 0.15s',
-              textTransform: 'capitalize',
-            }}
-          >
-            {v === 'posts' ? 'Posts' : v === 'accounts' ? 'Accounts' : 'Market Intel'}
-          </button>
-        ))}
+        {(['posts', 'accounts', 'intel'] as const)
+          .filter((v) => !isHiddenOnProd(v))
+          .map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              style={{
+                padding: '5px 16px',
+                borderRadius: 18,
+                border: 'none',
+                background: view === v ? '#fff' : 'transparent',
+                color: view === v ? '#C2185B' : '#888',
+                fontSize: 12.5,
+                fontWeight: view === v ? 700 : 500,
+                cursor: 'pointer',
+                fontFamily: 'var(--wf)',
+                boxShadow: view === v ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
+                transition: 'all 0.15s',
+                textTransform: 'capitalize',
+              }}
+            >
+              {v === 'posts' ? 'Posts' : v === 'accounts' ? 'Accounts' : 'Market Intel'}
+            </button>
+          ))}
       </div>
 
       {/* Range selector (not shown for Market Intel) */}
@@ -7461,7 +7549,11 @@ const PlaybookPage = ({
         region: region.join(', '),
         posting_cadence: cadence,
         approval_workflow: approval,
-        logo_url: logoUrl || undefined,
+        // null, not undefined — an empty string here means the brand
+        // explicitly removed their logo, and undefined-valued keys get
+        // silently dropped by JSON.stringify before the request is even
+        // sent, so the backend would never see the clear.
+        logo_url: logoUrl || null,
         logo_position: logoPosition,
         logo_size: logoSize,
         ...visualStyleFields,
@@ -9978,255 +10070,267 @@ const PlaybookPage = ({
             )}
           </PbSection>
 
-          {/* V3 Enhanced Prompts */}
-          <PbSection title="Enhanced Image Prompts (V3)">
-            <div style={{ marginBottom: 12, fontSize: 12.5, color: '#888', lineHeight: 1.6 }}>
-              Our new 10-block prompt system for richer, more detailed images. Includes expanded aesthetic vocabulary,
-              better African representation, enhanced product preservation, and 100+ safety rules.
-            </div>
-            {!editing ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <div
-                  style={{
-                    background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
-                    color: p?.use_v3_prompts ? '#fff' : '#6b7280',
-                    borderRadius: 8,
-                    padding: '8px 16px',
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
-                >
-                  {p?.use_v3_prompts ? (
-                    <>
-                      <span>✨</span>
-                      <span>V3 Enabled</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>V2 Standard</span>
-                    </>
-                  )}
+          {/* Hidden on prod. */}
+          {!IS_PRODUCTION && (
+            <>
+              {/* V3 Enhanced Prompts */}
+              <PbSection title="Enhanced Image Prompts (V3)">
+                <div style={{ marginBottom: 12, fontSize: 12.5, color: '#888', lineHeight: 1.6 }}>
+                  Our new 10-block prompt system for richer, more detailed images. Includes expanded aesthetic
+                  vocabulary, better African representation, enhanced product preservation, and 100+ safety rules.
                 </div>
-                <div style={{ fontSize: 12, color: '#666' }}>
-                  {p?.use_v3_prompts
-                    ? 'Using V3 10-block architecture with enhanced vocabulary'
-                    : 'Using V2 6-section prompt system'}
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <button
-                  onClick={async () => {
-                    const newValue = !(p?.use_v3_prompts ?? false);
-                    try {
-                      const response = await V3Service.toggleV3(newValue);
-                      if (response.status && response.responseData) {
-                        if (onProfileUpdate && p) {
-                          onProfileUpdate({ ...p, use_v3_prompts: newValue });
+                {!editing ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <div
+                      style={{
+                        background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
+                        color: p?.use_v3_prompts ? '#fff' : '#6b7280',
+                        borderRadius: 8,
+                        padding: '8px 16px',
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
+                    >
+                      {p?.use_v3_prompts ? (
+                        <>
+                          <span>✨</span>
+                          <span>V3 Enabled</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>V2 Standard</span>
+                        </>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#666' }}>
+                      {p?.use_v3_prompts
+                        ? 'Using V3 10-block architecture with enhanced vocabulary'
+                        : 'Using V2 6-section prompt system'}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <button
+                      onClick={async () => {
+                        const newValue = !(p?.use_v3_prompts ?? false);
+                        try {
+                          const response = await V3Service.toggleV3(newValue);
+                          if (response.status && response.responseData) {
+                            if (onProfileUpdate && p) {
+                              onProfileUpdate({ ...p, use_v3_prompts: newValue });
+                            }
+                            ToastService.showToast(
+                              newValue ? '✨ V3 Enhanced Prompts Enabled!' : 'Switched to V2 Standard Prompts',
+                              ToastTypeEnum.Success
+                            );
+                            posthog.capture('v3_toggle_changed', { enabled: newValue, location: 'playbook' });
+                          } else {
+                            throw new Error(response.responseMessage || 'Failed to toggle V3');
+                          }
+                        } catch (error) {
+                          console.error('[Playbook] V3 toggle failed:', error);
+                          ToastService.showToast('Failed to update V3 setting. Please try again.', ToastTypeEnum.Error);
                         }
-                        ToastService.showToast(
-                          newValue ? '✨ V3 Enhanced Prompts Enabled!' : 'Switched to V2 Standard Prompts',
-                          ToastTypeEnum.Success
-                        );
-                        posthog.capture('v3_toggle_changed', { enabled: newValue, location: 'playbook' });
-                      } else {
-                        throw new Error(response.responseMessage || 'Failed to toggle V3');
-                      }
-                    } catch (error) {
-                      console.error('[Playbook] V3 toggle failed:', error);
-                      ToastService.showToast('Failed to update V3 setting. Please try again.', ToastTypeEnum.Error);
-                    }
-                  }}
-                  style={{
-                    background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
-                    color: p?.use_v3_prompts ? '#fff' : '#111',
-                    border: 'none',
-                    borderRadius: 8,
-                    padding: '12px 20px',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    transition: 'all 0.2s',
-                    alignSelf: 'flex-start',
-                  }}
-                >
-                  {p?.use_v3_prompts ? (
-                    <>
-                      <span>✨</span>
-                      <span>V3 Enabled</span>
-                      <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Enable V3</span>
-                      <span style={{ fontSize: 11, opacity: 0.7 }}>(Recommended)</span>
-                    </>
-                  )}
-                </button>
-                <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
-                  {p?.use_v3_prompts
-                    ? 'V3 is active. All future image generations will use the enhanced 10-block prompt system.'
-                    : 'Enable V3 for richer prompts with better quality, cultural sensitivity, and product preservation.'}
-                </div>
-              </div>
-            )}
-            {p?.use_v3_prompts && (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: 12,
-                  background: '#F7F7FD',
-                  border: '1px solid #E0DEF7',
-                  borderRadius: 8,
-                  fontSize: 11.5,
-                  color: '#555',
-                  lineHeight: 1.6,
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 6, color: '#C2185B' }}>✨ V3 Enhancements Active:</div>
-                <ul style={{ margin: 0, paddingLeft: 18 }}>
-                  <li>10-block prompt architecture (vs. 6-section)</li>
-                  <li>400+ aesthetic vocabulary terms (vs. ~150)</li>
-                  <li>11-dimensional style system with parametric control</li>
-                  <li>100+ context-aware safety & exclusion rules</li>
-                  <li>Enhanced African realism vocabulary for authentic representation</li>
-                  <li>Improved product preservation with forensic analysis</li>
-                </ul>
-              </div>
-            )}
-          </PbSection>
-
-          {/* Canvas Editor Toggle */}
-          <PbSection title="Canvas Editor (Beta)">
-            <p style={{ fontSize: 13.5, color: '#555', lineHeight: 1.6, marginBottom: 16 }}>
-              Enable advanced post editing with drag-drop layers, text editing, and multi-format export
-            </p>
-            {p && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      }}
+                      style={{
+                        background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
+                        color: p?.use_v3_prompts ? '#fff' : '#111',
+                        border: 'none',
+                        borderRadius: 8,
+                        padding: '12px 20px',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        transition: 'all 0.2s',
+                        alignSelf: 'flex-start',
+                      }}
+                    >
+                      {p?.use_v3_prompts ? (
+                        <>
+                          <span>✨</span>
+                          <span>V3 Enabled</span>
+                          <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Enable V3</span>
+                          <span style={{ fontSize: 11, opacity: 0.7 }}>(Recommended)</span>
+                        </>
+                      )}
+                    </button>
+                    <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
+                      {p?.use_v3_prompts
+                        ? 'V3 is active. All future image generations will use the enhanced 10-block prompt system.'
+                        : 'Enable V3 for richer prompts with better quality, cultural sensitivity, and product preservation.'}
+                    </div>
+                  </div>
+                )}
+                {p?.use_v3_prompts && (
                   <div
                     style={{
-                      background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
-                      color: p?.canvas_editor_enabled ? '#fff' : '#6b7280',
+                      marginTop: 12,
+                      padding: 12,
+                      background: '#F7F7FD',
+                      border: '1px solid #E0DEF7',
                       borderRadius: 8,
-                      padding: '8px 16px',
-                      fontSize: 12.5,
-                      fontWeight: 600,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 8,
+                      fontSize: 11.5,
+                      color: '#555',
+                      lineHeight: 1.6,
                     }}
                   >
-                    {p?.canvas_editor_enabled ? (
-                      <>
-                        <span>✨</span>
-                        <span>Canvas Enabled</span>
-                      </>
-                    ) : (
-                      <span>Disabled</span>
-                    )}
+                    <div style={{ fontWeight: 600, marginBottom: 6, color: '#C2185B' }}>✨ V3 Enhancements Active:</div>
+                    <ul style={{ margin: 0, paddingLeft: 18 }}>
+                      <li>10-block prompt architecture (vs. 6-section)</li>
+                      <li>400+ aesthetic vocabulary terms (vs. ~150)</li>
+                      <li>11-dimensional style system with parametric control</li>
+                      <li>100+ context-aware safety & exclusion rules</li>
+                      <li>Enhanced African realism vocabulary for authentic representation</li>
+                      <li>Improved product preservation with forensic analysis</li>
+                    </ul>
                   </div>
-                </div>
+                )}
+              </PbSection>
+            </>
+          )}
 
-                <button
-                  onClick={async () => {
-                    const newValue = !(p?.canvas_editor_enabled ?? false);
-                    console.log('🎨 Canvas Editor Toggle:', {
-                      currentValue: p?.canvas_editor_enabled,
-                      newValue,
-                      profileData: p,
-                    });
-                    try {
-                      const updatedProfile = { ...p, canvas_editor_enabled: newValue };
-                      console.log('🎨 Saving profile:', updatedProfile);
-                      const response = await BrandProfileService.save(updatedProfile);
-                      console.log('🎨 Save response:', response);
-                      if (response.status) {
-                        onProfileUpdate({ ...p, canvas_editor_enabled: newValue });
-                        ToastService.showToast(
-                          newValue ? '✨ Canvas Editor Enabled!' : 'Canvas Editor Disabled',
-                          ToastTypeEnum.Success
-                        );
-                        posthog.capture('canvas_editor_toggle', { enabled: newValue });
-                      } else {
-                        console.error('🎨 Save failed - response.status is false:', response);
-                        ToastService.showToast(
-                          'Failed to save: ' + (response.responseMessage || 'Unknown error'),
-                          ToastTypeEnum.Error
-                        );
-                      }
-                    } catch (error) {
-                      console.error('🎨 Canvas Editor save error:', error);
-                      ToastService.showToast('Failed to update Canvas Editor setting', ToastTypeEnum.Error);
-                    }
-                  }}
-                  style={{
-                    background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
-                    color: p?.canvas_editor_enabled ? '#fff' : '#111',
-                    border: 'none',
-                    borderRadius: 8,
-                    padding: '12px 20px',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    transition: 'all 0.2s',
-                    alignSelf: 'flex-start',
-                  }}
-                >
-                  {p?.canvas_editor_enabled ? (
-                    <>
-                      <span>✨</span>
-                      <span>Canvas Enabled</span>
-                      <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Enable Canvas Editor</span>
-                      <span style={{ fontSize: 11, opacity: 0.7 }}>(Beta)</span>
-                    </>
-                  )}
-                </button>
-                <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
-                  {p?.canvas_editor_enabled
-                    ? 'Canvas Editor is active. Generated posts will have editable layers for text, logo, and background.'
-                    : 'Enable Canvas Editor to edit posts with drag-drop layers and export to multiple aspect ratios.'}
-                </div>
-              </div>
-            )}
-            {p?.canvas_editor_enabled && (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: 12,
-                  background: '#FFF7ED',
-                  border: '1px solid #FED7AA',
-                  borderRadius: 8,
-                  fontSize: 11.5,
-                  color: '#555',
-                  lineHeight: 1.6,
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 6, color: '#EA580C' }}>✨ Canvas Editor Features:</div>
-                <ul style={{ margin: 0, paddingLeft: 18 }}>
-                  <li>Edit text content, fonts, colors, and positions</li>
-                  <li>Drag & drop repositioning for all layers</li>
-                  <li>Undo/redo support (50 operations)</li>
-                  <li>Export to multiple formats (1:1, 9:16, 4:5, 16:9)</li>
-                  <li>Layer management (show/hide, delete, reorder)</li>
-                  <li>Visual editing without regenerating (saves credits)</li>
-                </ul>
-              </div>
-            )}
-          </PbSection>
+          {/* Hidden on prod. */}
+          {!IS_PRODUCTION && (
+            <>
+              {/* Canvas Editor Toggle */}
+              <PbSection title="Canvas Editor (Beta)">
+                <p style={{ fontSize: 13.5, color: '#555', lineHeight: 1.6, marginBottom: 16 }}>
+                  Enable advanced post editing with drag-drop layers, text editing, and multi-format export
+                </p>
+                {p && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <div
+                        style={{
+                          background: p?.canvas_editor_enabled
+                            ? 'linear-gradient(135deg, #EA580C, #C2410C)'
+                            : '#e5e7eb',
+                          color: p?.canvas_editor_enabled ? '#fff' : '#6b7280',
+                          borderRadius: 8,
+                          padding: '8px 16px',
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        {p?.canvas_editor_enabled ? (
+                          <>
+                            <span>✨</span>
+                            <span>Canvas Enabled</span>
+                          </>
+                        ) : (
+                          <span>Disabled</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={async () => {
+                        const newValue = !(p?.canvas_editor_enabled ?? false);
+                        console.log('🎨 Canvas Editor Toggle:', {
+                          currentValue: p?.canvas_editor_enabled,
+                          newValue,
+                          profileData: p,
+                        });
+                        try {
+                          const updatedProfile = { ...p, canvas_editor_enabled: newValue };
+                          console.log('🎨 Saving profile:', updatedProfile);
+                          const response = await BrandProfileService.save(updatedProfile);
+                          console.log('🎨 Save response:', response);
+                          if (response.status) {
+                            onProfileUpdate({ ...p, canvas_editor_enabled: newValue });
+                            ToastService.showToast(
+                              newValue ? '✨ Canvas Editor Enabled!' : 'Canvas Editor Disabled',
+                              ToastTypeEnum.Success
+                            );
+                            posthog.capture('canvas_editor_toggle', { enabled: newValue });
+                          } else {
+                            console.error('🎨 Save failed - response.status is false:', response);
+                            ToastService.showToast(
+                              'Failed to save: ' + (response.responseMessage || 'Unknown error'),
+                              ToastTypeEnum.Error
+                            );
+                          }
+                        } catch (error) {
+                          console.error('🎨 Canvas Editor save error:', error);
+                          ToastService.showToast('Failed to update Canvas Editor setting', ToastTypeEnum.Error);
+                        }
+                      }}
+                      style={{
+                        background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
+                        color: p?.canvas_editor_enabled ? '#fff' : '#111',
+                        border: 'none',
+                        borderRadius: 8,
+                        padding: '12px 20px',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        transition: 'all 0.2s',
+                        alignSelf: 'flex-start',
+                      }}
+                    >
+                      {p?.canvas_editor_enabled ? (
+                        <>
+                          <span>✨</span>
+                          <span>Canvas Enabled</span>
+                          <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Enable Canvas Editor</span>
+                          <span style={{ fontSize: 11, opacity: 0.7 }}>(Beta)</span>
+                        </>
+                      )}
+                    </button>
+                    <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
+                      {p?.canvas_editor_enabled
+                        ? 'Canvas Editor is active. Generated posts will have editable layers for text, logo, and background.'
+                        : 'Enable Canvas Editor to edit posts with drag-drop layers and export to multiple aspect ratios.'}
+                    </div>
+                  </div>
+                )}
+                {p?.canvas_editor_enabled && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: 12,
+                      background: '#FFF7ED',
+                      border: '1px solid #FED7AA',
+                      borderRadius: 8,
+                      fontSize: 11.5,
+                      color: '#555',
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, marginBottom: 6, color: '#EA580C' }}>✨ Canvas Editor Features:</div>
+                    <ul style={{ margin: 0, paddingLeft: 18 }}>
+                      <li>Edit text content, fonts, colors, and positions</li>
+                      <li>Drag & drop repositioning for all layers</li>
+                      <li>Undo/redo support (50 operations)</li>
+                      <li>Export to multiple formats (1:1, 9:16, 4:5, 16:9)</li>
+                      <li>Layer management (show/hide, delete, reorder)</li>
+                      <li>Visual editing without regenerating (saves credits)</li>
+                    </ul>
+                  </div>
+                )}
+              </PbSection>
+            </>
+          )}
         </SubPage>
       </PbEditContext.Provider>
     </PbUsedInContext.Provider>
@@ -10794,18 +10898,27 @@ const SettingsPage = ({
         </button>
       </div>
 
-      {/* V3 Enhanced Prompts */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 18 }}>✨</span>
-          Enhanced Image Prompts (V3)
-        </h3>
-        <div style={{ fontSize: 12.5, color: '#666', lineHeight: 1.6, marginBottom: 14 }}>
-          Enable our new 10-block prompt system for richer, more detailed images with better quality and cultural
-          sensitivity.
-        </div>
-        <V3ToggleButton />
-      </div>
+      {/* Hidden on prod. */}
+      {!IS_PRODUCTION && (
+        <>
+          {/* V3 Enhanced Prompts */}
+          <div
+            style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}
+          >
+            <h3
+              style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}
+            >
+              <span style={{ fontSize: 18 }}>✨</span>
+              Enhanced Image Prompts (V3)
+            </h3>
+            <div style={{ fontSize: 12.5, color: '#666', lineHeight: 1.6, marginBottom: 14 }}>
+              Enable our new 10-block prompt system for richer, more detailed images with better quality and cultural
+              sensitivity.
+            </div>
+            <V3ToggleButton />
+          </div>
+        </>
+      )}
 
       {/* Subscription Info */}
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
@@ -11138,7 +11251,7 @@ const NAV = [
 const MOBILE_TABS = [
   { id: 'home', icon: 'home', label: 'Home' },
   { id: 'schedule', icon: 'calendar', label: 'Create' },
-  { id: 'performance', icon: 'chart', label: 'Analytics' },
+  { id: 'campaign-overview', icon: 'megaphone', label: 'Campaigns' },
   { id: 'playbook', icon: 'book', label: 'Playbook' },
   { id: 'more', icon: 'settings', label: 'More' },
 ];
@@ -11146,7 +11259,7 @@ const MOBILE_TABS = [
 // Every NAV id that the bottom bar has no room for lives here, so mobile can
 // still reach all of them — MOBILE_TABS only holds the five primary destinations.
 const MORE_NAV: { id: string; icon: string; label: string; href?: string; target?: string; anchor?: string }[] = [
-  { id: 'campaign-overview', icon: 'megaphone', label: 'Campaigns' },
+  { id: 'performance', icon: 'chart', label: 'Analytics' },
   { id: 'blog', icon: 'book', label: 'Blog' },
   { id: 'market-intelligence', icon: 'eye', label: 'Market Intelligence' },
   // Business Pulse moved inside Brand Playbook — no longer its own destination.
@@ -11231,6 +11344,12 @@ const PRIMARY_NAV = [
   },
 ];
 
+// Pages hidden on prod only (dev keeps them all): Customer Messages / Onebox,
+// Market Intelligence (+ the Performance page's intel view), and Blog.
+const PROD_HIDDEN_NAV = new Set(['messages', 'market-intelligence', 'intel', 'blog', 'visual-engine-v2']);
+const isHiddenOnProd = (id: string) => IS_PRODUCTION && PROD_HIDDEN_NAV.has(id);
+const VISIBLE_PRIMARY_NAV = PRIMARY_NAV.filter((n) => !isHiddenOnProd(n.id));
+
 const LOWER_NAV = [
   {
     id: 'settings',
@@ -11291,7 +11410,7 @@ export default function WorkspaceDashboard() {
       .catch(() => setIsAdsAdmin(false));
   }, []);
 
-  const { logoutUser, userDetails, isAdminUser } = useAuth();
+  const { logoutUser, userDetails, isAdminUser, isSupportUser } = useAuth();
   const { unreadCount } = useNotifications();
   const { showVerifyModal, setShowVerifyModal, requireEmailVerification } = useEmailVerification();
   const router = useRouter();
@@ -11407,6 +11526,10 @@ export default function WorkspaceDashboard() {
   }, []);
 
   // Keep URL in sync with nav so that router.push('/workspace/?tab=X') always triggers a URL change.
+  // Overview -> open one running campaign on the Campaigns page (scrolled to + highlighted).
+  const [focusCampaignId, setFocusCampaignId] = useState<string | null>(null);
+  const clearFocusCampaign = useCallback(() => setFocusCampaignId(null), []);
+
   const goTo = useCallback(
     (id: string) => {
       setNav(id);
@@ -11426,6 +11549,15 @@ export default function WorkspaceDashboard() {
     tab: 'create',
     seq: 0,
   });
+
+  // Mobile sub-menu tab row: bring the current page's tab into view when the page changes.
+  useEffect(() => {
+    if (!isMobile) return;
+    const id = window.requestAnimationFrame(() => {
+      document.querySelector('[data-subnav-active="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [nav, isMobile, contentStudioNav]);
   const goToContentStudioTab = useCallback(
     (tab: ContentTab) => {
       setContentStudioNav((prev) => ({ tab, seq: prev.seq + 1 }));
@@ -11491,7 +11623,7 @@ export default function WorkspaceDashboard() {
     // its own top-of-file doc comment) — the restructure gave it a
     // prominent all-user button it was never meant to have. It's still
     // reachable exactly as before: mobile's "More" tab (MORE_NAV above).
-  ];
+  ].filter((n) => !isHiddenOnProd(n.id));
 
   const campaignManagerSubNav = [
     {
@@ -11591,7 +11723,7 @@ export default function WorkspaceDashboard() {
       active: nav === 'market-intelligence',
       onClick: () => goTo('market-intelligence'),
     },
-  ];
+  ].filter((n) => !isHiddenOnProd(n.id));
 
   // Account/Security/Brand Profile are sections of the one SettingsPage, not
   // separate pages — same "real destination, scroll straight to it" fix as
@@ -11824,31 +11956,47 @@ export default function WorkspaceDashboard() {
   // fully working, just unreachable from any visible nav. Appending it here,
   // gated the same way the old sidebar gated it, restores the entry point
   // without exposing it to non-admins.
-  const lowerNavItems = isAdminUser
-    ? [
-        ...LOWER_NAV,
-        {
-          id: 'admin',
-          icon: 'settings',
-          label: 'Admin',
-          tooltip: 'User management, credit/trial adjustment, and partner access codes',
-        },
-      ]
-    : LOWER_NAV;
+  const lowerNavItems = [
+    ...LOWER_NAV,
+    ...(isAdminUser
+      ? [
+          {
+            id: 'admin',
+            icon: 'settings',
+            label: 'Admin',
+            tooltip: 'User management, credit/trial adjustment, and partner access codes',
+          },
+        ]
+      : []),
+    // Support team (and admins): reply to the questions Jane's WhatsApp reply engine
+    // couldn't answer — from aws/prod.
+    ...(isSupportUser
+      ? [
+          {
+            id: 'escalations',
+            icon: 'inbox',
+            label: 'Escalations',
+            tooltip: "Reply to customer questions Jane's WhatsApp reply engine couldn't answer",
+          },
+        ]
+      : []),
+  ];
 
   // Quick search needs to reach every REAL destination, not just the 8
   // primary ones — Market Intelligence, Brand Playbook, Blog etc. only
   // have a sidebar button once you're already inside their section, so
   // search is how you get there from anywhere else.
   const searchableDestinations = [
-    ...PRIMARY_NAV,
+    ...VISIBLE_PRIMARY_NAV,
     ...lowerNavItems,
     ...contentStudioSubNav.map((n) => ({ ...n, tooltip: n.label })),
     ...campaignManagerSubNav
       .filter((n) => n.id !== 'audiences' && n.id !== 'creatives')
       .map((n) => ({ ...n, tooltip: n.label })),
     ...performanceSubNav.map((n) => ({ ...n, tooltip: n.label })),
-  ].filter((n, i, arr) => arr.findIndex((o) => o.id === n.id) === i);
+  ]
+    .filter((n) => !isHiddenOnProd(n.id))
+    .filter((n, i, arr) => arr.findIndex((o) => o.id === n.id) === i);
 
   // Jane Ads video-quality hand-off: a video uploaded in a campaign thread can be
   // sent here for polishing, then the finished clip comes back to that exact
@@ -11934,6 +12082,13 @@ export default function WorkspaceDashboard() {
     },
     [videoPolishHandoff, goTo]
   );
+  // Customer Messages is hidden on prod — removing it from the sidebar list
+  // alone didn't stop NotificationBell (and any future ?tab=messages link)
+  // from landing here directly, bypassing the sidebar entirely. This closes
+  // that off at the route level instead of chasing every entry point.
+  useEffect(() => {
+    if (isHiddenOnProd(nav)) goTo('workspace');
+  }, [nav, goTo]);
 
   const closeTour = useCallback(
     (navigate = false) => {
@@ -12320,9 +12475,20 @@ export default function WorkspaceDashboard() {
         onDraftConsumed={() => setPendingWizardDraft(null)}
         pendingResumeDraft={pendingWizardResumeDraft}
         onResumeDraftConsumed={() => setPendingWizardResumeDraft(null)}
+        focusCampaignId={focusCampaignId}
+        onFocusConsumed={clearFocusCampaign}
       />
     ),
-    'campaign-overview': <CampaignOverviewPage onNavigate={goTo} onResumeDraft={handleResumeDraftFromOverview} />,
+    'campaign-overview': (
+      <CampaignOverviewPage
+        onNavigate={goTo}
+        onResumeDraft={handleResumeDraftFromOverview}
+        onOpenCampaign={(id) => {
+          setFocusCampaignId(id);
+          goTo('campaign-wizard');
+        }}
+      />
+    ),
     'campaign-growth': <CampaignGrowthPage />,
     'campaign-wallet': <CampaignWalletPage />,
     'campaign-revenue': <CampaignRevenuePage />,
@@ -12359,6 +12525,7 @@ export default function WorkspaceDashboard() {
         focusBuyCredits={searchParams?.get('billing') === 'buy-credits'}
       />
     ),
+    escalations: <EscalationsPage onBack={goWorkspace} />,
     notifications: <NotificationsPanel />,
     'visual-engine-v2': <VisualEngineV2Panel />,
   };
@@ -12453,7 +12620,7 @@ export default function WorkspaceDashboard() {
               style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {PRIMARY_NAV.map((n) => {
+                {VISIBLE_PRIMARY_NAV.map((n) => {
                   const zone = ZONE_BY_PRIMARY_ID[n.id];
                   const isExpanded = zone != null && expandedSection === zone;
                   const parentActive = zone ? activeSection === zone : nav === n.id;
@@ -13043,34 +13210,36 @@ export default function WorkspaceDashboard() {
                           { id: 'schedule', icon: 'edit', label: 'New post' },
                           { id: 'campaign-wizard', icon: 'megaphone', label: 'New campaign' },
                           { id: 'blog', icon: 'book', label: 'New blog post' },
-                        ].map((opt) => (
-                          <button
-                            key={opt.id}
-                            onClick={() => {
-                              setCreateOpen(false);
-                              goTo(opt.id);
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 9,
-                              width: '100%',
-                              padding: '9px 12px',
-                              border: 'none',
-                              background: 'transparent',
-                              cursor: 'pointer',
-                              fontFamily: 'var(--wf)',
-                              fontSize: 12.5,
-                              color: '#1A1523',
-                              textAlign: 'left',
-                            }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = '#F9F8F6')}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                          >
-                            <I n={opt.icon} s={13} c="#9CA3AF" />
-                            {opt.label}
-                          </button>
-                        ))}
+                        ]
+                          .filter((opt) => !isHiddenOnProd(opt.id))
+                          .map((opt) => (
+                            <button
+                              key={opt.id}
+                              onClick={() => {
+                                setCreateOpen(false);
+                                goTo(opt.id);
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 9,
+                                width: '100%',
+                                padding: '9px 12px',
+                                border: 'none',
+                                background: 'transparent',
+                                cursor: 'pointer',
+                                fontFamily: 'var(--wf)',
+                                fontSize: 12.5,
+                                color: '#1A1523',
+                                textAlign: 'left',
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = '#F9F8F6')}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                            >
+                              <I n={opt.icon} s={13} c="#9CA3AF" />
+                              {opt.label}
+                            </button>
+                          ))}
                       </div>
                     </>
                   )}
@@ -13208,6 +13377,50 @@ export default function WorkspaceDashboard() {
               creditsRemaining={userDetails.trialCreditsRemaining ?? 0}
               onDismiss={() => setTrialEndingDismissed(true)}
             />
+          )}
+
+          {/* Mobile: the current section's sub-pages as an always-visible, scrollable tab
+              row (same list the desktop sidebar and the title drawer use), so nobody has
+              to discover that the page title opens a menu. */}
+          {isMobile && activeSection && (SECTION_META[activeSection]?.subNav.length ?? 0) > 1 && (
+            <div
+              className="tab-scroll"
+              style={{
+                display: 'flex',
+                gap: 8,
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none',
+                padding: '8px 14px',
+                background: '#fff',
+                borderBottom: '1px solid #f0eeea',
+                flexShrink: 0,
+              }}
+            >
+              {SECTION_META[activeSection].subNav.map((n) => (
+                <button
+                  key={n.id}
+                  type="button"
+                  data-subnav-active={n.active ? 'true' : undefined}
+                  onClick={n.onClick}
+                  style={{
+                    flexShrink: 0,
+                    padding: '7px 14px',
+                    borderRadius: 999,
+                    border: n.active ? 'none' : '1px solid #E5E7EB',
+                    background: n.active ? '#C2185B' : '#fff',
+                    color: n.active ? '#fff' : '#4B5563',
+                    fontSize: 12.5,
+                    fontWeight: n.active ? 700 : 600,
+                    fontFamily: 'var(--wf)',
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {n.label}
+                </button>
+              ))}
+            </div>
           )}
 
           {/* Page content */}
@@ -13648,7 +13861,13 @@ export default function WorkspaceDashboard() {
               }}
             >
               {MOBILE_TABS.map((t) => {
-                const isActive = t.id === 'more' ? moreOpen : nav === t.id;
+                // Campaigns stays lit on every Campaign Manager page, not just Overview.
+                const isActive =
+                  t.id === 'more'
+                    ? moreOpen
+                    : t.id === 'campaign-overview'
+                      ? activeSection === 'campaign-manager'
+                      : nav === t.id;
                 return (
                   <button
                     key={t.id}
@@ -13755,7 +13974,7 @@ export default function WorkspaceDashboard() {
                 </div>
               </div>
               {/* More nav items */}
-              {MORE_NAV.map((n) => {
+              {MORE_NAV.filter((n) => !isHiddenOnProd(n.id)).map((n) => {
                 const badge = n.id === 'notifications' ? unreadCount : undefined;
                 // 'brand-setup' really lands on the Settings page (see its own
                 // `target` above) — highlight against where it actually goes,

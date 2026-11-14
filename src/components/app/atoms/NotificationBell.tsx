@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNotifications } from '@/src/providers/NotificationProvider';
 import { Notification } from '@/src/api/NotificationService';
 import { useRouter } from 'next/navigation';
+import { IS_PRODUCTION } from '@/src/configs/env.config';
 
 /* ── Helpers ──────────────────────────────────────────────────────── */
 
@@ -91,7 +92,8 @@ export default function NotificationBell({
       router.push('/workspace/?tab=schedule'); // the Video page: the clip is ready to merge
     } else if (n.type === 'inbox_needs_reply') {
       setOpen(false);
-      router.push('/workspace/?tab=messages');
+      // Customer Messages is hidden on prod — don't send anyone to it there.
+      router.push(IS_PRODUCTION ? '/workspace/?tab=workspace' : '/workspace/?tab=messages');
     } else if (n.type === 'content_posted') {
       setOpen(false);
       router.push('/workspace/?tab=content');

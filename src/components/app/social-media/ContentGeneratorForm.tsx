@@ -1,5 +1,6 @@
 'use client';
 
+import { isComingSoonPlatform, withoutComingSoon } from '@/src/constants/comingSoonPlatforms';
 import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { buildGenerateContentPayload } from './generateContentPayload';
 import { BillingService } from '@/src/api/BillingService';
@@ -116,7 +117,8 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
   const platformsTouched = useRef(false);
   useEffect(() => {
     BrandProfileService.getTargetPlatformKeys().then((keys) => {
-      if (keys.length && !platformsTouched.current) setSelectedPlatforms(keys);
+      const usable = withoutComingSoon(keys);
+      if (usable.length && !platformsTouched.current) setSelectedPlatforms(usable);
     });
   }, []);
 
@@ -126,8 +128,8 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     const handed = takeContentSeed();
     if (!handed?.seed) return;
     setSeedContent(handed.seed);
-    const known = handed.platforms?.filter((p) =>
-      ['facebook', 'instagram', 'linkedin', 'twitter', 'tiktok'].includes(p)
+    const known = handed.platforms?.filter(
+      (p) => ['facebook', 'instagram', 'linkedin', 'twitter', 'tiktok'].includes(p) && !isComingSoonPlatform(p)
     );
     if (known?.length) {
       platformsTouched.current = true;
@@ -215,6 +217,7 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
 
   const togglePlatform = (key: string) => {
     platformsTouched.current = true;
+    if (isComingSoonPlatform(key)) return;
     setSelectedPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
   };
 
@@ -943,6 +946,7 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
         {PLATFORMS.map(({ key, label, icon }) => (
           <FormControlLabel
             key={key}
+            disabled={isComingSoonPlatform(key)}
             control={
               <Checkbox
                 checked={selectedPlatforms.includes(key)}
@@ -952,11 +956,16 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
               />
             }
             label={
-              <Box display="flex" alignItems="center" gap={0.75}>
+              <Box display="flex" alignItems="center" gap={0.75} sx={{ opacity: isComingSoonPlatform(key) ? 0.55 : 1 }}>
                 {icon}
                 <Typography fontSize="13px" fontWeight={500}>
                   {label}
                 </Typography>
+                {isComingSoonPlatform(key) && (
+                  <Typography fontSize="11px" color="#9CA3AF">
+                    · Coming soon
+                  </Typography>
+                )}
               </Box>
             }
             sx={{

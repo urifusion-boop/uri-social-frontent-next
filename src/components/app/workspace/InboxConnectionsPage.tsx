@@ -8,6 +8,7 @@ import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { WhatsAppConnect } from './WhatsAppConnect';
+import { IS_PRODUCTION } from '@/src/configs/env.config';
 
 /*
  * Channel Connections — per FR01 of the Unified Social Inbox PRD: connection
@@ -156,7 +157,8 @@ export function channelsFromApi(
     subscription_issue?: { code: string; message: string } | null;
   }[]
 ): ChannelConnection[] {
-  return CHANNEL_SHELLS.map((shell) => {
+  // WhatsApp channel hidden on prod (as before this release) — dev keeps it.
+  return CHANNEL_SHELLS.filter((shell) => !(shell.id === 'whatsapp' && IS_PRODUCTION)).map((shell) => {
     const all = rows.filter((r) => r.platform === shell.id);
     // A Page Meta refused to subscribe delivers nothing, however healthy the token looks.
     const blocked = (r: (typeof all)[number]) => r.needs_reconnect || r.subscription_ok === false;
@@ -405,7 +407,8 @@ export default function InboxConnectionsPage({
     >
       <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5 }}>
         Connect Instagram and Facebook here with your Meta login so their messages and comments reach this inbox. Use
-        the account that has full control of your Facebook Page. WhatsApp is connected here too.
+        the account that has full control of your Facebook Page.{' '}
+        {IS_PRODUCTION ? '' : 'WhatsApp is connected here too.'}
       </div>
 
       {igPendingToken && (

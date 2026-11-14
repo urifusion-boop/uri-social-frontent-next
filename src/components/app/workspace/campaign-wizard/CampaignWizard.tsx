@@ -303,79 +303,128 @@ export default function CampaignWizard({
           )}
         </div>
 
-        {/* Stepper */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: isMobile ? 4 : 10,
-            marginBottom: 16,
-            overflowX: isMobile ? 'auto' : undefined,
-          }}
-        >
-          {steps.map((s, i) => {
-            const isActive = s.key === stepKey;
-            // Any step already reached this run is a free jump both ways — the
-            // point being able to come straight back to Finalize/Review after
-            // changing something earlier, without re-clicking Next through every
-            // step in between. "Done" follows the same rule (not just "comes
-            // before the current step"), so jumping backward from Finalize to
-            // Platform doesn't make Audience/Budget/Creative look unfilled when
-            // they aren't.
-            const reachable = reachedKeys.has(s.key) && !isActive && i <= firstUnvisitedIndex;
-            const isDone = reachable;
-            const label = s.key === 'review' ? (reviewReady ? 'Review' : 'Finalize') : s.label;
+        {/* Stepper — phones get a compact "Step X of 6" header with a segmented bar, so
+            the six labelled steps never run past the screen. Same jump rules as desktop. */}
+        {isMobile ? (
+          (() => {
+            const stepLabel = (k: StepKey, fallback: string) =>
+              k === 'review' ? (reviewReady ? 'Review' : 'Finalize') : fallback;
+            const next = steps[stepIndex + 1];
             return (
-              <div key={s.key} style={{ display: 'flex', alignItems: 'center', flex: isMobile ? '0 0 auto' : 1 }}>
-                <button
-                  type="button"
-                  onClick={() => reachable && setStepKey(s.key)}
-                  disabled={!reachable}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 7,
-                    border: 'none',
-                    background: 'none',
-                    padding: 0,
-                    cursor: reachable ? 'pointer' : 'default',
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 12,
-                      fontWeight: 800,
-                      flexShrink: 0,
-                      background: isActive || isDone ? PINK : '#ece8e6',
-                      color: isActive || isDone ? '#fff' : '#9a9090',
-                    }}
-                  >
-                    {isDone ? '✓' : i + 1}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+                  <span style={{ fontSize: 13.5, fontWeight: 800, color: '#1a0a12', minWidth: 0 }}>
+                    Step {stepIndex + 1} of {steps.length} ·{' '}
+                    <span style={{ color: PINK }}>{stepLabel(steps[stepIndex].key, steps[stepIndex].label)}</span>
                   </span>
-                  <span
-                    style={{
-                      fontSize: 12.5,
-                      fontWeight: isActive ? 800 : 600,
-                      color: isActive ? PINK : isDone ? '#1a0a12' : '#9a9090',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {label}
-                  </span>
-                </button>
-                {i < steps.length - 1 && !isMobile && (
-                  <span style={{ flex: 1, height: 1, background: isDone ? PINK : '#ece8e6', margin: '0 10px' }} />
-                )}
+                  {next && (
+                    <span style={{ fontSize: 11.5, color: '#9a9090', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      Next: {stepLabel(next.key, next.label)}
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 5, marginTop: 9 }}>
+                  {steps.map((s, i) => {
+                    const isActive = s.key === stepKey;
+                    const reachable = reachedKeys.has(s.key) && !isActive && i <= firstUnvisitedIndex;
+                    return (
+                      <button
+                        key={s.key}
+                        type="button"
+                        aria-label={`Step ${i + 1}: ${stepLabel(s.key, s.label)}`}
+                        onClick={() => reachable && setStepKey(s.key)}
+                        disabled={!reachable}
+                        style={{
+                          flex: 1,
+                          height: 6,
+                          borderRadius: 3,
+                          border: 'none',
+                          padding: 0,
+                          background: isActive || reachable ? PINK : '#ece8e6',
+                          opacity: reachable ? 0.55 : 1,
+                          cursor: reachable ? 'pointer' : 'default',
+                        }}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             );
-          })}
-        </div>
+          })()
+        ) : (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: isMobile ? 4 : 10,
+              marginBottom: 16,
+              overflowX: isMobile ? 'auto' : undefined,
+            }}
+          >
+            {steps.map((s, i) => {
+              const isActive = s.key === stepKey;
+              // Any step already reached this run is a free jump both ways — the
+              // point being able to come straight back to Finalize/Review after
+              // changing something earlier, without re-clicking Next through every
+              // step in between. "Done" follows the same rule (not just "comes
+              // before the current step"), so jumping backward from Finalize to
+              // Platform doesn't make Audience/Budget/Creative look unfilled when
+              // they aren't.
+              const reachable = reachedKeys.has(s.key) && !isActive && i <= firstUnvisitedIndex;
+              const isDone = reachable;
+              const label = s.key === 'review' ? (reviewReady ? 'Review' : 'Finalize') : s.label;
+              return (
+                <div key={s.key} style={{ display: 'flex', alignItems: 'center', flex: isMobile ? '0 0 auto' : 1 }}>
+                  <button
+                    type="button"
+                    onClick={() => reachable && setStepKey(s.key)}
+                    disabled={!reachable}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 7,
+                      border: 'none',
+                      background: 'none',
+                      padding: 0,
+                      cursor: reachable ? 'pointer' : 'default',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 12,
+                        fontWeight: 800,
+                        flexShrink: 0,
+                        background: isActive || isDone ? PINK : '#ece8e6',
+                        color: isActive || isDone ? '#fff' : '#9a9090',
+                      }}
+                    >
+                      {isDone ? '✓' : i + 1}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 12.5,
+                        fontWeight: isActive ? 800 : 600,
+                        color: isActive ? PINK : isDone ? '#1a0a12' : '#9a9090',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {label}
+                    </span>
+                  </button>
+                  {i < steps.length - 1 && !isMobile && (
+                    <span style={{ flex: 1, height: 1, background: isDone ? PINK : '#ece8e6', margin: '0 10px' }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Step body */}
         <div

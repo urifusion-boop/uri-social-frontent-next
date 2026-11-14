@@ -1,5 +1,6 @@
 'use client';
 
+import DraftLogoMover, { logoMoveTarget } from '../DraftLogoMover';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Box,
@@ -21,7 +22,7 @@ import { MdChevronLeft, MdChevronRight, MdMoreVert, MdSearch } from 'react-icons
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import { queuedNotice } from '@/src/utils/publishJobMessage.util';
+import { failedPublish, PUBLISH_FAILURE_TOAST_MS, queuedNotice } from '@/src/utils/publishJobMessage.util';
 import { parseApiDate } from '@/src/utils/apiDate.util';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import GeneratedContentCard, { firstSlideImage } from '../GeneratedContentCard';
@@ -155,6 +156,8 @@ export default function ContentLibraryPage() {
   const [menuFor, setMenuFor] = useState<{ anchor: HTMLElement; id: string } | null>(null);
   const [editingDraft, setEditingDraft] = useState<ContentDraft | null>(null);
   const [viewingDraft, setViewingDraft] = useState<ContentDraft | null>(null);
+  // Move Logo straight from a list row or grid card, before publishing.
+  const [logoDraft, setLogoDraft] = useState<ContentDraft | null>(null);
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -305,8 +308,16 @@ export default function ContentLibraryPage() {
     const errs = res.responseData?.errors ?? [];
     // Held back by a rate limit or a post ahead of it: counted apart, not as published.
     const queued = approved.filter((a) => a.publish_result?.queued || a.publish_result?.publish_status === 'queued');
-    const done = approved.length - queued.length;
+    // Refused by the network just now (e.g. Facebook's identity check): counted as failed, with the reason.
+    const refused = approved.map((a) => failedPublish(res.responseData, a.draft_id)).filter((m): m is string => !!m);
+    const done = approved.length - queued.length - refused.length;
     if (done) ToastService.showToast(`${done} ${okVerb}.`, ToastTypeEnum.Success);
+    if (refused.length)
+      ToastService.showToast(
+        refused.length === 1 ? refused[0] : `${refused.length} didn't publish. ${refused[0]}`,
+        ToastTypeEnum.Error,
+        PUBLISH_FAILURE_TOAST_MS
+      );
     if (queued.length) {
       const single = queued.length === 1 ? queued[0].publish_result : undefined;
       ToastService.showToast(
@@ -701,6 +712,7 @@ export default function ContentLibraryPage() {
               connectedPlatforms={connectedPlatforms}
               onEdit={setEditingDraft}
               onViewDetails={setViewingDraft}
+              onMoveLogo={setLogoDraft}
               onRefresh={load}
               uniformAspect="1 / 1"
             />
@@ -990,6 +1002,20 @@ export default function ContentLibraryPage() {
           Edit
         </MenuItem>
         {menuFor &&
+          (() => {
+            const d = items.find((x) => (x.id ?? x.draft_id) === menuFor.id);
+            return d && logoMoveTarget(d) ? (
+              <MenuItem
+                onClick={() => {
+                  setMenuFor(null);
+                  setLogoDraft(d);
+                }}
+              >
+                Move Logo
+              </MenuItem>
+            ) : null;
+          })()}
+        {menuFor &&
           categorize(items.find((x) => (x.id ?? x.draft_id) === menuFor.id) ?? ({} as ContentDraft)) === 'archived' && (
             <MenuItem onClick={() => menuFor && handleRestore(menuFor.id)} sx={{ color: PINK }}>
               Restore to Draft
@@ -1006,6 +1032,18 @@ export default function ContentLibraryPage() {
           connectedPlatforms={connectedPlatforms}
           onClose={() => setEditingDraft(null)}
           onRefresh={load}
+        />
+      )}
+
+      {logoDraft && (
+        <DraftLogoMover
+          draft={logoDraft}
+          open
+          onClose={() => setLogoDraft(null)}
+          onSaved={() => {
+            setLogoDraft(null);
+            load();
+          }}
         />
       )}
 

@@ -467,7 +467,7 @@ export default function PreviewPanel({ wizard }: { wizard: ContentWizardState })
     BrandProfileService.get()
       .then((res) => {
         const data = res.responseData;
-        if (data) setBrand({ name: data.brand_name || 'yourbrand', logoUrl: data.logo_url });
+        if (data) setBrand({ name: data.brand_name || 'yourbrand', logoUrl: data.logo_url ?? undefined });
       })
       .catch(() => {});
   }, []);

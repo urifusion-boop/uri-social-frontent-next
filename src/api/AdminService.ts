@@ -247,6 +247,19 @@ export class AdminService {
   }
 
   /**
+   * Re-checks every recently-"published" draft against Outstand's real
+   * status — catches a post that was marked published the moment Outstand
+   * accepted it, but whose underlying platform (e.g. Facebook) actually
+   * rejected it afterward (expired token, policy hold, etc.) with nothing
+   * ever correcting the draft or notifying the owner. Not yet on an
+   * automatic schedule — this IS the manual trigger.
+   */
+  static async reconcilePublishedPosts(): Promise<{ status: boolean; checked: number; corrected: number }> {
+    const response = await UriHttpClient.getClient().post('/api/admin/social-media/reconcile-published-posts');
+    return response.data;
+  }
+
+  /**
    * Adjust a user's credit balance by a signed amount (positive grants,
    * negative claws back). Floored at 0 server-side.
    */
@@ -342,19 +355,42 @@ export class AdminService {
   }
 
   /**
-   * Ask the backend whether the CURRENT logged-in user is an admin — the
-   * source of truth for nav visibility. Admin status is DB-driven (grantable
-   * via grantAdmin/revokeAdmin) plus the env-configured bootstrap allowlist,
-   * neither of which the frontend can determine on its own, so this can't be
-   * a synchronous client-side check.
+   * Ask the backend whether the CURRENT logged-in user is an admin and/or has
+   * support access — the source of truth for nav visibility for both. Both are
+   * DB-driven (grantable via grantAdmin/revokeAdmin and grantSupport/
+   * revokeSupport) plus the env-configured bootstrap admin allowlist, neither
+   * of which the frontend can determine on its own — not a synchronous
+   * client-side check. One call covers both flags (the backend returns both
+   * from the same /api/admin/me response) rather than a second round-trip for
+   * support status alone.
    */
-  static async checkIsAdmin(): Promise<boolean> {
+  static async checkAdminStatus(): Promise<{ isAdmin: boolean; isSupport: boolean }> {
     try {
       const response = await UriHttpClient.getClient().get('/api/admin/me');
-      return !!response.data?.is_admin;
+      return {
+        isAdmin: !!response.data?.is_admin,
+        isSupport: !!response.data?.is_support,
+      };
     } catch {
-      return false;
+      return { isAdmin: false, isSupport: false };
     }
+  }
+
+  /**
+   * Grant support access (jane-whatsapp-reply escalation replies) to a user.
+   * Admin-only — enforced server-side.
+   */
+  static async grantSupport(userId: string): Promise<{ user_id: string; is_support: boolean }> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/users/${userId}/support/grant`);
+    return response.data;
+  }
+
+  /**
+   * Revoke a user's support access.
+   */
+  static async revokeSupport(userId: string): Promise<{ user_id: string; is_support: boolean }> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/users/${userId}/support/revoke`);
+    return response.data;
   }
 
   /**

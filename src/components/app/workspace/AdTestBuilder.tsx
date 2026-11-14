@@ -1,6 +1,7 @@
 'use client';
 
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
+import { EventBus, EVENTS } from '@/src/services/EventBus';
 import {
   AdsPlanAd,
   AssetAttestation,
@@ -128,6 +129,9 @@ export function AdTestBuilder({
         while (made < wanted) {
           setBusy(`Jane is making ad ${made + 1} of ${wanted}…`);
           const next = await CampaignService.addPlanAd(planId, { source: 'generate', auto: true });
+          // Each ad Jane makes costs a credit; the header badge only re-reads on this event,
+          // so without it the balance looked like only the first ad was charged.
+          EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'ad_concept' });
           onChangeRef.current(next);
           made = 1 + next.concepts.length;
           if (!next.concepts_wanted) break;
@@ -191,7 +195,11 @@ export function AdTestBuilder({
         style={smallBtn(!!busy)}
         onClick={() => {
           setAdding(false);
-          run('Jane is making another ad…', () => CampaignService.addPlanAd(planId!, { source: 'generate' }));
+          run('Jane is making another ad…', async () => {
+            const next = await CampaignService.addPlanAd(planId!, { source: 'generate' });
+            EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'ad_concept' });
+            return next;
+          });
         }}
       >
         ✨ Jane makes one · 1 credit

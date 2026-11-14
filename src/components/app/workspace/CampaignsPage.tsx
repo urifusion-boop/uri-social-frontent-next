@@ -242,6 +242,18 @@ const OBJECTIVE_REPLY_CHIPS = ['Product', 'Service', 'Discount/Promo', 'Event', 
 // unwrapped response (`e.data.detail`). The earlier code only checked the first
 // shape, so every jane-ads error (which comes through the interceptor) silently
 // fell back to the generic text.
+/** The launch request ended without a final answer, but the launch itself may still be
+ *  running (or already done): the connection timed out / dropped / hit the gateway's
+ *  limit, or the server says this plan is already launching or launched. */
+function launchStillRunning(e: unknown): boolean {
+  const err = e as { response?: { status?: number; data?: { detail?: unknown } }; code?: string } | null;
+  const status = err?.response?.status;
+  if (!err?.response) return true; // timeout or dropped connection
+  if (status === 502 || status === 503 || status === 504) return true;
+  const detail = String(err.response.data?.detail ?? '').toLowerCase();
+  return status === 409 && (detail.includes('being launched') || detail.includes('already launched'));
+}
+
 function extractErrorMessage(e: unknown, fallback: string): string {
   const obj = e as { response?: { data?: { detail?: unknown } }; data?: { detail?: unknown } } | null;
   const detail = obj?.response?.data?.detail ?? obj?.data?.detail;
@@ -3724,6 +3736,13 @@ function PlanAskBox({
     setError('');
     try {
       const result = await CampaignService.askAboutPlan(planId, q);
+      // Jane changed an ad's words: show the new ones right away.
+      if (result.kind === 'edit_ad' && (result.creative || result.concepts)) {
+        onPlanUpdated({
+          ...(result.creative ? { creative: result.creative } : {}),
+          ...(result.concepts ? { concepts: result.concepts } : {}),
+        });
+      }
       setAnswer(result);
       setLastQuestion(q);
       setQuestion('');
@@ -3756,7 +3775,7 @@ function PlanAskBox({
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && ask()}
-          placeholder="Ask Jane about this plan — e.g. why this budget?"
+          placeholder="Ask Jane about this plan, or what to change — e.g. why this budget? Make the headline shorter"
           disabled={asking}
           style={{ flex: 1, border: '1px solid #e5d9c8', borderRadius: 8, padding: '7px 10px', fontSize: 12.5 }}
         />
@@ -4093,6 +4112,81 @@ export function ResultCard({
   // now would run Jane's original ad while the screen shows the client's version.
   const [unsavedEdits, setUnsavedEdits] = useState(false);
   const [launchError, setLaunchError] = useState('');
+  // A launch still being worked on server-side (a video ad is prepared first and can
+  // take minutes — longer than the connection lasts). While true the card says so and
+  // follows the plan's real status, instead of calling it failed / "already launched".
+  const [followingLaunch, setFollowingLaunch] = useState(false);
+  const followTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (followTimer.current) clearTimeout(followTimer.current);
+    },
+    []
+  );
+  const followLaunch = (planId: string, startedAt = Date.now()) => {
+    if (followTimer.current) clearTimeout(followTimer.current);
+    setFollowingLaunch(true);
+    setLaunchError('');
+    const tick = async () => {
+      let st: Awaited<ReturnType<typeof CampaignService.getPlanStatus>> | null = null;
+      try {
+        st = await CampaignService.getPlanStatus(planId);
+      } catch {
+        st = null; // a blip — keep following
+      }
+      if (st?.status === 'launched') {
+        setFollowingLaunch(false);
+        window.dispatchEvent(new Event('ad-wallet-changed'));
+        onResultChange({
+          ...result,
+          stage: 'launched',
+          launch: {
+            campaign_id: st.campaign_id,
+            status: 'paused',
+            note: 'It is now with the platform for its usual ad review before it starts showing.',
+            ads_manager_url: '',
+            platform: (st.platform || undefined) as 'tiktok' | 'meta' | 'google' | undefined,
+          },
+        });
+        onLaunched();
+        return;
+      }
+      if (st && st.status !== 'launching') {
+        setFollowingLaunch(false);
+        if (st.status === 'pending') {
+          setLaunchError(
+            st.last_launch_error
+              ? `The launch didn't go through: ${st.last_launch_error} Nothing was charged — you can launch again.`
+              : "The launch didn't go through. Nothing was charged — you can launch again."
+          );
+        } else if (st.status === 'expired') {
+          setLaunchError('This plan has expired — describe the campaign to Jane again to make a fresh one.');
+        }
+        return;
+      }
+      if (Date.now() - startedAt > 15 * 60 * 1000) {
+        setFollowingLaunch(false);
+        setLaunchError(
+          "This is taking longer than usual. Check Campaign Manager → Campaigns in a few minutes — don't launch again, so it isn't created twice."
+        );
+        return;
+      }
+      followTimer.current = setTimeout(() => void tick(), 8000);
+    };
+    void tick();
+  };
+  // Coming back to a plan whose launch is underway or already done (a refresh, a
+  // resumed draft): show where it really stands rather than offering Launch again.
+  useEffect(() => {
+    if (result.stage !== 'planned' || !result.plan_id) return;
+    const planId = result.plan_id;
+    CampaignService.getPlanStatus(planId)
+      .then((st) => {
+        if (st.status === 'launched' || st.status === 'launching') followLaunch(planId);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result.plan_id]);
   // Pre-existing rules-of-hooks bug: these two were declared after several early
   // returns below (meta_connection_ads_no_whatsapp, choose_creative_source, etc.),
   // meaning React skipped them whenever an earlier stage matched — moved up here
@@ -4325,7 +4419,7 @@ export function ResultCard({
   if (prompt) return <PromptCard stale={stale}>{prompt}</PromptCard>;
 
   const confirmLaunch = async () => {
-    if (launching || !result.plan_id || launchBlocked) return;
+    if (launching || followingLaunch || !result.plan_id || launchBlocked) return;
     setLaunchError('');
     setLaunching(true);
     try {
@@ -4335,6 +4429,10 @@ export function ResultCard({
       onResultChange(launched);
       onLaunched();
     } catch (e) {
+      if (launchStillRunning(e)) {
+        followLaunch(result.plan_id);
+        return;
+      }
       const msg = extractErrorMessage(e, 'Could not launch this campaign, please try again.');
       setLaunchError(msg);
       // Meta's own pre-flight rejection when the number Jane has on file isn't actually
@@ -4675,7 +4773,7 @@ export function ResultCard({
               )}
               <button
                 onClick={confirmLaunch}
-                disabled={launching || unsavedEdits || launchBlocked}
+                disabled={launching || followingLaunch || unsavedEdits || launchBlocked}
                 title={
                   unsavedEdits
                     ? 'Save your changes first — otherwise the original ad launches'
@@ -4694,13 +4792,17 @@ export function ResultCard({
                   padding: '10px 14px',
                   fontWeight: 700,
                   fontSize: 13,
-                  cursor: launching || unsavedEdits || launchBlocked ? 'default' : 'pointer',
+                  cursor: launching || followingLaunch || unsavedEdits || launchBlocked ? 'default' : 'pointer',
                   background:
-                    launching || unsavedEdits || launchBlocked ? '#eee' : `linear-gradient(135deg,${PINK},#8E1545)`,
-                  color: launching || unsavedEdits || launchBlocked ? '#999' : '#fff',
+                    launching || followingLaunch || unsavedEdits || launchBlocked
+                      ? '#eee'
+                      : `linear-gradient(135deg,${PINK},#8E1545)`,
+                  color: launching || followingLaunch || unsavedEdits || launchBlocked ? '#999' : '#fff',
                 }}
               >
-                {launching ? (
+                {followingLaunch ? (
+                  'Launching… video ads can take a few minutes'
+                ) : launching ? (
                   'Launching…'
                 ) : unsavedEdits ? (
                   'Save your changes first'
@@ -4761,12 +4863,13 @@ export function ResultCard({
               )}
             </div>
           ) : null}
-          {result.stage === 'planned' && result.plan_id && (
+          {result.stage === 'planned' && result.plan_id && !followingLaunch && (
             <PlanReviewPanel
               planId={result.plan_id}
               // TikTok names states and cities, not neighbourhoods, so the pockets Jane
               // plans on (Ikoyi, Lekki, ...) are not something the client can review here.
               hiddenFieldKeys={result.plan?.platforms?.[0]?.platform === 'tiktok' ? ['locations'] : undefined}
+              refreshKey={`${result.creative?.headline ?? ''}|${result.creative?.primary_text ?? ''}`}
               onDirtyChange={setUnsavedEdits}
               onSaved={(refreshed) =>
                 onResultChange({
@@ -5208,7 +5311,13 @@ export function BillingTab() {
 
       {/* Totals */}
       {t && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 18 }}>
+        <div
+          style={
+            isMobile
+              ? { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginBottom: 18 }
+              : { display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 18 }
+          }
+        >
           <TotalCard label="Customers" value={String(t.users)} />
           <TotalCard label="Real ad spend" value={naira(t.real_spend_ngn)} />
           <TotalCard label="Billed" value={naira(t.billed_ngn)} />
@@ -5223,6 +5332,45 @@ export function BillingTab() {
         <p style={{ color: '#9a9090', fontSize: 13 }}>Loading…</p>
       ) : !data?.per_user?.length ? (
         <p style={{ color: '#9a9090', fontSize: 13 }}>No ad spend recorded yet for this period.</p>
+      ) : isMobile ? (
+        // Phones: one card per customer instead of a 640px-wide table.
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10 }}>
+          {data.per_user.map((r) => (
+            <div
+              key={r.business_id}
+              style={{ border: '1px solid #ece8e6', borderRadius: 14, padding: '12px 14px', background: '#fff' }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#1a0a12', overflowWrap: 'anywhere' }}>
+                {r.label || r.business_id}
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  gap: '8px 12px',
+                  marginTop: 10,
+                  fontSize: 12.5,
+                }}
+              >
+                {(
+                  [
+                    ['Campaigns', String(r.campaigns), '#1a0a12'],
+                    ['Real ad spend', naira(r.real_spend_ngn), '#1a0a12'],
+                    ['Billed', naira(r.billed_ngn), '#1a0a12'],
+                    ['Margin', naira(r.margin_ngn), '#15803d'],
+                  ] as const
+                ).map(([label, value, color]) => (
+                  <div key={label}>
+                    <div style={{ fontSize: 10.5, color: '#9a9090', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                      {label}
+                    </div>
+                    <div style={{ fontWeight: 800, color }}>{value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
         <div style={{ overflowX: 'auto', border: '1px solid #ece8e6', borderRadius: 16 }}>
           <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 640, fontSize: 12.5 }}>
@@ -5266,7 +5414,7 @@ function TotalCard({ label, value, accent }: { label: string; value: string; acc
         border: `1px solid ${accent ? '#bbf0cf' : '#ece8e6'}`,
         borderRadius: 12,
         padding: '12px 16px',
-        minWidth: 130,
+        minWidth: 0,
         background: accent ? '#ecfdf5' : '#fff',
       }}
     >
@@ -5380,6 +5528,10 @@ export function CampaignCard({
   onDuplicate?: (c: CampaignRow) => void;
 }) {
   const [working, setWorking] = useState(false);
+  // Phones: stack the card (no right-hand action column, stats in a 2-column grid,
+  // smaller thumbnail) so nothing ever runs past the screen edge.
+  const isMobile = useIsMobile();
+  const thumb = isMobile ? 56 : 84;
   // Campaign Management PRD §19 "Audience or geography edit" — the only post-launch
   // change Uri can make itself. Everything else there is still Ads Manager's job.
   const [editingTargeting, setEditingTargeting] = useState(false);
@@ -5479,27 +5631,29 @@ export function CampaignCard({
       <div
         style={{
           display: 'flex',
-          gap: 14,
+          flexWrap: isMobile ? 'wrap' : undefined,
+          gap: isMobile ? 12 : 14,
           border: '1px solid #eee',
           borderRadius: 12,
-          padding: 12,
+          padding: isMobile ? 14 : 12,
           background: '#fff',
+          minWidth: 0,
         }}
       >
         {c.image_url ? (
-          <div style={{ width: 84, height: 84, flexShrink: 0 }}>
+          <div style={{ width: thumb, height: thumb, flexShrink: 0 }}>
             <ZoomableImage
               src={c.image_url}
               alt={c.name}
-              style={{ width: 84, height: 84, borderRadius: 8, objectFit: 'cover' }}
+              style={{ width: thumb, height: thumb, borderRadius: 8, objectFit: 'cover' }}
             />
           </div>
         ) : c.platform === 'google' ? (
           <div
             title={`${placementLabel(c.placement)} ad`}
             style={{
-              width: 84,
-              height: 84,
+              width: thumb,
+              height: thumb,
               borderRadius: 8,
               background: '#f1f6ff',
               flexShrink: 0,
@@ -5511,17 +5665,28 @@ export function CampaignCard({
               fontWeight: 800,
             }}
           >
-            <span style={{ fontSize: 26, lineHeight: 1 }}>G</span>
-            <span style={{ fontSize: 9.5, fontWeight: 700, marginTop: 4, textAlign: 'center' }}>
+            <span style={{ fontSize: isMobile ? 20 : 26, lineHeight: 1 }}>G</span>
+            <span style={{ fontSize: isMobile ? 7.5 : 9.5, fontWeight: 700, marginTop: 4, textAlign: 'center' }}>
               {c.placement && c.placement !== 'search' ? placementLabel(c.placement).toUpperCase() : 'SEARCH AD'}
             </span>
           </div>
         ) : (
-          <div style={{ width: 84, height: 84, borderRadius: 8, background: '#f4f2f0', flexShrink: 0 }} />
+          <div style={{ width: thumb, height: thumb, borderRadius: 8, background: '#f4f2f0', flexShrink: 0 }} />
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#1a0a12' }}>{c.name}</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', rowGap: 6 }}>
+            <p
+              style={{
+                margin: 0,
+                fontWeight: 700,
+                fontSize: 14,
+                color: '#1a0a12',
+                overflowWrap: 'anywhere',
+                ...(isMobile ? { flexBasis: '100%', lineHeight: 1.35 } : {}),
+              }}
+            >
+              {c.name}
+            </p>
             <span
               style={{
                 fontSize: 10.5,
@@ -5574,18 +5739,46 @@ export function CampaignCard({
             </span>
           </div>
           <p
-            style={{
-              margin: '3px 0 0',
-              fontSize: 12.5,
-              color: '#666',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
+            style={
+              isMobile
+                ? {
+                    margin: '6px 0 0',
+                    fontSize: 12.5,
+                    color: '#666',
+                    lineHeight: 1.4,
+                    overflowWrap: 'anywhere',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                  }
+                : {
+                    margin: '3px 0 0',
+                    fontSize: 12.5,
+                    color: '#666',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }
+            }
           >
             {c.headline}
           </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 8, fontSize: 12 }}>
+          <div
+            style={
+              isMobile
+                ? {
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                    gap: '10px 14px',
+                    marginTop: 12,
+                    paddingTop: 12,
+                    borderTop: '1px solid #f1eeec',
+                    fontSize: 12,
+                  }
+                : { display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 8, fontSize: 12 }
+            }
+          >
             <Metric label="Budget" value={naira(c.budget_ngn)} />
             <Metric label="Amount spent" value={naira(c.metrics?.spend_ngn)} />
             <Metric
@@ -5638,11 +5831,19 @@ export function CampaignCard({
             with no number on file is actually the legacy shared-inbox case. */}
           {(() => {
             const dest = c.destination_type || 'whatsapp';
-            const good = { margin: '8px 0 0', fontSize: 12, color: '#1a7f37' } as React.CSSProperties;
+            const good = {
+              margin: '8px 0 0',
+              fontSize: 12,
+              color: '#1a7f37',
+              lineHeight: 1.45,
+              overflowWrap: 'anywhere',
+            } as React.CSSProperties;
             if (dest === 'whatsapp') {
               return c.whatsapp_number ? (
                 <p style={good}>
-                  💬 Leads message <strong>+{c.whatsapp_number}</strong> on WhatsApp — open that chat to see them
+                  💬 Leads message{' '}
+                  <strong>{c.whatsapp_number.startsWith('+') ? c.whatsapp_number : `+${c.whatsapp_number}`}</strong> on
+                  WhatsApp — open that chat to see them
                 </p>
               ) : (
                 <p style={{ margin: '8px 0 0', fontSize: 12, color: '#a15c00' }}>
@@ -5738,7 +5939,20 @@ export function CampaignCard({
           )}
         </div>
         {(canToggle || canDelete || canEditTargeting || onDuplicate) && (
-          <div style={{ display: 'flex', gap: 8, alignSelf: 'center', flexShrink: 0 }}>
+          <div
+            style={
+              isMobile
+                ? {
+                    display: 'flex',
+                    gap: 10,
+                    flexWrap: 'wrap',
+                    width: '100%',
+                    paddingTop: 12,
+                    borderTop: '1px solid #f1eeec',
+                  }
+                : { display: 'flex', gap: 8, alignSelf: 'center', flexShrink: 0 }
+            }
+          >
             {onDuplicate && (
               <button
                 onClick={() => onDuplicate(c)}
@@ -5910,7 +6124,7 @@ function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <div style={{ color: '#aaa', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.3 }}>{label}</div>
-      <div style={{ color: '#333', fontWeight: 700 }}>{value}</div>
+      <div style={{ color: '#333', fontWeight: 700, overflowWrap: 'anywhere' }}>{value}</div>
     </div>
   );
 }

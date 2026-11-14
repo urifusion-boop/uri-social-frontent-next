@@ -46,7 +46,12 @@ import { MdFileDownload } from 'react-icons/md';
 import { MdChevronLeft, MdChevronRight, MdEdit, MdOpenWith } from 'react-icons/md';
 import DraftEditor from './DraftEditor';
 import CanvasEditor from './canvas-editor/CanvasEditor';
-import { describePublishJob, formatResumeAt, resumeTimeMs } from '@/src/utils/publishJobMessage.util';
+import {
+  describePublishJob,
+  formatResumeAt,
+  PUBLISH_FAILURE_TOAST_MS,
+  resumeTimeMs,
+} from '@/src/utils/publishJobMessage.util';
 
 interface DraftCardProps {
   draft: ContentDraft;
@@ -545,7 +550,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             // so — this used to fall through to "Published!".
             ToastService.showToast(
               thisResult.publish_result.error || `Couldn't publish to ${draft.platform}. Please try again.`,
-              ToastTypeEnum.Error
+              ToastTypeEnum.Error,
+              PUBLISH_FAILURE_TOAST_MS
             );
             onRefresh();
             return;

@@ -1,5 +1,6 @@
 'use client';
 
+import { logoMoveTarget } from './DraftLogoMover';
 import { useState } from 'react';
 import {
   Box,
@@ -19,7 +20,12 @@ import { MdChevronLeft, MdChevronRight, MdClose, MdMoreVert } from 'react-icons/
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import { queuedNotice, queuedPublish } from '@/src/utils/publishJobMessage.util';
+import {
+  failedPublish,
+  PUBLISH_FAILURE_TOAST_MS,
+  queuedNotice,
+  queuedPublish,
+} from '@/src/utils/publishJobMessage.util';
 
 const PINK = '#CD1B78';
 
@@ -110,6 +116,9 @@ interface GeneratedContentCardProps {
    * platform's own real, differing size is the correct, intentional thing
    * to show side by side. */
   uniformAspect?: string;
+  /** Move this post's logo before publishing (Content Library). Shown only when the
+   *  post supports it. */
+  onMoveLogo?: (draft: ContentDraft) => void;
 }
 
 export default function GeneratedContentCard({
@@ -121,7 +130,9 @@ export default function GeneratedContentCard({
   onDelete,
   onApproved,
   uniformAspect,
+  onMoveLogo,
 }: GeneratedContentCardProps) {
+  const canMoveLogo = !!onMoveLogo && !!logoMoveTarget(draft);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleAt, setScheduleAt] = useState('');
@@ -170,7 +181,12 @@ export default function GeneratedContentCard({
         ...(datetime ? { scheduled_datetime: new Date(datetime).toISOString() } : {}),
       });
       const queued = option === 'immediate' ? queuedPublish(res.responseData, id) : null;
-      if (res.status) {
+      // The network refused it just now (e.g. Facebook's identity check): say why, not "Published!".
+      const failed = option === 'immediate' ? failedPublish(res.responseData, id) : null;
+      if (failed) {
+        ToastService.showToast(failed, ToastTypeEnum.Error, PUBLISH_FAILURE_TOAST_MS);
+        onRefresh();
+      } else if (res.status) {
         if (queued) ToastService.showToast(queuedNotice(queued), ToastTypeEnum.Warning);
         else ToastService.showToast(option === 'immediate' ? 'Published!' : 'Scheduled!', ToastTypeEnum.Success);
         setScheduleOpen(false);
@@ -503,6 +519,16 @@ export default function GeneratedContentCard({
         >
           Edit
         </MenuItem>
+        {canMoveLogo && (
+          <MenuItem
+            onClick={() => {
+              setMenuAnchor(null);
+              onMoveLogo?.(draft);
+            }}
+          >
+            Move Logo
+          </MenuItem>
+        )}
         <MenuItem onClick={handleDelete} sx={{ color: '#DC2626' }}>
           Delete
         </MenuItem>

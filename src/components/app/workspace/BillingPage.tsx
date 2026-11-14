@@ -5,6 +5,7 @@
  * Displays credit balance, subscription, transaction history within workspace
  */
 
+import { hasActiveSubscription } from '@/src/utils/subscription.util';
 import { useEffect, useState, useCallback } from 'react';
 import { Tooltip } from '@mui/material';
 import { useAuth } from '@/src/providers/AuthProvider';
@@ -1202,7 +1203,7 @@ export default function BillingPage({ onBack, initialTab = 'overview', focusBuyC
                 only nag once credits_remaining (which already folds bonus
                 credits in, see CreditBalanceResponse) has actually hit 0. */}
             {userDetails?.isTrial &&
-              !userDetails?.subscriptionTier &&
+              !hasActiveSubscription(userDetails?.subscriptionTier) &&
               (userDetails.trialActive || (userDetails.creditsRemaining ?? 0) <= 0) && (
                 <div
                   style={{

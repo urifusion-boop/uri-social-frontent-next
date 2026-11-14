@@ -1,5 +1,7 @@
 'use client';
 
+import { uploadTransportError } from '@/src/components/app/social-media/ContentWizard/useContentWizardState';
+import { isComingSoonPlatform, withoutComingSoon } from '@/src/constants/comingSoonPlatforms';
 import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { BillingService } from '@/src/api/BillingService';
 import posthog from 'posthog-js';
@@ -81,7 +83,7 @@ function _friendlyGenerationError(msg?: string): string {
   // fallback, and was previously discarded here even when it carried the
   // actual thing to fix — only genuinely unknown/empty errors get the generic
   // "contact support" treatment now.
-  return `${msg} — if the issue persists, contact support.`;
+  return /contact support/i.test(msg) ? msg : `${msg} — if the issue persists, contact support.`;
 }
 
 const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadContentFormProps) => {
@@ -93,7 +95,8 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
   const platformsTouched = useRef(false);
   useEffect(() => {
     BrandProfileService.getTargetPlatformKeys().then((keys) => {
-      if (keys.length && !platformsTouched.current) setSelectedPlatforms(keys);
+      const usable = withoutComingSoon(keys);
+      if (usable.length && !platformsTouched.current) setSelectedPlatforms(usable);
     });
   }, []);
   const [loading, setLoading] = useState(false);
@@ -202,6 +205,7 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
 
   const togglePlatform = (key: string) => {
     platformsTouched.current = true;
+    if (isComingSoonPlatform(key)) return;
     setSelectedPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
   };
 
@@ -412,7 +416,7 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
         // reading only responseMessage threw away a real, specific error (e.g.
         // "Unsupported file type: image/heic...") in favor of a generic toast.
         const message = error?.response?.data?.responseMessage || error?.response?.data?.detail;
-        ToastService.showToast(_friendlyGenerationError(message), ToastTypeEnum.Error);
+        ToastService.showToast(uploadTransportError(err) ?? _friendlyGenerationError(message), ToastTypeEnum.Error);
       }
     } finally {
       setLoading(false);
@@ -779,6 +783,7 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
           {PLATFORMS.map((platform) => (
             <FormControlLabel
               key={platform.key}
+              disabled={isComingSoonPlatform(platform.key)}
               control={
                 <Checkbox
                   checked={selectedPlatforms.includes(platform.key)}
@@ -793,6 +798,9 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                   {platform.icon}
                   <Typography sx={{ fontSize: 13 }}>{platform.label}</Typography>
+                  {isComingSoonPlatform(platform.key) && (
+                    <Typography sx={{ fontSize: 11, color: '#9CA3AF' }}>· Coming soon</Typography>
+                  )}
                 </Box>
               }
             />

@@ -28,6 +28,7 @@ import {
   deleteWizardDraft,
   fetchRemoteWizardDrafts,
   loadWizardDrafts,
+  pruneLaunchedDrafts,
   mergeWizardDrafts,
   WizardDraft,
 } from './wizardDraft';
@@ -59,12 +60,25 @@ export function platformLabel(draft: WizardDraft): string {
 
 /** The first generated image this draft has, if Jane got that far — a photo
  *  does more to say "this is the ad you already built" than any text summary. */
-export function draftThumbnail(draft: WizardDraft): string | undefined {
-  if (draft.results?.single?.creative?.image_url) return draft.results.single.creative.image_url;
+function draftCreative(draft: WizardDraft) {
+  if (draft.results?.single?.creative?.image_url) return draft.results.single.creative;
   for (const r of Object.values(draft.results?.multi ?? {})) {
-    if (r?.creative?.image_url) return r.creative.image_url;
+    if (r?.creative?.image_url) return r.creative;
   }
   return undefined;
+}
+
+/** True when the draft's media is a video — an <img> can't show one (it rendered as a
+ *  broken-image icon), so callers show a video placeholder instead. */
+export function draftIsVideo(draft: WizardDraft): boolean {
+  const c = draftCreative(draft);
+  return Boolean(c && (c.is_video || /\.(mov|mp4|m4v|webm)(\?|$)/i.test(c.image_url ?? '')));
+}
+
+/** An image to show for the draft — never a video URL (see draftIsVideo). */
+export function draftThumbnail(draft: WizardDraft): string | undefined {
+  if (draftIsVideo(draft)) return undefined;
+  return draftCreative(draft)?.image_url ?? undefined;
 }
 
 export function draftHasPlan(draft: WizardDraft): boolean {
@@ -76,6 +90,8 @@ export default function CampaignBuilderPage({
   onDraftConsumed,
   pendingResumeDraft,
   onResumeDraftConsumed,
+  focusCampaignId,
+  onFocusConsumed,
 }: {
   /** "Use in Campaign Builder" from the Creatives library — skip the list and land
    *  straight in the wizard with this draft preloaded, same as before. */
@@ -87,6 +103,10 @@ export default function CampaignBuilderPage({
    *  the user click Resume a second time once they got there). */
   pendingResumeDraft?: WizardDraft | null;
   onResumeDraftConsumed?: () => void;
+  /** A running campaign clicked on the Overview page — scroll its card into view
+   *  and highlight it, so its pause/resume, targeting and other actions are right there. */
+  focusCampaignId?: string | null;
+  onFocusConsumed?: () => void;
 }) {
   const [mode, setMode] = useState<'list' | 'wizard'>(pendingDraft || pendingResumeDraft ? 'wizard' : 'list');
   // Forces a fresh CampaignWizard mount every time "+ New Campaign" is clicked —
@@ -111,6 +131,30 @@ export default function CampaignBuilderPage({
   const [loading, setLoading] = useState(true);
   const loadedOnce = useRef(false);
   const isMobile = useIsMobile();
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+
+  // Overview -> "open this campaign": once the list has loaded, bring that card into
+  // view and briefly highlight it.
+  useEffect(() => {
+    if (loading || !focusCampaignId) return;
+    if (!campaigns.some((c) => c.campaign_id === focusCampaignId)) {
+      onFocusConsumed?.();
+      return;
+    }
+    setMode('list');
+    const t1 = window.setTimeout(() => {
+      document
+        .getElementById(`campaign-card-${focusCampaignId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightId(focusCampaignId);
+      onFocusConsumed?.();
+    }, 50);
+    const t2 = window.setTimeout(() => setHighlightId(null), 2600);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [loading, focusCampaignId, campaigns, onFocusConsumed]);
 
   const load = useCallback(async () => {
     if (!loadedOnce.current) setLoading(true);
@@ -137,6 +181,18 @@ export default function CampaignBuilderPage({
     // right after, so this can't re-fire from its own effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingResumeDraft]);
+
+  // Drop drafts whose plans already launched (a launch that finished after the page
+  // stopped waiting never cleared its draft). Each draft is checked once per visit.
+  const draftsChecked = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const fresh = drafts.filter((d) => !draftsChecked.current.has(d.id));
+    if (!fresh.length) return;
+    fresh.forEach((d) => draftsChecked.current.add(d.id));
+    void pruneLaunchedDrafts(fresh).then((gone) => {
+      if (gone.length) setDrafts((current) => current.filter((d) => !gone.includes(d.id)));
+    });
+  }, [drafts]);
 
   useEffect(() => {
     if (mode !== 'list') return;
@@ -251,7 +307,7 @@ export default function CampaignBuilderPage({
                       padding: '12px 16px',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
                       {thumb ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -268,8 +324,15 @@ export default function CampaignBuilderPage({
                             background: '#fff',
                             border: '1px solid #f5c2d8',
                             flexShrink: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 20,
                           }}
-                        />
+                          aria-hidden
+                        >
+                          {draftIsVideo(d) ? '🎬' : '📣'}
+                        </div>
                       )}
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1a0a12' }}>
@@ -390,9 +453,23 @@ export default function CampaignBuilderPage({
                 Refresh
               </button>
             </div>
-            <div style={{ display: 'grid', gap: 12 }}>
+            {/* minmax(0, 1fr): one long unbreakable value (a link, an area list) must never
+                widen the column past the screen on a phone. */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 12 }}>
               {campaigns.map((c) => (
-                <CampaignCard key={c.campaign_id || uid()} c={c} onChanged={load} onDuplicate={duplicate} />
+                <div
+                  key={c.campaign_id || uid()}
+                  id={c.campaign_id ? `campaign-card-${c.campaign_id}` : undefined}
+                  style={{
+                    borderRadius: 14,
+                    outline:
+                      highlightId && highlightId === c.campaign_id ? '2px solid #C2185B' : '2px solid transparent',
+                    outlineOffset: 3,
+                    transition: 'outline-color 0.4s',
+                  }}
+                >
+                  <CampaignCard c={c} onChanged={load} onDuplicate={duplicate} />
+                </div>
               ))}
             </div>
           </>

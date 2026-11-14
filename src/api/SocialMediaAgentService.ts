@@ -729,6 +729,28 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  /** Facebook Pages awaiting the owner's pick after a Meta login that manages several Pages. */
+  static async getFacebookDirectPending(
+    token: string
+  ): Promise<
+    UriResponse<{ token: string; pages: Array<{ page_id: string; page_name?: string; profile_picture_url?: string }> }>
+  > {
+    const response = await UriHttpClient.getClient().get(`/social-media/connect/facebook-direct/pending/${token}`);
+    return response.data;
+  }
+
+  /** Connect the Facebook Page(s) the owner picked. */
+  static async finalizeFacebookDirectPending(
+    token: string,
+    pageIds: string[]
+  ): Promise<UriResponse<{ connected: Array<{ page_id: string; page_name?: string }>; total: number }>> {
+    const response = await UriHttpClient.getClient().post('/social-media/connect/facebook-direct/finalize-pending', {
+      token,
+      page_ids: pageIds,
+    });
+    return response.data;
+  }
+
   static async finalizeInstagramDirectPending(
     token: string,
     igUserIds: string[]
@@ -2106,8 +2128,10 @@ export interface TrendsData {
   count: number;
 }
 
-// ── Content Calendar V2 — staging-only, 30-day engine. Its own types,
-// never shared with other features. See CalendarV2Tab.tsx for the isolation note. ──
+// ── Content Calendar V2 — a distinct, isolated 30-day engine now used in
+// production instead of the v1 types above (never extended from them) so the
+// two systems' shapes can never silently couple. See ContentCalendarV2Tab.tsx
+// for the isolation note. ──
 
 export interface CarouselSlideV2 {
   slide_index: number;

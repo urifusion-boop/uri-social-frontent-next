@@ -89,7 +89,7 @@ export default function WizardObjectiveStep({
         // where 3 fixed columns had no room to breathe; auto-fit for every
         // width also let 5 cards fit in one row on a wide desktop screen,
         // which wasn't the ask.
-        gridTemplateColumns: isMobile ? 'repeat(auto-fit, minmax(150px, 1fr))' : 'repeat(3, 1fr)',
+        gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(3, 1fr)',
         gap: 10,
       }}
     >

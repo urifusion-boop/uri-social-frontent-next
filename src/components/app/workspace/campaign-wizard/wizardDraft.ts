@@ -177,3 +177,33 @@ export function deleteWizardDraft(id: string): void {
     // Same reasoning as the save path — a convenience layer, not a dependency.
   });
 }
+
+/** Drafts whose every plan has in fact launched — removed (locally and remotely) and
+ *  their ids returned. A launch can finish after the page stopped waiting (a TikTok
+ *  video is re-encoded first, longer than the connection lasts), so the page never
+ *  got the "launched" answer that normally clears the draft, and it lingered under
+ *  Unfinished as "Ad already built" for an ad that was live. Unknown answers (offline,
+ *  a plan that no longer exists) keep the draft — removing one wrongly loses work. */
+export async function pruneLaunchedDrafts(drafts: WizardDraft[]): Promise<string[]> {
+  const gone: string[] = [];
+  await Promise.all(
+    drafts.map(async (d) => {
+      const results = [d.results?.single, ...Object.values(d.results?.multi ?? {})].filter(
+        (r): r is LaunchFromMessageResult => Boolean(r)
+      );
+      const planIds = results.filter((r) => r.stage !== 'launched' && r.plan_id).map((r) => r.plan_id as string);
+      const anyLaunchedLocally = results.some((r) => r.stage === 'launched');
+      if (!planIds.length && !anyLaunchedLocally) return;
+      try {
+        const statuses = await Promise.all(planIds.map((id) => CampaignService.getPlanStatus(id)));
+        if (statuses.every((st) => st.status === 'launched')) {
+          deleteWizardDraft(d.id);
+          gone.push(d.id);
+        }
+      } catch {
+        // keep it — see above
+      }
+    })
+  );
+  return gone;
+}

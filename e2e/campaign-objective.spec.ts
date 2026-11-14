@@ -47,7 +47,7 @@ async function openChat(page: Page) {
 }
 
 test.describe('Campaign objective', () => {
-  test('offers Meta\'s objectives, not Jane\'s guess', async ({ page }) => {
+  test("offers Meta's objectives, not Jane's guess", async ({ page }) => {
     await mockApi(page, []);
     await openChat(page);
     for (const o of OBJECTIVES) {

@@ -16,16 +16,55 @@ async function fakeAuth(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem('@URI@AUTHENTICATED', 'true');
     localStorage.setItem('@URI@USER_TOKENS', JSON.stringify({ accessToken: 'test', refreshToken: 'test' }));
-    localStorage.setItem('@URI@USER_DETAILS', JSON.stringify({ userId: 'u_test', email: 'test@uri', firstName: 'Test' }));
+    localStorage.setItem(
+      '@URI@USER_DETAILS',
+      JSON.stringify({ userId: 'u_test', email: 'test@uri', firstName: 'Test' })
+    );
     localStorage.setItem('@URI@ACTIVE_BRAND_ID', 'brnd_personal_u_test');
   });
 }
 
 const DESTINATION_OPTIONS = [
-  { value: 'whatsapp', label: 'My WhatsApp', hint: 'They tap and land in a WhatsApp chat with you, message already typed.', field: 'whatsapp_number', input_label: 'Your WhatsApp number', placeholder: '0803 123 4567', takes_cta: false, current: '2348031234567' },
-  { value: 'website', label: 'My website', hint: 'They tap and open your site.', field: 'website_url', input_label: 'Your website', placeholder: 'yourshop.com', takes_cta: true, current: '' },
-  { value: 'instagram_dm', label: 'My Instagram DMs', hint: 'They tap and land in your Instagram inbox.', field: 'instagram_username', input_label: 'Your Instagram handle', placeholder: '@yourbrand', takes_cta: true, current: '' },
-  { value: 'custom', label: "A link I'll paste", hint: 'Anywhere else — a payment link, a form, a Linktree.', field: 'custom_url', input_label: 'Paste your link', placeholder: 'https://paystack.com/pay/your-store', takes_cta: true, current: '' },
+  {
+    value: 'whatsapp',
+    label: 'My WhatsApp',
+    hint: 'They tap and land in a WhatsApp chat with you, message already typed.',
+    field: 'whatsapp_number',
+    input_label: 'Your WhatsApp number',
+    placeholder: '0803 123 4567',
+    takes_cta: false,
+    current: '2348031234567',
+  },
+  {
+    value: 'website',
+    label: 'My website',
+    hint: 'They tap and open your site.',
+    field: 'website_url',
+    input_label: 'Your website',
+    placeholder: 'yourshop.com',
+    takes_cta: true,
+    current: '',
+  },
+  {
+    value: 'instagram_dm',
+    label: 'My Instagram DMs',
+    hint: 'They tap and land in your Instagram inbox.',
+    field: 'instagram_username',
+    input_label: 'Your Instagram handle',
+    placeholder: '@yourbrand',
+    takes_cta: true,
+    current: '',
+  },
+  {
+    value: 'custom',
+    label: "A link I'll paste",
+    hint: 'Anywhere else — a payment link, a form, a Linktree.',
+    field: 'custom_url',
+    input_label: 'Paste your link',
+    placeholder: 'https://paystack.com/pay/your-store',
+    takes_cta: true,
+    current: '',
+  },
 ];
 
 const CTA_CHOICES = [
@@ -43,13 +82,27 @@ type Sent = Record<string, unknown>;
 
 async function mockJaneAds(page: Page, sent: Sent[], opts: { rejectFirstLink?: boolean } = {}) {
   await page.route('**/jane-ads/admin/access', (r) => r.fulfill({ json: { allowed: false } }));
-  await page.route('**/jane-ads/wallet', (r) => r.fulfill({ json: { balance_ngn: 50000, currency: 'NGN', min_topup_ngn: 1000, transactions: [] } }));
+  await page.route('**/jane-ads/wallet', (r) =>
+    r.fulfill({ json: { balance_ngn: 50000, currency: 'NGN', min_topup_ngn: 1000, transactions: [] } })
+  );
   await page.route('**/jane-ads/threads', (r) =>
     r.request().method() === 'POST'
-      ? r.fulfill({ json: { thread_id: 'thr_test', title: 'New campaign', status: 'draft', preview: '', created_at: '', updated_at: '' } })
-      : r.fulfill({ json: { threads: [] } }));
+      ? r.fulfill({
+          json: {
+            thread_id: 'thr_test',
+            title: 'New campaign',
+            status: 'draft',
+            preview: '',
+            created_at: '',
+            updated_at: '',
+          },
+        })
+      : r.fulfill({ json: { threads: [] } })
+  );
   await page.route('**/jane-ads/threads/*/history', (r) => r.fulfill({ json: { messages: [] } }));
-  await page.route('**/jane-ads/chat/history**', (r) => r.fulfill({ json: r.request().method() === 'GET' ? { messages: [] } : { ok: true } }));
+  await page.route('**/jane-ads/chat/history**', (r) =>
+    r.fulfill({ json: r.request().method() === 'GET' ? { messages: [] } : { ok: true } })
+  );
   await page.route('**/jane-ads/creative/drafts**', (r) => r.fulfill({ json: { drafts: [] } }));
 
   let step = 0;
@@ -60,41 +113,71 @@ async function mockJaneAds(page: Page, sent: Sent[], opts: { rejectFirstLink?: b
 
     // A concrete image source means the destination is already settled — build the plan.
     if (['generate', 'upload', 'draft', 'recomposite'].includes(body.creative_source)) {
-      return route.fulfill({ json: {
-        stage: 'planned', plan_id: 'plan_test',
-        plan: { goal: 'messages', behaviour: 'discover', explanation: 'why', platforms: [{ platform: 'meta', budget_ngn: 5000, days: 3, variants: 1, test_scope: 'none' }] },
-        creative: { image_url: PIXEL, headline: 'Fresh Lunch', primary_text: 'Hot meals near you.', cta: 'Shop Now' },
-        destination_type: 'custom', destination_link: 'https://paystack.com/pay/uri-store', destination_cta: 'shop_now',
-        wallet: { balance_ngn: 50000, budget_ngn: 5000, service_fee_ngn: 500, total_due_ngn: 5500, sufficient: true },
-      } });
+      return route.fulfill({
+        json: {
+          stage: 'planned',
+          plan_id: 'plan_test',
+          plan: {
+            goal: 'messages',
+            behaviour: 'discover',
+            explanation: 'why',
+            platforms: [{ platform: 'meta', budget_ngn: 5000, days: 3, variants: 1, test_scope: 'none' }],
+          },
+          creative: { image_url: PIXEL, headline: 'Fresh Lunch', primary_text: 'Hot meals near you.', cta: 'Shop Now' },
+          destination_type: 'custom',
+          destination_link: 'https://paystack.com/pay/uri-store',
+          destination_cta: 'shop_now',
+          wallet: { balance_ngn: 50000, budget_ngn: 5000, service_fee_ngn: 500, total_due_ngn: 5500, sufficient: true },
+        },
+      });
     }
 
     // Answering the destination picker.
     if (body.destination_type && body.destination_type !== 'ask') {
       if (opts.rejectFirstLink && !rejectedOnce) {
         rejectedOnce = true;
-        return route.fulfill({ json: {
-          stage: 'choose_destination', understood: {},
-          question: 'Where should people who tap your ad end up?',
-          destination_options: DESTINATION_OPTIONS, cta_choices: CTA_CHOICES,
-          selected: { destination_type: body.destination_type, destination_cta: body.destination_cta },
-          error: "That link doesn't look right — paste the full address, e.g. https://paystack.com/pay/your-store.",
-        } });
+        return route.fulfill({
+          json: {
+            stage: 'choose_destination',
+            understood: {},
+            question: 'Where should people who tap your ad end up?',
+            destination_options: DESTINATION_OPTIONS,
+            cta_choices: CTA_CHOICES,
+            selected: { destination_type: body.destination_type, destination_cta: body.destination_cta },
+            error: "That link doesn't look right — paste the full address, e.g. https://paystack.com/pay/your-store.",
+          },
+        });
       }
-      return route.fulfill({ json: { stage: 'choose_creative_source', understood: {}, creative_options: { can_generate: true, drafts: [] } } });
+      return route.fulfill({
+        json: { stage: 'choose_creative_source', understood: {}, creative_options: { can_generate: true, drafts: [] } },
+      });
     }
 
     step += 1;
-    if (step === 1) return route.fulfill({ json: { stage: 'need_more', understood: { missing: ['offer_type'] }, question: 'What are you advertising — a product, a service…?' } });
-    if (step === 2) return route.fulfill({ json: { stage: 'need_more', understood: { missing: ['budget_ngn'] }, question: 'What budget would you like?' } });
+    if (step === 1)
+      return route.fulfill({
+        json: {
+          stage: 'need_more',
+          understood: { missing: ['offer_type'] },
+          question: 'What are you advertising — a product, a service…?',
+        },
+      });
+    if (step === 2)
+      return route.fulfill({
+        json: { stage: 'need_more', understood: { missing: ['budget_ngn'] }, question: 'What budget would you like?' },
+      });
     // Budget answered → the destination step, BEFORE the image step.
-    return route.fulfill({ json: {
-      stage: 'choose_destination', understood: {},
-      question: 'Where should people who tap your ad end up?',
-      destination_options: DESTINATION_OPTIONS, cta_choices: CTA_CHOICES,
-      selected: { destination_type: 'whatsapp', destination_cta: 'learn_more' },
-      explanation: 'Targeting Surulere, where your customers already are.',
-    } });
+    return route.fulfill({
+      json: {
+        stage: 'choose_destination',
+        understood: {},
+        question: 'Where should people who tap your ad end up?',
+        destination_options: DESTINATION_OPTIONS,
+        cta_choices: CTA_CHOICES,
+        selected: { destination_type: 'whatsapp', destination_cta: 'learn_more' },
+        explanation: 'Targeting Surulere, where your customers already are.',
+      },
+    });
   });
 }
 
@@ -144,12 +227,14 @@ test('describe → objective → budget → destination → image → plan', asy
   await page.getByRole('button', { name: 'Use this' }).click({ force: true });
 
   // The UI sent the answer in the shape the backend reads.
-  await expect.poll(() => sent.at(-1)).toMatchObject({
-    destination_type: 'custom',
-    destination_value: 'https://paystack.com/pay/uri-store',
-    destination_cta: 'shop_now',
-    creative_source: 'ask',
-  });
+  await expect
+    .poll(() => sent.at(-1))
+    .toMatchObject({
+      destination_type: 'custom',
+      destination_value: 'https://paystack.com/pay/uri-store',
+      destination_cta: 'shop_now',
+      creative_source: 'ask',
+    });
 
   // 5. The flow continues to the image step (it was never skipped).
   await expect(page.getByText(/how would you like to handle the image/i)).toBeVisible();
@@ -202,17 +287,33 @@ test('a returning brand with a destination already saved is not re-asked', async
   await fakeAuth(page);
   // Backend resolves the saved destination and goes straight to the image step.
   await page.route('**/jane-ads/admin/access', (r) => r.fulfill({ json: { allowed: false } }));
-  await page.route('**/jane-ads/wallet', (r) => r.fulfill({ json: { balance_ngn: 50000, currency: 'NGN', min_topup_ngn: 1000, transactions: [] } }));
+  await page.route('**/jane-ads/wallet', (r) =>
+    r.fulfill({ json: { balance_ngn: 50000, currency: 'NGN', min_topup_ngn: 1000, transactions: [] } })
+  );
   await page.route('**/jane-ads/threads', (r) =>
     r.request().method() === 'POST'
-      ? r.fulfill({ json: { thread_id: 'thr_test', title: 'New campaign', status: 'draft', preview: '', created_at: '', updated_at: '' } })
-      : r.fulfill({ json: { threads: [] } }));
+      ? r.fulfill({
+          json: {
+            thread_id: 'thr_test',
+            title: 'New campaign',
+            status: 'draft',
+            preview: '',
+            created_at: '',
+            updated_at: '',
+          },
+        })
+      : r.fulfill({ json: { threads: [] } })
+  );
   await page.route('**/jane-ads/threads/*/history', (r) => r.fulfill({ json: { messages: [] } }));
-  await page.route('**/jane-ads/chat/history**', (r) => r.fulfill({ json: r.request().method() === 'GET' ? { messages: [] } : { ok: true } }));
+  await page.route('**/jane-ads/chat/history**', (r) =>
+    r.fulfill({ json: r.request().method() === 'GET' ? { messages: [] } : { ok: true } })
+  );
   await page.route('**/jane-ads/creative/drafts**', (r) => r.fulfill({ json: { drafts: [] } }));
   await page.route('**/jane-ads/meta/plan-from-message', async (route) => {
     sent.push(JSON.parse(route.request().postData() || '{}'));
-    return route.fulfill({ json: { stage: 'choose_creative_source', understood: {}, creative_options: { can_generate: true, drafts: [] } } });
+    return route.fulfill({
+      json: { stage: 'choose_creative_source', understood: {}, creative_options: { can_generate: true, drafts: [] } },
+    });
   });
 
   await page.goto('/workspace/?tab=campaigns');
