@@ -52,6 +52,7 @@ import {
   PUBLISH_FAILURE_TOAST_MS,
   resumeTimeMs,
 } from '@/src/utils/publishJobMessage.util';
+import { useConnectedAccounts } from '@/src/hooks/useConnectedAccounts';
 
 interface DraftCardProps {
   draft: ContentDraft;
@@ -107,7 +108,9 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const [tiktokPhotoDialogOpen, setTiktokPhotoDialogOpen] = useState(false);
   // Set while the Post to TikTok screen is open for Schedule rather than Publish Now: the picked time.
   const [tiktokScheduleAt, setTiktokScheduleAt] = useState<string | null>(null);
-  const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null); // null = not yet loaded
+  const connectedAccounts = useConnectedAccounts();
+  // null until the connected accounts are known (from the shared connected-accounts tracker).
+  const connectedPlatforms = connectedAccounts.loaded ? connectedAccounts.platforms : null;
   const [connectPromptOpen, setConnectPromptOpen] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -261,39 +264,6 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
     imageRetryRef.current = 0;
     loadedSlideUrls.clear();
   }, [draft.id, loadedSlideUrls]);
-
-  // Fetch connected platforms once on mount to gate the publish action
-  // Use a simple cache to prevent request spam when multiple cards mount
-  useEffect(() => {
-    const CACHE_KEY = 'social_connections_cache';
-    const CACHE_DURATION = 30000; // 30 seconds
-
-    // Check cache first
-    const cached = sessionStorage.getItem(CACHE_KEY);
-    if (cached) {
-      try {
-        const { data, timestamp } = JSON.parse(cached);
-        if (Date.now() - timestamp < CACHE_DURATION) {
-          setConnectedPlatforms(data);
-          return;
-        }
-      } catch (e) {
-        // Invalid cache, continue to fetch
-      }
-    }
-
-    // Fetch fresh data
-    SocialMediaAgentService.getConnections()
-      .then((res) => {
-        if (res.status && res.responseData) {
-          const platforms = res.responseData.connected_platforms ?? [];
-          setConnectedPlatforms(platforms);
-          // Cache the result
-          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: platforms, timestamp: Date.now() }));
-        }
-      })
-      .catch(() => setConnectedPlatforms([]));
-  }, []);
 
   // Listen for image edit events from other sources (e.g., background processing)
   useEffect(() => {
