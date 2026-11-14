@@ -41,8 +41,8 @@ const ConnectFacebookModal = ({ open, onClose, onSuccess }: ConnectFacebookModal
       } else {
         setError(response.responseMessage || 'Failed to connect Facebook page');
       }
-    } catch (err: any) {
-      setError(err?.data?.responseMessage || 'Failed to connect Facebook page');
+    } catch (err: unknown) {
+      setError((err as { data?: { responseMessage?: string } })?.data?.responseMessage || 'Failed to connect Facebook page');
     } finally {
       setLoading(false);
     }

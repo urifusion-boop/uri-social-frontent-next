@@ -1,0 +1,37 @@
+# Runs on every pull request into aws/dev or aws/prod. Deploys are separate
+# (Amplify builds the deployed site) and are not touched here.
+name: PR checks
+
+on:
+  pull_request:
+    branches: [aws/dev, aws/prod]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Frontend typecheck, lint, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # A non-production API so the build never thinks it is prod; nothing is called during the build.
+      NEXT_PUBLIC_URI_API_BASE_URL: https://api-social-dev.urisocial.com
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit -p .
+      - name: Lint (errors only)
+        run: npx eslint . --quiet
+      - name: Build
+        run: npm run build
