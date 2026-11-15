@@ -754,7 +754,7 @@ export interface PlanChecks {
     days: number;
     total_ngn: number;
     why: string;
-    recommended?: { concepts: number; structure: 'single' | 'abo' | 'cbo'; why: string };
+    recommended?: { concepts: number; ad_sets?: number; structure: 'single' | 'abo' | 'grouped' | 'cbo'; why: string };
   };
   brief_missing: string[];
   confidence: 'normal' | 'lower';

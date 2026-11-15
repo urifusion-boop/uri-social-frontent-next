@@ -74,8 +74,7 @@ export function PlanChecksPanel({
         {s.budget_type}) for {s.days} day{s.days === 1 ? '' : 's'}.<div style={{ color: '#777' }}>{s.why}</div>
         {advanced && s.recommended && (
           <div style={{ color: '#777' }}>
-            For testing, this budget supports {s.recommended.concepts} concept
-            {s.recommended.concepts === 1 ? '' : 's'} ({s.recommended.structure.toUpperCase()}): {s.recommended.why}
+            For testing: {s.recommended.why}
           </div>
         )}
       </div>
