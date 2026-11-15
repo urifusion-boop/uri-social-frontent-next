@@ -85,6 +85,7 @@ export default function WizardCreativeStep({
   onChange,
   isTikTok = false,
   isMeta = false,
+  metaBudget = null,
 }: {
   value: WizardCreativeChoice | null;
   onChange: (next: WizardCreativeChoice) => void;
@@ -96,6 +97,9 @@ export default function WizardCreativeStep({
    *  one of the platforms this plan will actually run on, single or multi mode.
    *  Mirrors the backend's own Meta-only restriction (_concepts_allowed). */
   isMeta?: boolean;
+  /** The Meta share of the budget, so "Make several ads" can say what the budget table
+   *  (PRD WS5) recommends for it. */
+  metaBudget?: { amountNgn: number; days: number } | null;
 }) {
   const [uploading, setUploading] = useState(false);
   const [testOpen, setTestOpen] = useState(false);
@@ -115,6 +119,25 @@ export default function WizardCreativeStep({
   // "Start from an ad I like" (PRD WS4): a screenshot → Jane's own version → this campaign's ad.
   const [likedAd, setLikedAd] = useState<File | null>(null);
   const likedInput = useRef<HTMLInputElement | null>(null);
+
+  // What the PRD's budget table recommends for this budget: how many ads, in how many ad sets.
+  const [recommended, setRecommended] = useState<{ ads: number; ad_sets: number; why: string } | null>(null);
+  const budgetKey = metaBudget ? `${metaBudget.amountNgn}:${metaBudget.days}` : '';
+  useEffect(() => {
+    if (!isMeta || !metaBudget || metaBudget.amountNgn <= 0) {
+      setRecommended(null);
+      return;
+    }
+    let alive = true;
+    CampaignService.getBudgetStructure(metaBudget.amountNgn, metaBudget.days)
+      .then((r) => alive && setRecommended(r.ads >= 2 ? r : null))
+      .catch(() => alive && setRecommended(null));
+    return () => {
+      alive = false;
+    };
+    // budgetKey stands in for metaBudget's fields.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMeta, budgetKey]);
 
   const mode = value?.creative_source ?? null;
   const isTestMode = value?.creative_source === 'generate' && typeof value.concepts === 'number' && value.concepts >= 2;
@@ -283,6 +306,12 @@ export default function WizardCreativeStep({
               <span style={{ fontSize: 12, color: '#7a7270', lineHeight: 1.45 }}>
                 Different styles, Meta finds the best — 1 credit each.
               </span>
+              {recommended && (
+                <span data-testid="wizard-recommended-ads" style={{ fontSize: 12, color: '#1E8E4E', fontWeight: 700, lineHeight: 1.45 }}>
+                  For your budget: {recommended.ads} ads
+                  {recommended.ad_sets > 1 ? ` across ${recommended.ad_sets} ad sets` : ' in one ad set'}.
+                </span>
+              )}
             </button>
             {(testOpen || isTestMode) && (
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 10 }}>
@@ -309,6 +338,9 @@ export default function WizardCreativeStep({
                       }}
                     >
                       {n}
+                      {recommended?.ads === n && (
+                        <span style={{ display: 'block', fontSize: 9.5, fontWeight: 700, color: '#1E8E4E' }}>Best fit</span>
+                      )}
                     </button>
                   );
                 })}
