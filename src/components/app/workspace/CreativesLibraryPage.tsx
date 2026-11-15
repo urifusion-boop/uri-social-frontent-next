@@ -23,7 +23,10 @@ const PLATFORM_ICON: Record<string, { icon: React.ReactNode; color: string }> = 
 };
 
 function timeAgo(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
+  // The server sends UTC without a zone ("2026-11-15 10:20:33"); read bare, the browser took it
+  // as local time, so in Lagos everything looked an hour older than it was.
+  const utc = /[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso.replace(' ', 'T')}Z`;
+  const diffMs = Date.now() - new Date(utc).getTime();
   const mins = Math.floor(diffMs / 60000);
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
@@ -31,7 +34,7 @@ function timeAgo(iso: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString();
+  return new Date(utc).toLocaleDateString();
 }
 
 export default function CreativesLibraryPage({ onUseInWizard }: { onUseInWizard: (draft: DraftSummary) => void }) {
