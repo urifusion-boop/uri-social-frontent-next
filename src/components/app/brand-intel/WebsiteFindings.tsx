@@ -43,6 +43,9 @@ export default function WebsiteFindings({ read, mode, onApplied, onSkip, skipLab
   );
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<string | null>(null);
+  // The words in a box still open for editing. Pressing Use without "Done" keeps them, rather
+  // than silently saving Jane's original (found testing on staging 2026-11-15).
+  const [openDraft, setOpenDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [showMatching, setShowMatching] = useState(false);
@@ -64,7 +67,9 @@ export default function WebsiteFindings({ read, mode, onApplied, onSkip, skipLab
       return n;
     });
 
-  const chosen = actionable.filter((f) => selected.has(f.key)).map((f) => f.key);
+  const pendingEdit = editing && openDraft?.trim() ? { [editing]: openDraft.trim() } : {};
+  const allEdits: Record<string, string> = { ...edits, ...pendingEdit };
+  const chosen = actionable.filter((f) => selected.has(f.key) || f.key in pendingEdit).map((f) => f.key);
   const guesses = actionable.filter((f) => f.basis === 'inferred' && selected.has(f.key)).length;
 
   const apply = async () => {
@@ -79,12 +84,12 @@ export default function WebsiteFindings({ read, mode, onApplied, onSkip, skipLab
       const out = await BrandIntelService.apply(
         read.job_id,
         chosen,
-        Object.fromEntries(Object.entries(edits).filter(([k]) => chosen.includes(k)))
+        Object.fromEntries(Object.entries(allEdits).filter(([k]) => chosen.includes(k)))
       );
       trackEvent('website_read_applied', {
         applied: out.applied.length,
         offered: actionable.length,
-        edited: Object.keys(edits).filter((k) => chosen.includes(k)).length,
+        edited: Object.keys(allEdits).filter((k) => chosen.includes(k)).length,
         guesses_kept: guesses,
         guesses_unticked: actionable.filter((f) => f.basis === 'inferred' && !selected.has(f.key)).length,
       });
@@ -138,9 +143,14 @@ export default function WebsiteFindings({ read, mode, onApplied, onSkip, skipLab
               onToggle={() => toggle(f.key)}
               edit={edits[f.key]}
               editing={editing === f.key}
-              onEdit={() => setEditing(f.key)}
+              onEdit={() => {
+                setEditing(f.key);
+                setOpenDraft(null);
+              }}
+              onDraft={setOpenDraft}
               onEditDone={(v) => {
                 setEditing(null);
+                setOpenDraft(null);
                 if (v !== undefined) {
                   setEdits((e) => ({ ...e, [f.key]: v }));
                   setSelected((s) => new Set(s).add(f.key));
@@ -227,6 +237,7 @@ function FindingRow({
   editing,
   onEdit,
   onEditDone,
+  onDraft,
 }: {
   f: Finding;
   on: boolean;
@@ -235,6 +246,8 @@ function FindingRow({
   editing: boolean;
   onEdit: () => void;
   onEditDone: (v?: string) => void;
+  /** Every keystroke while editing, so the panel can keep words not yet confirmed with Done. */
+  onDraft?: (v: string) => void;
 }) {
   const [draft, setDraft] = useState(typeof f.found === 'string' ? (edit ?? f.found) : '');
   const editable = typeof f.found === 'string' && f.key !== 'website' && f.key !== 'logo_url';
@@ -276,7 +289,10 @@ function FindingRow({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <textarea
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              onDraft?.(e.target.value);
+            }}
             rows={Math.min(5, Math.max(2, Math.ceil(draft.length / 60)))}
             autoFocus
             aria-label={`Edit ${f.label}`}
