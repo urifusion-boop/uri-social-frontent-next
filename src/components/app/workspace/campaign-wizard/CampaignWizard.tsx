@@ -12,7 +12,7 @@ import type { CampaignRow, DraftSummary } from '@/src/api/CampaignService';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { uid } from '../CampaignsPage';
 import { GooglePlacement } from '../GooglePlacementPreview';
-import WizardObjectiveStep, { WizardObjectiveValue } from './WizardObjectiveStep';
+import WizardObjectiveStep, { objectiveComplete, WizardObjectiveValue } from './WizardObjectiveStep';
 import WizardPlatformStep, { WizardPlatformValue } from './WizardPlatformStep';
 import WizardGooglePlacementStep from './WizardGooglePlacementStep';
 import WizardAudienceStep, { WizardAudienceValue } from './WizardAudienceStep';
@@ -36,7 +36,7 @@ const usesGoogle = (platform: WizardPlatformValue) =>
  *  grow/shrink as platform changes without corrupting where "current" points. */
 function buildSteps(platform: WizardPlatformValue): { key: StepKey; label: string }[] {
   const steps: { key: StepKey; label: string }[] = [
-    { key: 'objective', label: 'Objective' },
+    { key: 'objective', label: 'Goal' },
     { key: 'platform', label: 'Platform' },
   ];
   if (usesGoogle(platform)) steps.push({ key: 'googlePlacement', label: 'Google placement' });
@@ -229,7 +229,7 @@ export default function CampaignWizard({
   }, [draftId, objective, platform, googlePlacement, audience, budget, creative, results]);
 
   const canAdvance = (): boolean => {
-    if (step === 'objective') return Boolean(objective);
+    if (step === 'objective') return objectiveComplete(objective);
     if (step === 'platform') return platform.mode === 'single' ? platform.touched : platform.multi.length >= 2;
     if (step === 'audience') return Boolean(audience.description.trim() && audience.city.trim());
     if (step === 'budget') return typeof budget.amountNgn === 'number' && budget.amountNgn > 0;
@@ -439,7 +439,7 @@ export default function CampaignWizard({
         >
           {step === 'objective' && (
             <WizardObjectiveStep
-              selected={objective?.value ?? ''}
+              value={objective}
               onPick={setObjective}
               platform={platform.mode === 'single' && platform.single === 'tiktok' ? 'tiktok' : 'meta'}
             />
@@ -470,6 +470,15 @@ export default function CampaignWizard({
               onChange={setCreative}
               isTikTok={platform.mode === 'single' && platform.single === 'tiktok'}
               isMeta={platform.mode === 'single' ? platform.single === 'meta' : platform.multi.includes('meta')}
+              metaBudget={
+                typeof budget.amountNgn === 'number' && budget.amountNgn > 0
+                  ? {
+                      // Multi-platform splits the budget evenly (WizardReviewStep), so Meta gets its share.
+                      amountNgn: platform.mode === 'multi' ? budget.amountNgn / Math.max(1, platform.multi.length) : budget.amountNgn,
+                      days: budget.days,
+                    }
+                  : null
+              }
             />
           )}
           {step === 'review' && objective && creative && (

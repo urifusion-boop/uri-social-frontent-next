@@ -7,6 +7,7 @@ import {
   AssetAttestation,
   CampaignService,
   CreativeProvenanceInput,
+  BudgetStructure,
   PlanAdLayout,
   PlanAdsState,
 } from '@/src/api/CampaignService';
@@ -77,6 +78,8 @@ export function AdTestBuilder({
   main,
   concepts,
   layout,
+  adSetCount = 0,
+  recommended,
   canSplit,
   dailyNgn,
   description,
@@ -88,6 +91,10 @@ export function AdTestBuilder({
   main: AdsPlanAd;
   concepts: AdsPlanAd[];
   layout: PlanAdLayout;
+  /** How many ad sets a 'grouped' layout spreads the ads across. */
+  adSetCount?: number;
+  /** What the budget table (PRD WS5) recommends for this budget. */
+  recommended?: BudgetStructure | null;
   canSplit: boolean;
   dailyNgn?: number;
   description: string;
@@ -185,6 +192,8 @@ export function AdTestBuilder({
   const shown = ads[current];
   const daily = dailyNgn ? Math.round(dailyNgn) : 0;
   const each = daily ? Math.round(daily / ads.length) : 0;
+  const groups = layout === 'grouped' ? Math.max(2, Math.min(adSetCount || 2, ads.length)) : 0;
+  const perGroup = daily && groups ? Math.round(daily / groups) : 0;
   const naira = (n: number) => `₦${n.toLocaleString()}`;
 
   const addMenu = (
@@ -469,7 +478,9 @@ export function AdTestBuilder({
         <div style={{ fontSize: 12.5, color: '#666', marginTop: 10, lineHeight: 1.45 }}>
           {layout === 'abo'
             ? `Each of these ${ads.length} ads gets its own ad set${each ? ` and ${naira(each)} a day` : ''}, so every one gets a fair test.`
-            : `All ${ads.length} ads run together in one ad set${daily ? ` and share its ${naira(daily)} a day` : ''}. Meta shows more of whichever does best.`}
+            : layout === 'grouped'
+              ? `These ${ads.length} ads run across ${groups} ad sets${perGroup ? `, ${naira(perGroup)} a day each` : ''} — set from your daily budget, so each idea gets its own budget while Meta still learns quickly.`
+              : `All ${ads.length} ads run together in one ad set${daily ? ` and share its ${naira(daily)} a day` : ''}. Meta shows more of whichever does best.`}
           {editable && (
             <>
               {' '}
@@ -481,6 +492,20 @@ export function AdTestBuilder({
         </div>
         {editable && changingLayout && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, fontSize: 12.5 }}>
+            {recommended && ads.length > 1 && (
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  checked={layout === 'grouped'}
+                  disabled={!!busy}
+                  onChange={() => run('Saving…', () => CampaignService.setPlanAdLayout(planId!, 'auto'))}
+                />
+                Recommended for your budget
+                {recommended.ad_sets > 1
+                  ? ` (${Math.min(recommended.ad_sets, ads.length)} ad sets)`
+                  : ' (one ad set)'}
+              </label>
+            )}
             <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
               <input
                 type="radio"

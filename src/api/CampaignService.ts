@@ -43,7 +43,15 @@ export interface AiVideoChoice {
   about: string;
 }
 
-export type PlanAdLayout = 'single_ad_set' | 'abo';
+// grouped: the ads spread across a few ad sets (PRD WS5 budget table, e.g. 4 ads in 2 ad sets).
+export type PlanAdLayout = 'single_ad_set' | 'abo' | 'grouped';
+/** What the PRD's budget table recommends for a plan's daily budget. */
+export interface BudgetStructure {
+  ads: number;
+  ad_sets: number;
+  band: string;
+  why: string;
+}
 
 export interface AdsPlanAd {
   image_url: string;
@@ -57,6 +65,8 @@ export interface AdsPlanAd {
 export interface PlanAdsState {
   concepts: AdsPlanAd[];
   ad_layout: PlanAdLayout;
+  ad_set_count?: number;
+  recommended?: BudgetStructure;
   can_split: boolean;
   concepts_wanted?: number;
 }
@@ -362,6 +372,8 @@ export interface LaunchFromMessageResult {
   /** The other ads tested beside `creative` in the same campaign. */
   concepts?: AdsPlanAd[];
   ad_layout?: PlanAdLayout;
+  ad_set_count?: number;
+  recommended_structure?: BudgetStructure | null;
   can_split?: boolean;
   concepts_wanted?: number;
   whatsapp_number?: string; // where ad leads route (wa.me/<this>); shown on the plan card
@@ -801,6 +813,8 @@ export class CampaignService {
      * Omitted means they have not chosen and Jane falls back to the one her goal
      * implies — which is what she always did, and got wrong often enough to matter. */
     objective?: string;
+    /** What the client wants people to DO under that objective (objectives.ACTIONS). */
+    desired_action?: string;
     business_name?: string;
     category?: string;
     creative_source?: CreativeSource;
@@ -1037,7 +1051,8 @@ export class CampaignService {
     return (await UriHttpClient.getClient().delete(`/jane-ads/meta/plan/${planId}/ads/${index}`)).data as PlanAdsState;
   }
 
-  static async setPlanAdLayout(planId: string, layout: PlanAdLayout): Promise<PlanAdsState> {
+  /** 'auto' hands the layout back to the budget table. */
+  static async setPlanAdLayout(planId: string, layout: PlanAdLayout | 'auto'): Promise<PlanAdsState> {
     return (await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/layout`, { layout }))
       .data as PlanAdsState;
   }
@@ -1156,6 +1171,17 @@ export class CampaignService {
    *  chip on a generated ad). Not brand-scoped — same list for everyone. */
   /** Suggested budgets for the builder's budget step, worked out from the same rules the planner
    *  enforces (daily floors, the fee, the longest run), each saying what it buys. */
+  /** How many ads, in how many ad sets, a Meta budget should test (PRD WS5 budget table). */
+  static async getBudgetStructure(
+    budgetNgn: number,
+    days: number
+  ): Promise<{ ads: number; ad_sets: number; band: string; why: string; days: number }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/budget-structure', {
+      params: { budget_ngn: budgetNgn, days },
+    });
+    return res.data;
+  }
+
   static async getBudgetSuggestions(platform: string, days: number): Promise<BudgetSuggestions> {
     const res = await UriHttpClient.getClient().get('/jane-ads/budget-suggestions', { params: { platform, days } });
     return res.data as BudgetSuggestions;

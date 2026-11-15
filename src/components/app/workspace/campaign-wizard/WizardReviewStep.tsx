@@ -45,6 +45,19 @@ const PINK = '#C2185B';
 
 type PlanFromMessagePayload = Parameters<typeof CampaignService.planFromMessage>[0];
 
+/** The goal step's answers, as planFromMessage fields. Instagram DMs only exist on Meta,
+ *  so on TikTok or Google that answer is left for Jane to ask about instead. */
+function goalPayload(objective: WizardObjectiveValue, onPlatform: string): Partial<PlanFromMessagePayload> {
+  const out: Partial<PlanFromMessagePayload> = {};
+  if (objective.desired_action) out.desired_action = objective.desired_action;
+  const dest = objective.destination_type;
+  if (dest && !(dest === 'instagram_dm' && (onPlatform === 'tiktok' || onPlatform === 'google'))) {
+    out.destination_type = dest;
+    if (objective.destination_value?.trim()) out.destination_value = objective.destination_value.trim();
+  }
+  return out;
+}
+
 function extractErrorMessage(e: unknown, fallback: string): string {
   const obj = e as { response?: { data?: { detail?: unknown } }; data?: { detail?: unknown } } | null;
   const detail = obj?.response?.data?.detail ?? obj?.data?.detail;
@@ -325,6 +338,7 @@ export default function WizardReviewStep({
       const res = await CampaignService.planFromMessage({
         objective: objective.value,
         message,
+        ...goalPayload(objective, platform.single),
         ...(platform.single ? { preferred_platform: platform.single } : {}),
         ...(platform.single === 'google' ? { google_placement: googlePlacement } : {}),
         ...creativePayload(creative),
@@ -399,6 +413,7 @@ export default function WizardReviewStep({
       const res = await CampaignService.planFromMessage({
         objective: objective.value,
         message,
+        ...goalPayload(objective, p),
         preferred_platform: p,
         budget_ngn_override: perPlatformBudget,
         days_override: budget.days,

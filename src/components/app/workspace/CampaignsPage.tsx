@@ -4583,6 +4583,8 @@ export function ResultCard({
             main={creative}
             concepts={result.concepts ?? []}
             layout={result.ad_layout ?? 'single_ad_set'}
+            adSetCount={result.ad_set_count ?? 0}
+            recommended={result.recommended_structure ?? null}
             canSplit={!!result.can_split}
             dailyNgn={plan.platforms[0].budget_ngn / Math.max(1, plan.platforms[0].days)}
             description={briefText ?? ''}
