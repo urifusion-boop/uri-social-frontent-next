@@ -24,6 +24,21 @@ export class SocialAccountService {
   // Ads-scoped Facebook connection (Per-Brand Page Connection plan) — separate grant
   // from finalizeFacebookDirect above (publishing-only scopes); this one carries
   // ads_management/pages_manage_ads, required for Jane's campaigns to launch.
+  /** After signing in for ads with several Pages: the Pages to choose from. */
+  static async facebookAdsPages(token: string): Promise<{ id: string; name: string; picture: string }[]> {
+    const res = await UriHttpClient.getClient().get(`/social-media/connect/facebook-ads/pending/${encodeURIComponent(token)}`);
+    return res.data?.pages ?? [];
+  }
+
+  /** Connect the chosen Page for ads; then finalize it with finalizeFacebookAds. */
+  static async pickFacebookAdsPage(token: string, pageId: string): Promise<{ fb_page_id: string; page_name: string }> {
+    const res = await UriHttpClient.getClient().post('/social-media/connect/facebook-ads/pick', {
+      token,
+      page_id: pageId,
+    });
+    return res.data;
+  }
+
   static async finalizeFacebookAds(fbPageId: string): Promise<UriResponse<{ fb_page_id: string }>> {
     const response: AxiosResponse<UriResponse<{ fb_page_id: string }>> = await UriHttpClient.getClient().post(
       '/social-media/connect/facebook-ads/finalize',

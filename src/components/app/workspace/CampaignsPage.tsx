@@ -48,6 +48,9 @@ import ObjectivePicker from '@/src/components/app/workspace/ObjectivePicker';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
+/** Where a Page's owner approves Uri Creative (URI Social's Business Manager) as a partner (Meta Business Suite → Settings → Requests). */
+const META_REQUESTS_URL = 'https://business.facebook.com/latest/settings/requests';
+
 const PINK = '#C2185B';
 
 // A wallet top-up handed off to Squad but not yet settled.
@@ -4343,11 +4346,24 @@ export function ResultCard({
     // one thing they can actually change: their own role on the Page.
     if (result.stage === 'meta_connection_page_not_shared') {
       return (
-        <JaneBubble>
-          I can&rsquo;t advertise from {result.page_name || 'this Page'} — your Facebook account doesn&rsquo;t have full
-          admin access to it. Ask whoever manages the Page to make you an admin, then reconnect and we&rsquo;ll carry on
-          from here.
-        </JaneBubble>
+        <div>
+          <JaneBubble>
+            Almost there — Facebook needs you to approve URI Social&rsquo;s business account, <b>Uri Creative</b>, as a partner on{' '}
+            {result.page_name || 'your Page'} before I can run ads from it. We&rsquo;ve sent the request: open Meta
+            Business Suite, go to <b>Settings → Requests</b>, and approve Uri Creative. Then come back and continue — no
+            need to reconnect.
+          </JaneBubble>
+          <div className="camp-indent" style={{ marginLeft: 40, marginTop: 8 }}>
+            <a
+              href={META_REQUESTS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: '#C2185B', fontWeight: 700, fontSize: 13.5 }}
+            >
+              Open requests in Meta Business Suite →
+            </a>
+          </div>
+        </div>
       );
     }
     if (result.stage === 'meta_connection_no_page') {
