@@ -71,20 +71,35 @@ export default function WebsiteFirstStep({ initialUrl = '', onApplied, onManual 
     setConnecting(true);
     setConnectNote('');
     if (watch.current) clearInterval(watch.current);
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (watch.current) clearInterval(watch.current);
+      window.removeEventListener('message', onMessage);
+      if (!popup.closed) popup.close();
+      setConnecting(false);
+      if (failed) reset();
+      void readSocial(source);
+    };
+    // The sign-in window says so itself once the account is connected, and closes.
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin === window.location.origin && e.data?.type === 'uri-connected') finish();
+    };
+    window.addEventListener('message', onMessage);
     const isConnected = async () => {
       const res = await loadConnections({ force: true }).catch(() => null);
       return (res?.responseData?.connected_platforms ?? []).some((p) => p?.toLowerCase() === source);
     };
+    // And in case that message never comes: keep checking the account list.
     watch.current = setInterval(async () => {
       const closed = popup.closed;
       if (await isConnected()) {
+        finish();
+      } else if (closed && !finished) {
+        finished = true;
         if (watch.current) clearInterval(watch.current);
-        if (!popup.closed) popup.close();
-        setConnecting(false);
-        if (failed) reset();
-        void readSocial(source);
-      } else if (closed) {
-        if (watch.current) clearInterval(watch.current);
+        window.removeEventListener('message', onMessage);
         setConnecting(false);
         setConnectNote(`Your ${LABEL[source]} isn't connected yet. Try again, or choose another way below.`);
       }
