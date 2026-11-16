@@ -2859,6 +2859,18 @@ const ConnectionsPage = ({
       .catch(() => undefined);
   };
 
+  // Opened as the small sign-in window from brand setup: once the account is connected, tell setup
+  // and close, so the owner is straight back where they were instead of left on this page.
+  const handBackToSetup = (platform: string) => {
+    if (typeof window === 'undefined' || !window.opener || window.name !== 'uri-connect') return;
+    try {
+      window.opener.postMessage({ type: 'uri-connected', platform }, window.location.origin);
+    } catch {
+      /* the setup page was closed: nothing to tell */
+    }
+    window.close();
+  };
+
   const loadStatuses = async () => {
     if (!statusesLoadedRef.current) setLoading(true);
     try {
@@ -3028,6 +3040,7 @@ const ConnectionsPage = ({
               }
               loadStatuses();
               warnIfInboxBlocked();
+              handBackToSetup('instagram');
             } else {
               ToastService.showToast('Instagram connection failed. Please try again.', ToastTypeEnum.Error);
             }
@@ -3111,6 +3124,7 @@ const ConnectionsPage = ({
               posthog.capture('social_account_connected', { platform: 'facebook', page_name: pageName });
               loadStatuses();
               warnIfInboxBlocked();
+              handBackToSetup('facebook');
             } else {
               ToastService.showToast('Facebook connection failed. Please try again.', ToastTypeEnum.Error);
             }
@@ -3221,6 +3235,7 @@ const ConnectionsPage = ({
         }
         loadStatuses();
         warnIfInboxBlocked();
+        handBackToSetup(isFb ? 'facebook' : 'instagram');
       } else {
         ToastService.showToast(
           res.responseMessage || 'Could not connect those accounts. Please try again.',

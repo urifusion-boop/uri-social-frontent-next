@@ -133,11 +133,15 @@ const INDUSTRY_PRESETS = [
 ];
 
 const fastTrackFor = (p: Partial<BrandProfileData>): Step[] => {
+  // Only what the read didn't answer. A read now also finds the logo, colours, visual style and
+  // audience, so with a full read setup goes straight to the summary to check and finish.
   const steps: Step[] = ['website'];
   if (!p.brand_name || !p.industry) steps.push('basics');
-  steps.push('identity');
+  if (!p.logo_url || !p.brand_colors?.length) steps.push('identity');
   if (!p.derived_voice) steps.push('personality');
-  steps.push('visualStyle', 'audience', 'preview');
+  if (!p.style_selections?.length) steps.push('visualStyle');
+  if (!p.primary_goal || !p.ideal_customer_profile) steps.push('audience');
+  steps.push('preview');
   return steps;
 };
 
