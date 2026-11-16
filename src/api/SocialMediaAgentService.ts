@@ -223,8 +223,10 @@ export interface InstagramAudioTrack {
   artist: string;
   duration_seconds: number;
   cover_url?: string | null;
-  /** A temporary link (about 1.5 days) to a preview of the track; may be missing. */
+  /** A temporary link (about 1.5 days) to an audio file for the track; many tracks have none. */
   preview_url?: string | null;
+  /** The track's page on instagram.com. A web page, not audio: it can be opened but not played in place. */
+  instagram_url?: string | null;
 }
 
 /** The track saved on a Reel draft, with its mix: both volumes are 1-100 (Instagram's own range). */

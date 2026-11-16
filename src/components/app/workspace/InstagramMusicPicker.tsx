@@ -300,25 +300,51 @@ const InstagramMusicPicker = ({ draftId, value, onChange, disabled }: Props) => 
                   borderRadius: 6,
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => togglePreview(t)}
-                  disabled={!t.preview_url}
-                  aria-label={playingId === t.audio_id ? `Stop preview of ${t.title}` : `Play preview of ${t.title}`}
-                  title={t.preview_url ? '' : 'No preview available'}
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    border: `1px solid ${BORDER}`,
-                    background: '#fff',
-                    cursor: t.preview_url ? 'pointer' : 'not-allowed',
-                    opacity: t.preview_url ? 1 : 0.4,
-                    color: PRIMARY,
-                  }}
-                >
-                  {playingId === t.audio_id ? '■' : '▶'}
-                </button>
+                {t.preview_url || !t.instagram_url ? (
+                  <button
+                    type="button"
+                    onClick={() => togglePreview(t)}
+                    disabled={!t.preview_url}
+                    aria-label={playingId === t.audio_id ? `Stop preview of ${t.title}` : `Play preview of ${t.title}`}
+                    title={t.preview_url ? '' : 'No preview available'}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      border: `1px solid ${BORDER}`,
+                      background: '#fff',
+                      cursor: t.preview_url ? 'pointer' : 'not-allowed',
+                      opacity: t.preview_url ? 1 : 0.4,
+                      color: PRIMARY,
+                    }}
+                  >
+                    {playingId === t.audio_id ? '■' : '▶'}
+                  </button>
+                ) : (
+                  // Instagram gave no audio file for this track, only its page: open it to listen there.
+                  <a
+                    href={t.instagram_url ?? undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Listen to ${t.title} on Instagram`}
+                    title="Listen on Instagram"
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      border: `1px solid ${BORDER}`,
+                      background: '#fff',
+                      color: PRIMARY,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textDecoration: 'none',
+                      fontSize: 13,
+                    }}
+                  >
+                    ↗
+                  </a>
+                )}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
