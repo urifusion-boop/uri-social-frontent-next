@@ -65,6 +65,20 @@ export class BrandIntelService {
     return res.data;
   }
 
+  /** A different logo chosen in the review panel: stored and returned, not saved to the Playbook. */
+  static async uploadLogo(file: File): Promise<string> {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await UriHttpClient.getClient().post<{ logo_url: string }>(
+      `${BASE.replace('/website-reads', '')}/logo`,
+      form,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }
+    );
+    return res.data.logo_url;
+  }
+
   static async apply(
     readId: string,
     fields: string[],
