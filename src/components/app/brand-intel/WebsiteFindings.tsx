@@ -380,11 +380,7 @@ function Value({ k, v }: { k: string; v: FindingValue }) {
           const st = getStyle(slug);
           return (
             <div key={slug} style={{ width: 132, border: `1px solid ${C.line}`, borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
-              {st?.image ? (
-                <img src={st.image} alt="" style={{ width: '100%', height: 64, objectFit: 'cover', display: 'block' }} />
-              ) : (
-                <div style={{ height: 64, background: st ? `linear-gradient(135deg, ${st.gradient[0]}, ${st.gradient[1]})` : C.soft }} />
-              )}
+              <StylePicture image={st?.image} gradient={st?.gradient} />
               <div style={{ padding: '6px 8px' }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.ink }}>{st?.name ?? slug}</div>
                 {st?.description && <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.35 }}>{st.description}</div>}
@@ -443,6 +439,22 @@ function Value({ k, v }: { k: string; v: FindingValue }) {
     );
   }
   return <>{String(v)}</>;
+}
+
+/** A style's preview picture, or its colours when the picture can't be loaded (many of the
+ * library's pictures were hosted on Cloudinary, which no longer serves them). */
+function StylePicture({ image, gradient }: { image?: string; gradient?: [string, string] }) {
+  const [broken, setBroken] = useState(false);
+  const fill = gradient ? `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]})` : C.soft;
+  if (!image || broken) return <div style={{ height: 64, background: fill }} />;
+  return (
+    <img
+      src={image}
+      alt=""
+      onError={() => setBroken(true)}
+      style={{ width: '100%', height: 64, objectFit: 'cover', display: 'block', background: fill }}
+    />
+  );
 }
 
 function summary(v: FindingValue, key = ''): string {
