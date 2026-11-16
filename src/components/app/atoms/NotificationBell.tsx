@@ -49,7 +49,11 @@ export default function NotificationBell({
   const router = useRouter();
 
   // Fetch notifications on first open
+  // On a phone the list is placed against the screen, not the bell: the bell sits mid-header, so a
+  // near-full-width list hung off it ran past the left edge (cut off on staging, 2026-11-16).
+  const [mobileTop, setMobileTop] = useState(64);
   const handleToggle = useCallback(() => {
+    if (ref.current) setMobileTop(Math.round(ref.current.getBoundingClientRect().bottom + 8));
     setOpen((prev) => {
       if (!prev && notifications.length === 0) fetchNotifications(1);
       return !prev;
@@ -168,11 +172,9 @@ export default function NotificationBell({
       {open && (
         <div
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 8px)',
-            right: isMobile ? -60 : 0,
-            width: isMobile ? 'calc(100vw - 32px)' : 360,
-            maxWidth: isMobile ? 'calc(100vw - 32px)' : 360,
+            ...(isMobile
+              ? { position: 'fixed' as const, top: mobileTop, left: 12, right: 12 }
+              : { position: 'absolute' as const, top: 'calc(100% + 8px)', right: 0, width: 360, maxWidth: 360 }),
             background: '#fff',
             borderRadius: 12,
             boxShadow: '0 8px 40px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.06)',
