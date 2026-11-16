@@ -2802,6 +2802,10 @@ const ConnectionsPage = ({
   // The same picker also lists Facebook Pages after a Meta login that manages several
   // Pages (candidate.ig_user_id then holds the Page id).
   const [pickerPlatform, setPickerPlatform] = useState<'instagram' | 'facebook'>('instagram');
+  // Ads: the Page to run ads from, when the person manages several.
+  const [adsPickToken, setAdsPickToken] = useState<string | null>(null);
+  const [adsPickPages, setAdsPickPages] = useState<{ id: string; name: string; picture: string }[]>([]);
+  const [adsPicking, setAdsPicking] = useState<string | null>(null);
 
   const WA_CACHE_KEY = 'uri_wa_connection';
 
@@ -2876,6 +2880,34 @@ const ConnectionsPage = ({
     const which = platform || back.source || '';
     window.location.replace(`/social-media/brand-setup/?${ok ? 'read' : 'connect_failed'}=${encodeURIComponent(which)}`);
     return true;
+  };
+
+  const finalizeAdsPage = (fbPageId: string, pageName: string) =>
+    SocialAccountService.finalizeFacebookAds(fbPageId)
+      .then((res) => {
+        if (res.status) {
+          ToastService.showToast(`${pageName} connected for ads!`, ToastTypeEnum.Success);
+          posthog.capture('social_account_connected', { platform: 'facebook_ads', page_name: pageName });
+          loadStatuses();
+        } else {
+          ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error);
+        }
+      })
+      .catch(() => ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error));
+
+  const pickAdsPage = async (pageId: string) => {
+    if (!adsPickToken) return;
+    setAdsPicking(pageId);
+    try {
+      const chosen = await SocialAccountService.pickFacebookAdsPage(adsPickToken, pageId);
+      setAdsPickToken(null);
+      setAdsPickPages([]);
+      await finalizeAdsPage(chosen.fb_page_id, chosen.page_name);
+    } catch {
+      ToastService.showToast('That Page couldn\u2019t be connected. Please try again.', ToastTypeEnum.Error);
+    } finally {
+      setAdsPicking(null);
+    }
   };
 
   const loadStatuses = async () => {
@@ -3162,27 +3194,26 @@ const ConnectionsPage = ({
           })
           .catch(() => ToastService.showToast('TikTok connection failed. Please try again.', ToastTypeEnum.Error));
       }
+    } else if (connected === 'facebook_ads_pick') {
+      // Signed in for ads with several Pages: choose which one ads run from.
+      const token = searchParams.get('token') ?? '';
+      router.replace('/workspace/?tab=connections');
+      if (token) {
+        setAdsPickToken(token);
+        SocialAccountService.facebookAdsPages(token)
+          .then(setAdsPickPages)
+          .catch(() => {
+            setAdsPickToken(null);
+            ToastService.showToast('That Facebook sign-in has expired. Please connect again.', ToastTypeEnum.Error);
+          });
+      }
     } else if (connected === 'facebook_ads') {
       // Ads-scoped grant (Per-Brand Page Connection plan) — separate from facebook_direct
       // above; this is what Jane's campaigns require to launch from the brand's own Page.
       const fbPageId = searchParams.get('fb_page_id') ?? '';
       const pageName = searchParams.get('page_name') ?? 'Facebook Page';
       router.replace('/workspace/?tab=connections');
-      if (fbPageId) {
-        SocialAccountService.finalizeFacebookAds(fbPageId)
-          .then((res) => {
-            if (res.status) {
-              ToastService.showToast(`${pageName} connected for ads!`, ToastTypeEnum.Success);
-              posthog.capture('social_account_connected', { platform: 'facebook_ads', page_name: pageName });
-              loadStatuses();
-            } else {
-              ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error);
-            }
-          })
-          .catch(() =>
-            ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error)
-          );
-      }
+      if (fbPageId) finalizeAdsPage(fbPageId, pageName);
     } else if (connected === 'true') {
       const platform = searchParams.get('platform') ?? '';
       const username = searchParams.get('username') ? decodeURIComponent(searchParams.get('username')!) : platform;
@@ -3533,6 +3564,70 @@ const ConnectionsPage = ({
       onOpenSectionNav={onOpenSectionNav}
     >
       {/* Facebook page selection after OAuth callback */}
+      {adsPickToken && (
+        <div
+          style={{
+            background: '#F9FAFB',
+            border: '1.5px solid #E0DEF7',
+            borderRadius: 14,
+            padding: '20px 18px',
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111', marginBottom: 6 }}>
+            Which Facebook Page should your ads run from?
+          </div>
+          <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 14 }}>
+            You manage more than one Page. Your ads will show this Page&rsquo;s name and picture.
+          </div>
+          {adsPickPages.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: '#9CA3AF' }}>Loading your Pages...</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {adsPickPages.map((pg) => (
+                <button
+                  key={pg.id}
+                  type="button"
+                  disabled={!!adsPicking}
+                  onClick={() => pickAdsPage(pg.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '11px 14px',
+                    borderRadius: 10,
+                    border: `2px solid ${adsPicking === pg.id ? '#C2185B' : '#edecea'}`,
+                    background: '#fff',
+                    cursor: adsPicking ? 'not-allowed' : 'pointer',
+                    opacity: adsPicking && adsPicking !== pg.id ? 0.6 : 1,
+                    textAlign: 'left',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {pg.picture ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={pg.picture} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ fontSize: 22 }}>📘</span>
+                  )}
+                  <span style={{ fontSize: 13.5, fontWeight: 600, color: '#111', flex: 1 }}>{pg.name}</span>
+                  {adsPicking === pg.id && <span style={{ fontSize: 12, color: '#C2185B' }}>Connecting…</span>}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setAdsPickToken(null);
+              setAdsPickPages([]);
+            }}
+            style={{ marginTop: 12, background: 'none', border: 'none', color: '#6B7280', fontSize: 12.5, cursor: 'pointer', padding: 0 }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
       {igPendingToken && (
         <div
           style={{
@@ -3905,8 +4000,16 @@ const ConnectionsPage = ({
                           {p.id === 'facebook_ads' && s?.meta_connection_state === 'page_not_shared' && (
                             <span style={{ color: '#c62828' }}>
                               {' '}
-                              — you don&rsquo;t have full admin access to this Page. Ask whoever manages it to make you
-                              an admin, then reconnect.
+                              — approve Uri Creative (URI Social) as a partner in Meta Business Suite (Settings → Requests) to run
+                              ads from this Page.{' '}
+                              <a
+                                href="https://business.facebook.com/latest/settings/requests"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ color: '#C2185B', fontWeight: 700 }}
+                              >
+                                Open requests
+                              </a>
                             </span>
                           )}
                           {p.id === 'google_ads' && s?.google_mode === 'uri' && (
