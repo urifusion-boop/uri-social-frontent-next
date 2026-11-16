@@ -5,6 +5,8 @@ import { BrandIntelService, Finding, FindingValue, WebsiteRead } from '@/src/api
 import type { BrandProfileData } from '@/src/api/BrandProfileService';
 import { C, font, GRADIENT, pill } from '@/src/components/app/workspace/PlaybookPanel';
 import { useMemo, useState } from 'react';
+import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
+import { getStyle } from '@/src/data/styleLibrary';
 import { errorText } from './useWebsiteRead';
 
 type Mode = 'onboarding' | 'sheet';
@@ -25,7 +27,19 @@ export function readSourceName(read: Pick<WebsiteRead, 'site' | 'url'> | null | 
   return 'your website';
 }
 
-const SECTION_ORDER = ['Brand Identity', 'Business Details', 'Audience', 'Brand Voice', 'Brand Colors', 'Language & Region'];
+const SECTION_ORDER = [
+  'Brand Identity',
+  'Business Details',
+  'Audience',
+  'Brand Voice',
+  'Brand Colors',
+  'Visual Style',
+  'Typography',
+  'Content Strategy',
+  'Call to Action',
+  'Language & Region',
+];
+const FONT_KEYS = ['primary_font', 'secondary_font'];
 const NETWORK_LABELS: Record<string, string> = {
   instagram: 'Instagram',
   facebook: 'Facebook',
@@ -267,7 +281,9 @@ function FindingRow({
   onDraft?: (v: string) => void;
 }) {
   const [draft, setDraft] = useState(typeof f.found === 'string' ? (edit ?? f.found) : '');
-  const editable = typeof f.found === 'string' && f.key !== 'website' && f.key !== 'logo_url';
+  // Chosen from a library, not typed: changed in the Playbook's own picker, not here.
+  const editable =
+    typeof f.found === 'string' && f.key !== 'website' && f.key !== 'logo_url' && !FONT_KEYS.includes(f.key);
   const shown: FindingValue = edit ?? f.found;
 
   return (
@@ -340,7 +356,7 @@ function FindingRow({
       {f.status === 'different' && f.current && (
         <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.45 }}>
           {f.merge ? 'Added to what you have now: ' : 'Yours now: '}
-          <span style={{ color: C.body }}>{summary(f.current)}</span>
+          <span style={{ color: C.body }}>{summary(f.current, f.key)}</span>
         </div>
       )}
     </div>
@@ -355,6 +371,41 @@ function Value({ k, v }: { k: string; v: FindingValue }) {
         alt="Logo Jane found"
         style={{ maxWidth: 160, maxHeight: 80, objectFit: 'contain', borderRadius: 8, border: `1px solid ${C.line}`, background: '#fff', padding: 6 }}
       />
+    );
+  }
+  if (k === 'style_selections' && Array.isArray(v)) {
+    return (
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {v.map((slug) => {
+          const st = getStyle(slug);
+          return (
+            <div key={slug} style={{ width: 132, border: `1px solid ${C.line}`, borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
+              {st?.image ? (
+                <img src={st.image} alt="" style={{ width: '100%', height: 64, objectFit: 'cover', display: 'block' }} />
+              ) : (
+                <div style={{ height: 64, background: st ? `linear-gradient(135deg, ${st.gradient[0]}, ${st.gradient[1]})` : C.soft }} />
+              )}
+              <div style={{ padding: '6px 8px' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.ink }}>{st?.name ?? slug}</div>
+                {st?.description && <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.35 }}>{st.description}</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+  if (FONT_KEYS.includes(k) && typeof v === 'string') {
+    const font = getFont(v);
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <link rel="stylesheet" href={GOOGLE_FONTS_URL} />
+        <span style={{ fontFamily: font?.fontFamily, fontSize: 20, color: C.ink }}>{font?.previewText ?? v}</span>
+        <span style={{ fontSize: 12, color: C.muted }}>
+          {font?.name ?? v}
+          {font?.description ? ` — ${font.description}` : ''}
+        </span>
+      </div>
     );
   }
   if (k === 'brand_colors' && Array.isArray(v)) {
@@ -394,7 +445,9 @@ function Value({ k, v }: { k: string; v: FindingValue }) {
   return <>{String(v)}</>;
 }
 
-function summary(v: FindingValue): string {
+function summary(v: FindingValue, key = ''): string {
+  if (key === 'style_selections' && Array.isArray(v)) v = v.map((x) => getStyle(x)?.name ?? x);
+  if (FONT_KEYS.includes(key) && typeof v === 'string') v = getFont(v)?.name ?? v;
   if (Array.isArray(v)) return v.slice(0, 4).join(', ') + (v.length > 4 ? ` +${v.length - 4} more` : '');
   if (v && typeof v === 'object') return Object.keys(v).map((n) => NETWORK_LABELS[n] ?? n).join(', ');
   const s = String(v);
