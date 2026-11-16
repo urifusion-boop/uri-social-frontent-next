@@ -1,5 +1,6 @@
 'use client';
 
+import { SETUP_RETURN_KEY } from '@/src/components/app/brand-intel/setupReturn';
 import { IS_PRODUCTION } from '@/src/configs/env.config';
 import posthog from 'posthog-js';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
@@ -2859,16 +2860,22 @@ const ConnectionsPage = ({
       .catch(() => undefined);
   };
 
-  // Opened as the small sign-in window from brand setup: once the account is connected, tell setup
-  // and close, so the owner is straight back where they were instead of left on this page.
-  const handBackToSetup = (platform: string) => {
-    if (typeof window === 'undefined' || !window.opener || window.name !== 'uri-connect') return;
+  // Connecting an account from brand setup: once it's connected (or the owner backed out), send them
+  // straight back to the setup step they were on, which then reads the account — instead of
+  // leaving them here on Connected Accounts having lost their place.
+  const handBackToSetup = (platform: string, ok = true) => {
+    if (typeof window === 'undefined') return false;
+    let back: { source?: string; at?: number } | null = null;
     try {
-      window.opener.postMessage({ type: 'uri-connected', platform }, window.location.origin);
+      back = JSON.parse(localStorage.getItem(SETUP_RETURN_KEY) || 'null');
     } catch {
-      /* the setup page was closed: nothing to tell */
+      back = null;
     }
-    window.close();
+    localStorage.removeItem(SETUP_RETURN_KEY);
+    if (!back?.at || Date.now() - back.at > 30 * 60 * 1000) return false;
+    const which = platform || back.source || '';
+    window.location.replace(`/social-media/brand-setup/?${ok ? 'read' : 'connect_failed'}=${encodeURIComponent(which)}`);
+    return true;
   };
 
   const loadStatuses = async () => {
@@ -3197,6 +3204,7 @@ const ConnectionsPage = ({
       const err = searchParams.get('error') ?? '';
       const storedPlatform = localStorage.getItem('uri_connect_platform') ?? '';
       localStorage.removeItem('uri_connect_platform');
+      if (handBackToSetup(storedPlatform, false)) return;
       setConnectError({ platform: storedPlatform, error: err });
       router.replace('/workspace/?tab=connections');
       if (typeof window !== 'undefined' && window.opener) window.close();

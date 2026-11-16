@@ -2,8 +2,8 @@
 
 import type { BrandProfileData } from '@/src/api/BrandProfileService';
 import { C, font, GRADIENT } from '@/src/components/app/workspace/PlaybookPanel';
-import { loadConnections } from '@/src/hooks/useConnectedAccounts';
 import { useEffect, useRef, useState } from 'react';
+import { SETUP_RETURN_KEY } from './setupReturn';
 import WebsiteFindings from './WebsiteFindings';
 import WebsiteReadProgress from './WebsiteReadProgress';
 import { useWebsiteRead } from './useWebsiteRead';
@@ -38,11 +38,6 @@ export default function WebsiteFirstStep({ initialUrl = '', onApplied, onManual 
   const [needsConnect, setNeedsConnect] = useState<SocialSource | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connectNote, setConnectNote] = useState('');
-  const watch = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => () => {
-    if (watch.current) clearInterval(watch.current);
-  }, []);
-
   const readSocial = async (source: SocialSource) => {
     setNeedsConnect(null);
     setConnectNote('');
@@ -52,59 +47,44 @@ export default function WebsiteFirstStep({ initialUrl = '', onApplied, onManual 
 
   // A read that started and then found no connection says so the same way.
   const failedSource = failed && read?.error?.code === 'not_connected' ? sourceOf(read) : null;
-  const connectFor = needsConnect && error && /connect/i.test(error) ? needsConnect : failedSource;
+  const connectFor = needsConnect && ((error && /connect/i.test(error)) || connectNote) ? needsConnect : failedSource;
 
-  /** Meta's sign-in in a small window; once the account shows up as connected, read it. */
+  /** Meta's sign-in, in this same tab. Once it's connected the app brings the owner straight back
+   * here (see returnToSetup in WorkspaceDashboard) and the read starts by itself. A separate
+   * sign-in window couldn't be relied on: after Facebook's pages it no longer knew it had been
+   * opened by setup, so it stayed open on Connected Accounts and people lost their place. */
   const connect = (source: SocialSource) => {
     const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
     const path = source === 'instagram' ? 'instagram-direct' : 'facebook-direct';
     localStorage.setItem('outstand_connect_platform', source);
-    const popup = window.open(
-      `${apiBase}/social-media/connect/${path}/initiate?source=settings`,
-      'uri-connect',
-      'width=620,height=720,left=200,top=80'
-    );
-    if (!popup) {
-      setConnectNote('Your browser blocked the sign-in window. Allow pop-ups for this site and try again.');
-      return;
-    }
+    localStorage.setItem(SETUP_RETURN_KEY, JSON.stringify({ source, at: Date.now() }));
     setConnecting(true);
     setConnectNote('');
-    if (watch.current) clearInterval(watch.current);
-    let finished = false;
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      if (watch.current) clearInterval(watch.current);
-      window.removeEventListener('message', onMessage);
-      if (!popup.closed) popup.close();
-      setConnecting(false);
-      if (failed) reset();
-      void readSocial(source);
-    };
-    // The sign-in window says so itself once the account is connected, and closes.
-    const onMessage = (e: MessageEvent) => {
-      if (e.origin === window.location.origin && e.data?.type === 'uri-connected') finish();
-    };
-    window.addEventListener('message', onMessage);
-    const isConnected = async () => {
-      const res = await loadConnections({ force: true }).catch(() => null);
-      return (res?.responseData?.connected_platforms ?? []).some((p) => p?.toLowerCase() === source);
-    };
-    // And in case that message never comes: keep checking the account list.
-    watch.current = setInterval(async () => {
-      const closed = popup.closed;
-      if (await isConnected()) {
-        finish();
-      } else if (closed && !finished) {
-        finished = true;
-        if (watch.current) clearInterval(watch.current);
-        window.removeEventListener('message', onMessage);
-        setConnecting(false);
-        setConnectNote(`Your ${LABEL[source]} isn't connected yet. Try again, or choose another way below.`);
-      }
-    }, 2500);
+    window.location.href = `${apiBase}/social-media/connect/${path}/initiate?source=settings`;
   };
+
+  // Back from Facebook: read the account just connected, or say it wasn't connected.
+  const handledReturn = useRef(false);
+  useEffect(() => {
+    if (!resumed || handledReturn.current || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const readNow = params.get('read');
+    const notConnected = params.get('connect_failed');
+    if (!readNow && !notConnected) return;
+    handledReturn.current = true;
+    params.delete('read');
+    params.delete('connect_failed');
+    const rest = params.toString();
+    window.history.replaceState(null, '', window.location.pathname + (rest ? `?${rest}` : ''));
+    if (readNow === 'instagram' || readNow === 'facebook') {
+      if (failed) reset();
+      void readSocial(readNow);
+    } else if (notConnected === 'instagram' || notConnected === 'facebook') {
+      setNeedsConnect(notConnected);
+      setConnectNote(`Your ${LABEL[notConnected]} isn't connected yet. Try again, or choose another way below.`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumed]);
 
   const begin = async () => {
     if (!url.trim()) {
@@ -240,11 +220,11 @@ export default function WebsiteFirstStep({ initialUrl = '', onApplied, onManual 
         >
           <div style={{ fontSize: 13, color: C.amber, lineHeight: 1.5 }}>
             {connecting
-              ? `Finish signing in to Facebook in the window that opened. I'll start reading your ${LABEL[connectFor]} as soon as it's connected.`
+              ? `Taking you to Facebook… You'll come straight back here and I'll read your ${LABEL[connectFor]}.`
               : `Your ${LABEL[connectFor]} isn't connected yet. Connect it here and I'll read it straight away.`}
           </div>
           <button type="button" disabled={connecting} onClick={() => connect(connectFor)} style={{ ...primaryBtn, opacity: connecting ? 0.7 : 1 }}>
-            {connecting ? 'Waiting for Facebook…' : `Connect ${LABEL[connectFor]}`}
+            {connecting ? 'Opening Facebook…' : `Connect ${LABEL[connectFor]}`}
           </button>
         </div>
       ) : (
@@ -282,6 +262,7 @@ export default function WebsiteFirstStep({ initialUrl = '', onApplied, onManual 
 }
 
 type SocialSource = 'instagram' | 'facebook';
+
 const LABEL: Record<SocialSource, string> = { instagram: 'Instagram', facebook: 'Facebook Page' };
 
 /** Which account a "not connected" read was for — the read itself only says so in its message. */
