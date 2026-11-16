@@ -27,7 +27,7 @@ function readDismissed(): string {
 }
 
 /**
- * "Fill your Playbook from your website" — the existing-user entry to Website → Playbook.
+ * "Fill your Playbook from your website or social pages" — the existing-user entry to Website → Playbook.
  * Sits with the other Playbook panels; the findings open in a side sheet so the Playbook stays
  * in view while the owner decides.
  */
@@ -102,7 +102,7 @@ export default function PlaybookWebsitePanel({ profile, onProfileUpdate, disable
             🌐
           </span>
         }
-        title="Fill your Playbook from your website"
+        title="Fill your Playbook from your website or social pages"
         tags={
           waiting ? (
             <span style={pill('#FDF2F7', C.pink)}>{pending.length} new</span>
