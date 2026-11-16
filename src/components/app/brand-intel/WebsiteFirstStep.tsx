@@ -2,7 +2,8 @@
 
 import type { BrandProfileData } from '@/src/api/BrandProfileService';
 import { C, font, GRADIENT } from '@/src/components/app/workspace/PlaybookPanel';
-import { useEffect, useState } from 'react';
+import { loadConnections } from '@/src/hooks/useConnectedAccounts';
+import { useEffect, useRef, useState } from 'react';
 import WebsiteFindings from './WebsiteFindings';
 import WebsiteReadProgress from './WebsiteReadProgress';
 import { useWebsiteRead } from './useWebsiteRead';
@@ -33,6 +34,63 @@ export default function WebsiteFirstStep({ initialUrl = '', onApplied, onManual 
   const failed = usable && read.status === 'failed';
   const done = usable && read.status === 'done';
 
+  // Instagram or Facebook asked for but not connected yet: offer to connect it right here.
+  const [needsConnect, setNeedsConnect] = useState<SocialSource | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [connectNote, setConnectNote] = useState('');
+  const watch = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => () => {
+    if (watch.current) clearInterval(watch.current);
+  }, []);
+
+  const readSocial = async (source: SocialSource) => {
+    setNeedsConnect(null);
+    setConnectNote('');
+    const r = await start('', false, source);
+    if (!r) setNeedsConnect(source); // only "not connected" stops it before it starts
+  };
+
+  // A read that started and then found no connection says so the same way.
+  const failedSource = failed && read?.error?.code === 'not_connected' ? sourceOf(read) : null;
+  const connectFor = needsConnect && error && /connect/i.test(error) ? needsConnect : failedSource;
+
+  /** Meta's sign-in in a small window; once the account shows up as connected, read it. */
+  const connect = (source: SocialSource) => {
+    const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
+    const path = source === 'instagram' ? 'instagram-direct' : 'facebook-direct';
+    localStorage.setItem('outstand_connect_platform', source);
+    const popup = window.open(
+      `${apiBase}/social-media/connect/${path}/initiate?source=settings`,
+      'uri-connect',
+      'width=620,height=720,left=200,top=80'
+    );
+    if (!popup) {
+      setConnectNote('Your browser blocked the sign-in window. Allow pop-ups for this site and try again.');
+      return;
+    }
+    setConnecting(true);
+    setConnectNote('');
+    if (watch.current) clearInterval(watch.current);
+    const isConnected = async () => {
+      const res = await loadConnections({ force: true }).catch(() => null);
+      return (res?.responseData?.connected_platforms ?? []).some((p) => p?.toLowerCase() === source);
+    };
+    watch.current = setInterval(async () => {
+      const closed = popup.closed;
+      if (await isConnected()) {
+        if (watch.current) clearInterval(watch.current);
+        if (!popup.closed) popup.close();
+        setConnecting(false);
+        if (failed) reset();
+        void readSocial(source);
+      } else if (closed) {
+        if (watch.current) clearInterval(watch.current);
+        setConnecting(false);
+        setConnectNote(`Your ${LABEL[source]} isn't connected yet. Try again, or choose another way below.`);
+      }
+    }, 2500);
+  };
+
   const begin = async () => {
     if (!url.trim()) {
       setError('Add your website address, like yourbusiness.com.');
@@ -50,7 +108,7 @@ export default function WebsiteFirstStep({ initialUrl = '', onApplied, onManual 
         <WebsiteFindings
           read={read}
           mode="onboarding"
-          skipLabel="Set up by hand"
+          skipLabel="Setup Manually"
           onSkip={() => onManual(read.url)}
           onApplied={(updates) => onApplied({ website: read.url, ...updates })}
         />
@@ -63,7 +121,7 @@ export default function WebsiteFirstStep({ initialUrl = '', onApplied, onManual 
       <div style={{ ...font, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <WebsiteReadProgress read={read} />
         <button type="button" onClick={() => onManual(read.url)} style={linkBtn}>
-          Set up by hand instead
+          Setup Manually instead
         </button>
       </div>
     );
@@ -94,9 +152,9 @@ export default function WebsiteFirstStep({ initialUrl = '', onApplied, onManual 
         sub="I'll read it and set up your Brand Playbook, so you only check my work instead of typing everything."
         center
       />
-      {failed && read?.error && (
+      {failed && read?.error && !failedSource && (
         <div role="alert" style={{ background: C.amberBg, color: C.amber, borderRadius: 10, padding: '10px 14px', fontSize: 13, maxWidth: 460 }}>
-          {read.error.message} You can try again, or set up by hand — it takes a few minutes.
+          {read.error.message} You can try again, or set it up manually — it takes a few minutes.
         </div>
       )}
       <form
@@ -150,27 +208,70 @@ export default function WebsiteFirstStep({ initialUrl = '', onApplied, onManual 
           {starting ? 'Starting…' : failed ? 'Try again' : 'Read it'}
         </button>
       </form>
-      {error && (
-        <div role="alert" style={{ fontSize: 12.5, color: C.red }}>
-          {error}
+      {connectFor ? (
+        <div
+          role="alert"
+          style={{
+            background: C.amberBg,
+            borderRadius: 12,
+            padding: '12px 16px',
+            maxWidth: 460,
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
+          <div style={{ fontSize: 13, color: C.amber, lineHeight: 1.5 }}>
+            {connecting
+              ? `Finish signing in to Facebook in the window that opened. I'll start reading your ${LABEL[connectFor]} as soon as it's connected.`
+              : `Your ${LABEL[connectFor]} isn't connected yet. Connect it here and I'll read it straight away.`}
+          </div>
+          <button type="button" disabled={connecting} onClick={() => connect(connectFor)} style={{ ...primaryBtn, opacity: connecting ? 0.7 : 1 }}>
+            {connecting ? 'Waiting for Facebook…' : `Connect ${LABEL[connectFor]}`}
+          </button>
+        </div>
+      ) : (
+        error && (
+          <div role="alert" style={{ fontSize: 12.5, color: C.red }}>
+            {error}
+          </div>
+        )
+      )}
+      {connectNote && (
+        <div role="status" style={{ fontSize: 12.5, color: C.red, maxWidth: 460 }}>
+          {connectNote}
         </div>
       )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 460, color: C.muted, fontSize: 12 }}>
+        <span style={{ flex: 1, height: 1, background: C.line }} />
+        or
+        <span style={{ flex: 1, height: 1, background: C.line }} />
+      </div>
+      <button type="button" onClick={() => onManual(url.trim() || undefined)} style={manualBtn}>
+        Setup Manually
+      </button>
       <div style={{ fontSize: 13, color: C.muted, display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
         No website?
-        <button type="button" disabled={starting} onClick={() => void start('', false, 'instagram')} style={linkBtn}>
+        <button type="button" disabled={starting || connecting} onClick={() => void readSocial('instagram')} style={linkBtn}>
           Read my Instagram
         </button>
         ·
-        <button type="button" disabled={starting} onClick={() => void start('', false, 'facebook')} style={linkBtn}>
+        <button type="button" disabled={starting || connecting} onClick={() => void readSocial('facebook')} style={linkBtn}>
           Read my Facebook Page
-        </button>
-        ·
-        <button type="button" onClick={() => onManual(url.trim() || undefined)} style={linkBtn}>
-          Set up by hand
         </button>
       </div>
     </div>
   );
+}
+
+type SocialSource = 'instagram' | 'facebook';
+const LABEL: Record<SocialSource, string> = { instagram: 'Instagram', facebook: 'Facebook Page' };
+
+/** Which account a "not connected" read was for — the read itself only says so in its message. */
+function sourceOf(read: { error?: { message?: string } } | null): SocialSource {
+  return /instagram/i.test(read?.error?.message || '') ? 'instagram' : 'facebook';
 }
 
 function Heading({ title, sub, center = false }: { title: string; sub: string; center?: boolean }) {
@@ -193,4 +294,31 @@ const linkBtn: React.CSSProperties = {
   cursor: 'pointer',
   textDecoration: 'underline',
   textUnderlineOffset: 3,
+};
+
+const primaryBtn: React.CSSProperties = {
+  ...font,
+  border: 'none',
+  borderRadius: 24,
+  padding: '10px 20px',
+  background: GRADIENT,
+  color: '#fff',
+  fontWeight: 700,
+  fontSize: 14,
+  cursor: 'pointer',
+  boxShadow: '0 4px 14px rgba(194,24,91,.25)',
+};
+
+const manualBtn: React.CSSProperties = {
+  ...font,
+  width: '100%',
+  maxWidth: 460,
+  background: '#fff',
+  border: `1.5px solid ${C.pink}`,
+  borderRadius: 24,
+  padding: '11px 22px',
+  color: C.pink,
+  fontWeight: 700,
+  fontSize: 14,
+  cursor: 'pointer',
 };
