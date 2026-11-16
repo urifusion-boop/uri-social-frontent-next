@@ -17,6 +17,14 @@ interface Props {
   skipLabel?: string;
 }
 
+/** Where a read came from, in words: "your Instagram", "your Facebook Page" or "your website". */
+export function readSourceName(read: Pick<WebsiteRead, 'site' | 'url'> | null | undefined): string {
+  const where = `${read?.site ?? ''} ${read?.url ?? ''}`.toLowerCase();
+  if (where.includes('instagram.com')) return 'your Instagram';
+  if (where.includes('facebook.com')) return 'your Facebook Page';
+  return 'your website';
+}
+
 const SECTION_ORDER = ['Brand Identity', 'Business Details', 'Audience', 'Brand Voice', 'Brand Colors', 'Language & Region'];
 const NETWORK_LABELS: Record<string, string> = {
   instagram: 'Instagram',
@@ -36,6 +44,7 @@ const NETWORK_LABELS: Record<string, string> = {
  */
 export default function WebsiteFindings({ read, mode, onApplied, onSkip, skipLabel }: Props) {
   const all = useMemo(() => read.findings ?? [], [read.findings]);
+  const source = readSourceName(read);
   const actionable = all.filter((f) => f.status !== 'same');
   const matching = all.filter((f) => f.status === 'same');
   const [selected, setSelected] = useState<Set<string>>(
@@ -105,7 +114,7 @@ export default function WebsiteFindings({ read, mode, onApplied, onSkip, skipLab
     return (
       <div style={{ ...font, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: C.ink }}>
-          {all.length ? 'Your Playbook already matches your website.' : "We couldn't find business details on your website."}
+          {all.length ? `Your Playbook already matches ${source}.` : `We couldn't find business details on ${source}.`}
         </div>
         <div style={{ fontSize: 13, color: C.muted }}>
           {all.length
@@ -126,8 +135,12 @@ export default function WebsiteFindings({ read, mode, onApplied, onSkip, skipLab
   return (
     <div style={{ ...font, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ fontSize: 13, color: C.muted }}>
-        Found {all.length} things on {read.site ?? 'your website'}.
+        Found {all.length} things on {read.site ?? source}.
         {mode === 'sheet' && ' Tap anything to change it. Nothing in your Playbook changes until you press Use.'}
+      </div>
+      <div style={{ fontSize: 12.5, color: C.body, background: C.soft, borderRadius: 10, padding: '8px 12px', lineHeight: 1.5 }}>
+        <b>Ticked</b> = goes into your Playbook. <b>Unticked</b> = left out
+        {actionable.some((f) => f.status === 'different') ? ', and what you have now stays as it is' : ''}.
       </div>
 
       {sections.map(([section, items]) => (
@@ -139,6 +152,7 @@ export default function WebsiteFindings({ read, mode, onApplied, onSkip, skipLab
             <FindingRow
               key={f.key}
               f={f}
+              source={source}
               on={selected.has(f.key)}
               onToggle={() => toggle(f.key)}
               edit={edits[f.key]}
@@ -231,6 +245,7 @@ export default function WebsiteFindings({ read, mode, onApplied, onSkip, skipLab
 
 function FindingRow({
   f,
+  source,
   on,
   onToggle,
   edit,
@@ -240,6 +255,8 @@ function FindingRow({
   onDraft,
 }: {
   f: Finding;
+  /** "your Instagram", "your Facebook Page" or "your website". */
+  source: string;
   on: boolean;
   onToggle: () => void;
   edit?: string;
@@ -273,7 +290,7 @@ function FindingRow({
             <span style={pill('#FDF2F7', C.pink)}>Your words</span>
           ) : f.basis === 'stated' ? (
             <span style={pill(C.greenBg, C.green)} title={f.page || undefined}>
-              From your website
+              From {source}
             </span>
           ) : (
             <span style={pill(C.amberBg, C.amber)}>Jane&apos;s guess · check this</span>
@@ -281,7 +298,7 @@ function FindingRow({
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: on ? C.pink : C.muted, cursor: 'pointer', fontWeight: 700 }}>
           <input type="checkbox" checked={on} onChange={onToggle} style={{ accentColor: C.pink, width: 16, height: 16 }} />
-          {on ? (f.status === 'different' && f.merge ? 'Add' : 'Use') : 'Skip'}
+          {f.status === 'different' && f.merge ? 'Add' : 'Use'}
         </label>
       </div>
 
@@ -335,7 +352,7 @@ function Value({ k, v }: { k: string; v: FindingValue }) {
     return (
       <img
         src={v}
-        alt="Logo found on your website"
+        alt="Logo Jane found"
         style={{ maxWidth: 160, maxHeight: 80, objectFit: 'contain', borderRadius: 8, border: `1px solid ${C.line}`, background: '#fff', padding: 6 }}
       />
     );

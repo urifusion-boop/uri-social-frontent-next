@@ -6,7 +6,7 @@ import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { Drawer } from '@mui/material';
 import { useEffect, useState } from 'react';
-import WebsiteFindings from './WebsiteFindings';
+import WebsiteFindings, { readSourceName } from './WebsiteFindings';
 import WebsiteReadProgress from './WebsiteReadProgress';
 import { useWebsiteRead } from './useWebsiteRead';
 
@@ -189,7 +189,7 @@ export default function PlaybookWebsitePanel({ profile, onProfileUpdate, disable
       >
         <div style={{ ...font, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: `1px solid ${C.line}` }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: C.ink }}>Suggestions from your website</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: C.ink }}>Suggestions from {readSourceName(read)}</div>
             <div style={{ fontSize: 12, color: C.muted }}>{read?.site}</div>
           </div>
           <button type="button" onClick={() => setSheet(false)} aria-label="Close" style={btn('quiet')}>
@@ -214,7 +214,7 @@ export default function PlaybookWebsitePanel({ profile, onProfileUpdate, disable
               onApplied={(updates, applied) => {
                 if (profile) onProfileUpdate?.({ ...profile, ...updates });
                 ToastService.showToast(
-                  `Added ${applied.length} ${applied.length === 1 ? 'thing' : 'things'} from your website to your Playbook.`,
+                  `Added ${applied.length} ${applied.length === 1 ? 'thing' : 'things'} from ${readSourceName(read)} to your Playbook.`,
                   ToastTypeEnum.Success
                 );
                 setDismissed(read.job_id ?? '');
