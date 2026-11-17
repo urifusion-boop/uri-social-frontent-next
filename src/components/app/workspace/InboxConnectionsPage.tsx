@@ -9,6 +9,7 @@ import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { WhatsAppConnect } from './WhatsAppConnect';
 import { IS_PRODUCTION } from '@/src/configs/env.config';
+import { keepInBrowser } from '@/src/utils/keepInBrowser.util';
 
 /*
  * Channel Connections — per FR01 of the Unified Social Inbox PRD: connection
@@ -293,7 +294,7 @@ const HEALTH_META: Record<TokenHealth, { label: string; fg: string; bg: string; 
 function connectDirect(channelId: string) {
   const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
   const flow = channelId === 'instagram' ? 'instagram-direct' : 'facebook-direct';
-  window.location.href = `${apiBase}/social-media/connect/${flow}/initiate?source=inbox`;
+  window.location.href = keepInBrowser(`${apiBase}/social-media/connect/${flow}/initiate?source=inbox`);
 }
 
 type IgCandidate = { ig_user_id: string; page_name?: string; username?: string };

@@ -120,6 +120,7 @@ import { BrandTooltip } from '@/src/components/app/workspace/BrandTooltip';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { AuthService } from '@/src/api/AuthService';
 import { loadConnections, useConnectedAccounts } from '@/src/hooks/useConnectedAccounts';
+import { keepInBrowser } from '@/src/utils/keepInBrowser.util';
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
@@ -3325,6 +3326,15 @@ const ConnectionsPage = ({
     // this timer with it) goes away; this is just a safety net for the
     // case where it doesn't.
     window.addEventListener('pagehide', () => clearTimeout(stuckTimer), { once: true });
+    // On Android the connect link can open as a fresh browser tab (see keepInBrowser), which
+    // hides this one without unloading it — that is the link working, not a stuck navigation.
+    const onHidden = () => {
+      if (document.visibilityState !== 'hidden') return;
+      clearTimeout(stuckTimer);
+      setConnecting((current) => (current === platformId ? null : current));
+      document.removeEventListener('visibilitychange', onHidden);
+    };
+    document.addEventListener('visibilitychange', onHidden);
     window.location.href = url;
   };
 
@@ -3337,7 +3347,7 @@ const ConnectionsPage = ({
       localStorage.setItem('uri_connect_platform', id);
       // Redirect to the Meta/Facebook Login flow for Instagram Business Account connection
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
-      redirectOrWarn(`${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`, id);
+      redirectOrWarn(keepInBrowser(`${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`), id);
       return;
     }
     if (flow === 'facebook_direct_oauth') {
@@ -3347,7 +3357,7 @@ const ConnectionsPage = ({
       // finishes the connection.
       localStorage.setItem('uri_connect_platform', id);
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
-      window.location.href = `${apiBase}/social-media/connect/facebook-direct/initiate?source=settings`;
+      window.location.href = keepInBrowser(`${apiBase}/social-media/connect/facebook-direct/initiate?source=settings`);
       return;
     }
     if (flow === 'tiktok_direct_oauth') {
@@ -3363,7 +3373,7 @@ const ConnectionsPage = ({
       // Ads-scoped grant (Per-Brand Page Connection plan) — separate from the
       // organic Facebook connection above; requesting ads_management etc.
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
-      window.location.href = `${apiBase}/social-media/connect/facebook-ads/initiate?source=settings`;
+      window.location.href = keepInBrowser(`${apiBase}/social-media/connect/facebook-ads/initiate?source=settings`);
       return;
     }
     if (flow === 'google_ads_direct') {
