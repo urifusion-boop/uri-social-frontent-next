@@ -7,6 +7,7 @@ import { SETUP_RETURN_KEY } from './setupReturn';
 import WebsiteFindings from './WebsiteFindings';
 import WebsiteReadProgress from './WebsiteReadProgress';
 import { useWebsiteRead } from './useWebsiteRead';
+import { keepInBrowser } from '@/src/utils/keepInBrowser.util';
 
 interface Props {
   initialUrl?: string;
@@ -60,7 +61,7 @@ export default function WebsiteFirstStep({ initialUrl = '', onApplied, onManual 
     localStorage.setItem(SETUP_RETURN_KEY, JSON.stringify({ source, at: Date.now() }));
     setConnecting(true);
     setConnectNote('');
-    window.location.href = `${apiBase}/social-media/connect/${path}/initiate?source=settings`;
+    window.location.href = keepInBrowser(`${apiBase}/social-media/connect/${path}/initiate?source=settings`);
   };
 
   // Back from Facebook: read the account just connected, or say it wasn't connected.
