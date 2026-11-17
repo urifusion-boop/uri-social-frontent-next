@@ -46,6 +46,7 @@ import {
 } from '@/src/components/app/workspace/GooglePlacementPreview';
 import ObjectivePicker from '@/src/components/app/workspace/ObjectivePicker';
 import { ToastService } from '@/src/utils/toast.util';
+import { keepInBrowser } from '@/src/utils/keepInBrowser.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
 /** Where a Page's owner approves Uri Creative (URI Social's Business Manager) as a partner (Meta Business Suite → Settings → Requests). */
@@ -3696,9 +3697,17 @@ export function PlanVariantCards({
 // handled there to call finalizeFacebookAds().
 export function ConnectMetaAdsLink({ children }: { children: React.ReactNode }) {
   const apiBase = (process.env.NEXT_PUBLIC_URI_API_BASE_URL || '').replace(/\/$/, '');
+  const href = `${apiBase}/social-media/connect/facebook-ads/initiate?source=jane_ads`;
   return (
     <a
-      href={`${apiBase}/social-media/connect/facebook-ads/initiate?source=jane_ads`}
+      href={href}
+      onClick={(e) => {
+        // Android: keep Facebook's sign-in in the browser instead of the Facebook app.
+        const target = keepInBrowser(href);
+        if (target === href) return;
+        e.preventDefault();
+        window.location.href = target;
+      }}
       style={{
         display: 'inline-block',
         background: PINK,
