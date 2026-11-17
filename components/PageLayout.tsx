@@ -15,6 +15,9 @@ export default function PageLayout({ children }: { children: React.ReactNode }) 
     pathname?.startsWith('/social-media') ||
     pathname?.startsWith('/settings') ||
     pathname === '/login' ||
+    // The /ads landing page has its own minimal header and footer, so ad traffic isn't led away to other pages.
+    pathname === '/ads' ||
+    pathname === '/ads/' ||
     pathname === '/verify-email' ||
     pathname === '/forgot-password' ||
     pathname === '/reset-password';
