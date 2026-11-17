@@ -17,6 +17,22 @@ export interface ApiWaitlistRequest {
   website?: string;
 }
 
+/** The free ad audit form on /ads. The utm_* fields say which ad produced the lead. */
+export interface AdsLeadRequest {
+  business: string;
+  whatsapp: string;
+  sells: string;
+  budget: string;
+  goal: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_content?: string;
+  page?: string;
+  /** Honeypot — hidden from people, so anything in it means a bot. */
+  website?: string;
+}
+
 /** Marketing-site forms that work without being logged in. */
 export class PublicFormsService {
   static async sendContactMessage(data: ContactMessageRequest): Promise<UriResponse<null>> {
@@ -29,6 +45,11 @@ export class PublicFormsService {
       '/public/api-waitlist',
       data
     );
+    return response.data;
+  }
+
+  static async submitAdsLead(data: AdsLeadRequest): Promise<UriResponse<null>> {
+    const response: AxiosResponse<UriResponse<null>> = await UriHttpClient.getClient().post('/public/ads-lead', data);
     return response.data;
   }
 
