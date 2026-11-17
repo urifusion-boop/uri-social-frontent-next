@@ -27,6 +27,9 @@ const FORMAT_VISUALS: Record<string, { icon: string; from: string; to: string }>
   'SEED-096': { icon: '🏷️', from: '#CD1B78', to: '#8E1545' },
   'SEED-097': { icon: '🔤', from: '#485563', to: '#29323C' },
   'SEED-098': { icon: '🛠️', from: '#F2994A', to: '#F2C94C' },
+  'SEED-099': { icon: '🎤', from: '#F7B500', to: '#F76B1C' }, // Event Promo
+  'SEED-100': { icon: '🎟️', from: '#12C98B', to: '#0B6E4F' }, // Offer Spotlight
+  'SEED-101': { icon: '💬', from: '#E53935', to: '#8E1515' }, // Problems vs Solution
 };
 const DEFAULT_VISUAL = { icon: '🎯', from: '#9CA3AF', to: '#6B7280' };
 
