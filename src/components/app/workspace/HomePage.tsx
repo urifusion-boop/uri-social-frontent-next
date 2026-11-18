@@ -100,12 +100,12 @@ function pctChange(current: number, previous: number): number | null {
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n));
 
-function Ring({ done, total }: { done: number; total: number }) {
+function Ring({ done, total, size = 64 }: { done: number; total: number; size?: number }) {
   const r = 26;
   const c = 2 * Math.PI * r;
   return (
-    <div style={{ width: 64, height: 64, position: 'relative', flex: 'none' }}>
-      <svg width={64} height={64} viewBox="0 0 64 64" aria-hidden>
+    <div style={{ width: size, height: size, position: 'relative', flex: 'none' }}>
+      <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden>
         <defs>
           <linearGradient id="home-ring" x1="0" x2="1">
             <stop stopColor={PINK} />
@@ -133,7 +133,7 @@ function Ring({ done, total }: { done: number; total: number }) {
           display: 'grid',
           placeItems: 'center',
           fontWeight: 900,
-          fontSize: 16,
+          fontSize: size < 56 ? 13 : 16,
           color: INK,
         }}
       >
@@ -609,123 +609,154 @@ export default function HomePage({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: showChecklist && !isMobile ? '1.35fr 1fr' : '1fr',
-          gap: 18,
-          marginBottom: 20,
-          alignItems: 'start',
+          gridTemplateColumns: showChecklist && !isMobile ? '1.25fr 1fr' : '1fr',
+          gap: 16,
+          marginBottom: 18,
+          alignItems: 'stretch',
         }}
       >
         {showChecklist && (
-          <div style={card}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
-              <Ring done={doneCount} total={steps.length} />
-              <div>
-                <div style={{ fontSize: 19, fontWeight: 900, letterSpacing: -0.3, color: INK }}>
+          <div style={{ ...card, padding: '16px 18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+              <Ring done={doneCount} total={steps.length} size={46} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 16.5, fontWeight: 900, letterSpacing: -0.2, color: INK }}>
                   Get your brand fully set up
                 </div>
-                <div style={{ fontSize: 13.5, color: MUTED, marginTop: 2 }}>
+                <div style={{ fontSize: 12.5, color: MUTED, marginTop: 1 }}>
                   {steps.length - doneCount === 1 ? 'One more step' : `${steps.length - doneCount} more steps`} and Jane
                   can run everything for you.
                 </div>
               </div>
             </div>
-            {steps.map((s, i) => (
-              <div
-                key={s.key}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '10px 4px',
-                  opacity: s.done ? 0.6 : 1,
-                  borderTop: i ? '1px solid #F7F0F3' : 'none',
-                }}
-              >
-                <span
+
+            {steps
+              .filter((s) => !s.done)
+              .map((s) => (
+                <div
+                  key={s.key}
                   style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: '50%',
-                    display: 'grid',
-                    placeItems: 'center',
-                    fontSize: 13,
-                    fontWeight: 900,
-                    flex: 'none',
-                    background: s.done ? '#E7F6EE' : '#FCE4EE',
-                    color: s.done ? '#1E8E4E' : PINK,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '9px 2px',
+                    borderTop: '1px solid #F7F0F3',
                   }}
                 >
-                  {s.done ? '✓' : i + 1}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14.5, fontWeight: 700, color: INK }}>{s.title}</div>
-                  <div style={{ fontSize: 12.5, color: MUTED }}>{s.note}</div>
-                  {!s.done && typeof s.progress === 'number' && (
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      flex: 'none',
+                      background: s.key === firstTodo ? PINK : '#EBC6D5',
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: INK, whiteSpace: 'nowrap' }}>{s.title}</span>
+                      {typeof s.progress === 'number' && (
+                        <span
+                          aria-hidden
+                          style={{
+                            height: 5,
+                            borderRadius: 5,
+                            background: '#F4E8ED',
+                            width: 64,
+                            overflow: 'hidden',
+                            flex: 'none',
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: 'block',
+                              height: '100%',
+                              width: `${Math.round(s.progress * 100)}%`,
+                              background: `linear-gradient(90deg, ${PINK}, ${PINK2})`,
+                            }}
+                          />
+                        </span>
+                      )}
+                    </div>
                     <div
                       style={{
-                        height: 6,
-                        borderRadius: 6,
-                        background: '#F4E8ED',
-                        marginTop: 6,
-                        width: 160,
+                        fontSize: 12,
+                        color: MUTED,
+                        whiteSpace: 'nowrap',
                         overflow: 'hidden',
+                        textOverflow: 'ellipsis',
                       }}
                     >
-                      <div
-                        style={{
-                          height: '100%',
-                          width: `${Math.round(s.progress * 100)}%`,
-                          borderRadius: 6,
-                          background: `linear-gradient(90deg, ${PINK}, ${PINK2})`,
-                        }}
-                      />
+                      {s.note}
                     </div>
-                  )}
-                </div>
-                {!s.done && (
+                  </div>
                   <button
                     type="button"
                     onClick={s.go}
-                    style={
-                      s.key === firstTodo
+                    style={{
+                      borderRadius: 999,
+                      padding: '6px 12px',
+                      fontFamily: 'inherit',
+                      fontSize: 12,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      ...(s.key === firstTodo
                         ? {
                             border: 0,
-                            borderRadius: 999,
-                            padding: '8px 14px',
-                            fontFamily: 'inherit',
-                            fontSize: 12.5,
-                            fontWeight: 800,
                             color: '#fff',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
                             background: `linear-gradient(135deg, ${PINK}, ${PINK2})`,
-                            boxShadow: '0 8px 18px -10px rgba(194,24,91,.6)',
+                            boxShadow: '0 6px 14px -8px rgba(194,24,91,.6)',
                           }
-                        : {
-                            border: '1px solid #EADDE2',
-                            borderRadius: 999,
-                            padding: '7px 13px',
-                            fontFamily: 'inherit',
-                            fontSize: 12.5,
-                            fontWeight: 800,
-                            color: INK,
-                            background: '#fff',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                          }
-                    }
+                        : { border: '1px solid #EADDE2', color: INK, background: '#fff' }),
+                    }}
                   >
                     {s.action}
                   </button>
-                )}
+                </div>
+              ))}
+
+            {doneCount > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 6,
+                  paddingTop: 10,
+                  borderTop: '1px solid #F7F0F3',
+                }}
+              >
+                {steps
+                  .filter((s) => s.done)
+                  .map((s) => (
+                    <span
+                      key={s.key}
+                      title={s.note}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        background: '#EEF8F2',
+                        color: '#1E7A45',
+                        borderRadius: 999,
+                        padding: '4px 10px',
+                        fontSize: 11.5,
+                        fontWeight: 800,
+                      }}
+                    >
+                      ✓ {s.title}
+                    </span>
+                  ))}
               </div>
-            ))}
+            )}
           </div>
         )}
 
         <div
           style={{
             ...card,
+            padding: '16px 16px',
             position: 'relative',
             overflow: 'hidden',
             color: '#fff',
@@ -738,31 +769,32 @@ export default function HomePage({
               position: 'absolute',
               right: -60,
               top: -60,
-              width: 200,
-              height: 200,
+              width: 180,
+              height: 180,
               borderRadius: '50%',
               background: 'rgba(224,64,127,.25)',
               filter: 'blur(10px)',
             }}
           />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative', marginBottom: 4 }}>
             <span
               style={{
-                width: 34,
-                height: 34,
+                width: 30,
+                height: 30,
                 borderRadius: '50%',
                 background: 'linear-gradient(135deg, #F06292, #C2185B)',
                 display: 'grid',
                 placeItems: 'center',
                 fontWeight: 900,
+                fontSize: 13,
               }}
             >
               J
             </span>
             <div>
-              <div style={{ fontWeight: 800, fontSize: 15 }}>Jane&apos;s picks for today</div>
-              <div style={{ fontSize: 12, color: '#F3C6D8', fontWeight: 600 }}>
-                Based on your content, campaigns and playbook
+              <div style={{ fontWeight: 800, fontSize: 14.5 }}>Jane&apos;s picks for today</div>
+              <div style={{ fontSize: 11.5, color: '#F3C6D8', fontWeight: 600 }}>
+                From your content, campaigns and playbook
               </div>
             </div>
           </div>
@@ -771,31 +803,53 @@ export default function HomePage({
               key={p.title}
               type="button"
               onClick={p.go}
+              title={p.note}
               style={{
                 display: 'flex',
                 gap: 10,
-                alignItems: 'flex-start',
+                alignItems: 'center',
                 width: '100%',
                 textAlign: 'left',
                 background: 'rgba(255,255,255,.08)',
                 border: '1px solid rgba(255,255,255,.10)',
-                borderRadius: 14,
-                padding: '11px 12px',
-                marginTop: 10,
+                borderRadius: 12,
+                padding: '9px 12px',
+                marginTop: 8,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
                 color: '#fff',
                 position: 'relative',
               }}
             >
-              <span aria-hidden style={{ fontSize: 17 }}>
+              <span aria-hidden style={{ fontSize: 15, flex: 'none' }}>
                 {p.emoji}
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>
-                <b style={{ display: 'block', fontSize: 14 }}>{p.title}</b>
-                <small style={{ fontSize: 12.5, color: '#F3D3E0' }}>{p.note}</small>
+                <b
+                  style={{
+                    display: 'block',
+                    fontSize: 13.5,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {p.title}
+                </b>
+                <small
+                  style={{
+                    display: 'block',
+                    fontSize: 11.5,
+                    color: '#F3D3E0',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {p.note}
+                </small>
               </span>
-              <span style={{ fontSize: 12.5, fontWeight: 800, color: '#FFB8D2', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: '#FFB8D2', whiteSpace: 'nowrap', flex: 'none' }}>
                 {p.action} →
               </span>
             </button>
