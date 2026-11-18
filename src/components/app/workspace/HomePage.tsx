@@ -1,14 +1,24 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, ArrowUp, ArrowDown, FileText, Megaphone, MessageCircle, PenLine, Users } from 'lucide-react';
+import { ArrowDown, ArrowRight, FileText, Megaphone, MessageCircle, PenLine, Users } from 'lucide-react';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { CampaignService } from '@/src/api/CampaignService';
 import { InboxService } from '@/src/api/InboxService';
+import { BrandProfileService, type PlaybookHealthData } from '@/src/api/BrandProfileService';
+import { useConnectedAccounts } from '@/src/hooks/useConnectedAccounts';
+import { useIsMobile } from '@/src/hooks/useIsMobile';
+import { categorize } from '@/src/components/app/social-media/ContentLibrary/ContentLibraryPage';
 import { IS_PRODUCTION } from '@/src/configs/env.config';
 
 type PeriodDays = 7 | 30;
+type ContentTabId = 'create' | 'library' | 'calendar-v2';
+
+const PINK = '#C2185B';
+const PINK2 = '#E0407F';
+const INK = '#1A1523';
+const MUTED = '#6B7280';
 
 interface OverviewStats {
   contentPublished: number;
@@ -18,8 +28,15 @@ interface OverviewStats {
   adCampaigns: number; // currently active/running, right now — not period-bound
   adCampaignsCreated: number; // created within the period, for the trend
   adCampaignsCreatedPrevious: number;
+  campaignsEver: number;
   customerMessages: number; // conversations with activity in the period
   customerMessagesPrevious: number;
+}
+
+interface LibraryCounts {
+  drafts: number;
+  scheduled: number;
+  published: number;
 }
 
 const QUICK_ACTIONS = [
@@ -31,6 +48,7 @@ const QUICK_ACTIONS = [
     iconBg: '#C2185B',
     cardBg: '#FDF1F6',
     shadow: 'rgba(194,24,91,.13)',
+    pillColor: '#C2185B',
   },
   {
     id: 'campaign-wizard',
@@ -40,6 +58,7 @@ const QUICK_ACTIONS = [
     iconBg: '#F59E0B',
     cardBg: '#FEF6E7',
     shadow: 'rgba(245,158,11,.13)',
+    pillColor: '#B86A00',
   },
   {
     id: 'messages',
@@ -49,6 +68,7 @@ const QUICK_ACTIONS = [
     iconBg: '#3B82F6',
     cardBg: '#EDF4FE',
     shadow: 'rgba(59,130,246,.13)',
+    pillColor: '#2563EB',
   },
   {
     id: 'performance',
@@ -58,6 +78,7 @@ const QUICK_ACTIONS = [
     iconBg: '#7C3AED',
     cardBg: '#F3EDFD',
     shadow: 'rgba(124,58,237,.13)',
+    pillColor: '#6D28D9',
   },
 ] as const;
 
@@ -76,60 +97,94 @@ function pctChange(current: number, previous: number): number | null {
   return Math.round(((current - previous) / previous) * 100);
 }
 
-function InlineTrend({ value }: { value: number | null }) {
-  if (value === null) return <span style={{ fontSize: 12, fontWeight: 600, color: '#9CA3AF' }}>new</span>;
-  const up = value >= 0;
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 2,
-        fontSize: 12,
-        fontWeight: 700,
-        color: up ? '#16A34A' : '#DC2626',
-      }}
-    >
-      {up ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
-      {Math.abs(value)}%
-    </span>
-  );
-}
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n));
 
-// A small trend visual built only from the two real period totals this page
-// already fetches (current vs. the period before it) — the in-between bars
-// are a straight-line interpolation between those two real numbers, not an
-// invented daily series, so there's no false claim of day-by-day data.
-function MiniBars({ current, previous, color }: { current: number; previous: number; color: string }) {
-  const steps = 5;
-  const values = Array.from({ length: steps }, (_, i) => previous + ((current - previous) * i) / (steps - 1));
-  const max = Math.max(...values, 1);
+function Ring({ done, total }: { done: number; total: number }) {
+  const r = 26;
+  const c = 2 * Math.PI * r;
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 30 }}>
-      {values.map((v, i) => {
-        const h = Math.max(4, Math.round((v / max) * 30));
-        const isLast = i === values.length - 1;
-        return (
-          <div
-            key={i}
-            style={{
-              width: 6,
-              height: h,
-              borderRadius: 2,
-              background: isLast ? color : `${color}40`,
-            }}
-          />
-        );
-      })}
+    <div style={{ width: 64, height: 64, position: 'relative', flex: 'none' }}>
+      <svg width={64} height={64} viewBox="0 0 64 64" aria-hidden>
+        <defs>
+          <linearGradient id="home-ring" x1="0" x2="1">
+            <stop stopColor={PINK} />
+            <stop offset="1" stopColor={PINK2} />
+          </linearGradient>
+        </defs>
+        <circle cx={32} cy={32} r={r} fill="none" stroke="#F4E8ED" strokeWidth={7} />
+        <circle
+          cx={32}
+          cy={32}
+          r={r}
+          fill="none"
+          stroke="url(#home-ring)"
+          strokeWidth={7}
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - done / Math.max(total, 1))}
+          transform="rotate(-90 32 32)"
+        />
+      </svg>
+      <span
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'grid',
+          placeItems: 'center',
+          fontWeight: 900,
+          fontSize: 16,
+          color: INK,
+        }}
+      >
+        {done}/{total}
+      </span>
     </div>
   );
 }
 
-export default function HomePage({ onNavigate }: { onNavigate: (id: string) => void }) {
+interface Step {
+  key: string;
+  title: string;
+  note: string;
+  done: boolean;
+  progress?: number; // 0..1, shown as a bar
+  action: string;
+  primary?: boolean;
+  go: () => void;
+}
+
+interface Pick {
+  emoji: string;
+  title: string;
+  note: string;
+  action: string;
+  go: () => void;
+}
+
+const card: React.CSSProperties = {
+  background: '#fff',
+  borderRadius: 20,
+  padding: '20px 22px',
+  boxShadow: '0 14px 34px -24px rgba(120,20,60,.45), 0 0 0 1px rgba(194,24,91,.06)',
+};
+
+export default function HomePage({
+  onNavigate,
+  onOpenContent,
+}: {
+  onNavigate: (id: string) => void;
+  /** Opens a Content Studio tab (Library, Calendar, Create). Falls back to Content Studio. */
+  onOpenContent?: (tab: ContentTabId) => void;
+}) {
   const { userDetails } = useAuth();
+  const isMobile = useIsMobile();
+  const connected = useConnectedAccounts();
   const [period, setPeriod] = useState<PeriodDays>(7);
   const [stats, setStats] = useState<OverviewStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [library, setLibrary] = useState<LibraryCounts | null>(null);
+  const [health, setHealth] = useState<PlaybookHealthData | null>(null);
 
   const firstName = userDetails?.firstName || 'there';
   const greeting = useMemo(() => greetingForHour(new Date().getHours()), []);
@@ -137,6 +192,38 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
     () => new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
     []
   );
+  const openContent = (tab: ContentTabId) => (onOpenContent ? onOpenContent(tab) : onNavigate('schedule'));
+
+  // Drafts / scheduled / published — the same sources and grouping the Content Library uses.
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      SocialMediaAgentService.getContentCalendar().catch(() => null),
+      SocialMediaAgentService.getScheduled().catch(() => null),
+    ]).then(([calendarRes, scheduledRes]) => {
+      if (cancelled || (!calendarRes && !scheduledRes)) return;
+      const byId = new Map<string, Parameters<typeof categorize>[0]>();
+      for (const d of [
+        ...(calendarRes?.responseData?.drafts ?? []),
+        ...(scheduledRes?.responseData?.scheduled_drafts ?? []),
+      ]) {
+        const id = d.id ?? d.draft_id;
+        if (id) byId.set(id, d);
+      }
+      const counts: LibraryCounts = { drafts: 0, scheduled: 0, published: 0 };
+      for (const d of byId.values()) {
+        const c = categorize(d);
+        if (c === 'draft') counts.drafts++;
+        else if (c === 'scheduled') counts.scheduled++;
+        else if (c === 'published') counts.published++;
+      }
+      setLibrary(counts);
+    });
+    BrandProfileService.getHealth().then((h) => !cancelled && setHealth(h));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -195,6 +282,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
           adCampaigns,
           adCampaignsCreated: createdInPeriod,
           adCampaignsCreatedPrevious: createdInPrevious,
+          campaignsEver: campaigns.length,
           customerMessages: activeInPeriod,
           customerMessagesPrevious: activeInPrevious,
         });
@@ -208,6 +296,141 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
     };
   }, [period]);
 
+  const platforms = connected.loaded ? connected.platforms.map((p) => p.toLowerCase()) : null;
+  const hasFacebook = platforms?.includes('facebook') ?? false;
+  const hasInstagram = platforms?.includes('instagram') ?? false;
+  const totalContent = library ? library.drafts + library.scheduled + library.published : 0;
+
+  // ── Setup checklist — only steps we can actually check are shown ────────
+  const steps: Step[] = [];
+  if (platforms) {
+    steps.push({
+      key: 'facebook',
+      title: 'Connect Facebook',
+      note: hasFacebook ? 'Your Facebook Page is connected' : 'Post to your Page and run ads from it',
+      done: hasFacebook,
+      action: 'Connect',
+      go: () => onNavigate('connections'),
+    });
+  }
+  if (library) {
+    steps.push({
+      key: 'publish',
+      title: 'Publish your first post',
+      note: library.published ? `${plural(library.published, 'post')} published so far` : 'Pick a draft and publish it',
+      done: library.published > 0,
+      action: 'Open library',
+      go: () => openContent('library'),
+    });
+  }
+  if (health) {
+    const ratio = health.total ? health.filled / health.total : 0;
+    steps.push({
+      key: 'playbook',
+      title: 'Finish your Brand Playbook',
+      note: `${health.filled} of ${health.total} filled${health.suggestions?.length ? ` · ${plural(health.suggestions.length, 'quick win')} to add next` : ''}`,
+      done: ratio >= 0.8,
+      progress: ratio,
+      action: 'Finish playbook',
+      primary: true,
+      go: () => onNavigate('playbook'),
+    });
+  }
+  if (platforms) {
+    steps.push({
+      key: 'instagram',
+      title: 'Connect Instagram',
+      note: hasInstagram ? 'Instagram is connected' : 'Post and reply to DMs from one place',
+      done: hasInstagram,
+      action: 'Connect',
+      go: () => onNavigate('connections'),
+    });
+  }
+  if (library) {
+    steps.push({
+      key: 'plan',
+      title: 'Plan your month',
+      note: totalContent ? `${plural(totalContent, 'post')} in your plan` : 'Let Jane write a 30-day content plan',
+      done: totalContent > 0,
+      action: 'Plan it',
+      go: () => openContent('calendar-v2'),
+    });
+  }
+  const doneCount = steps.filter((s) => s.done).length;
+  const showChecklist = steps.length > 0 && doneCount < steps.length;
+  // The first unfinished step gets the filled button; the rest are outlined.
+  const firstTodo = steps.find((s) => !s.done)?.key;
+
+  // ── Jane's picks — the most useful next things, from real data ──────────
+  const picks: Pick[] = [];
+  if (library && library.drafts > 0) {
+    picks.push({
+      emoji: '🗓️',
+      title: `${plural(library.drafts, 'draft')} ready to schedule`,
+      note: 'Written and waiting — schedule them in a couple of taps',
+      action: 'Open',
+      go: () => openContent('library'),
+    });
+  }
+  if (stats && stats.campaignsEver === 0) {
+    picks.push({
+      emoji: '📣',
+      title: 'Run your first ad',
+      note: 'Jane builds it — nothing spends until you approve',
+      action: 'Start',
+      go: () => onNavigate('campaign-wizard'),
+    });
+  }
+  if (health?.suggestions?.length) {
+    picks.push({
+      emoji: '✨',
+      title: `Add "${health.suggestions[0].label}" to your playbook`,
+      note: health.suggestions[0].why || 'So Jane guesses less about your brand',
+      action: 'Add',
+      go: () => onNavigate('playbook'),
+    });
+  }
+  if (platforms && !hasInstagram && picks.length < 3) {
+    picks.push({
+      emoji: '📸',
+      title: 'Connect Instagram',
+      note: 'Post there too, and answer DMs from Uri',
+      action: 'Connect',
+      go: () => onNavigate('connections'),
+    });
+  }
+  if (picks.length === 0) {
+    picks.push({
+      emoji: '✍️',
+      title: "Create today's post",
+      note: 'Describe it in a line — Jane writes and designs it',
+      action: 'Create',
+      go: () => openContent('create'),
+    });
+  }
+
+  // ── One real number on each shortcut card ───────────────────────────────
+  const pillFor = (id: string): string | null => {
+    if (id === 'schedule')
+      return library
+        ? library.published || library.drafts
+          ? `${library.published} published · ${library.drafts} drafts`
+          : 'Nothing created yet'
+        : null;
+    if (id === 'campaign-wizard')
+      return stats
+        ? stats.adCampaigns
+          ? `${plural(stats.adCampaigns, 'campaign')} live`
+          : stats.campaignsEver
+            ? 'None live right now'
+            : 'No campaigns yet'
+        : null;
+    if (id === 'messages')
+      return stats ? `${plural(stats.customerMessages, 'conversation')} this ${period === 7 ? 'week' : 'month'}` : null;
+    if (id === 'performance') return stats ? `${compact(stats.totalReach)} reach · last ${period} days` : null;
+    return null;
+  };
+
   const tiles = stats
     ? [
         {
@@ -216,9 +439,12 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
           bg: '#FDF1F6',
           label: 'Content Published',
           value: stats.contentPublished,
+          display: String(stats.contentPublished),
           change: pctChange(stats.contentPublished, stats.contentPublishedPrevious),
-          current: stats.contentPublished,
-          previous: stats.contentPublishedPrevious,
+          empty: period === 7 ? 'Nothing posted this week' : 'Nothing posted this month',
+          fix: library?.drafts
+            ? { label: 'Schedule a draft', go: () => openContent('library') }
+            : { label: 'Create a post', go: () => openContent('create') },
         },
         {
           icon: Megaphone,
@@ -226,9 +452,10 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
           bg: '#FEF6E7',
           label: 'Ad Campaigns',
           value: stats.adCampaigns,
+          display: String(stats.adCampaigns),
           change: pctChange(stats.adCampaignsCreated, stats.adCampaignsCreatedPrevious),
-          current: stats.adCampaignsCreated,
-          previous: stats.adCampaignsCreatedPrevious,
+          empty: 'No ads running',
+          fix: { label: 'Start a campaign', go: () => onNavigate('campaign-wizard') },
         },
         {
           icon: MessageCircle,
@@ -236,19 +463,21 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
           bg: '#EDF4FE',
           label: 'Customer Messages',
           value: stats.customerMessages,
+          display: String(stats.customerMessages),
           change: pctChange(stats.customerMessages, stats.customerMessagesPrevious),
-          current: stats.customerMessages,
-          previous: stats.customerMessagesPrevious,
+          empty: hasInstagram || hasFacebook ? 'No messages in this period' : 'Connect an account to receive messages',
+          fix: hasInstagram || hasFacebook ? null : { label: 'Connect', go: () => onNavigate('connections') },
         },
         {
           icon: Users,
           color: '#7C3AED',
           bg: '#F3EDFD',
           label: 'Total Reach',
-          value: stats.totalReach >= 1000 ? `${(stats.totalReach / 1000).toFixed(1)}K` : stats.totalReach,
+          value: stats.totalReach,
+          display: compact(stats.totalReach),
           change: pctChange(stats.totalReach, stats.totalReachPrevious),
-          current: stats.totalReach,
-          previous: stats.totalReachPrevious,
+          empty: 'Reach appears once your posts are seen',
+          fix: null,
         },
       ]
     : [];
@@ -257,28 +486,35 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
     <div
       style={{
         minHeight: '100%',
-        padding: '20px 24px 32px',
+        padding: isMobile ? '16px 14px 28px' : '20px 24px 32px',
         fontFamily: 'var(--wf)',
         background: 'linear-gradient(180deg, #FDF2F6 0%, #FBF8F7 40%, #FAFAF8 100%)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          marginBottom: 20,
+          gap: 12,
+        }}
+      >
         <div>
           <div
             style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', letterSpacing: 0.6, textTransform: 'uppercase' }}
           >
             Welcome back
           </div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: '#1A1523', margin: '4px 0 2px' }}>
+          <h1 style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: INK, margin: '4px 0 2px' }}>
             {greeting}, {firstName} 👋
           </h1>
-          <div style={{ fontSize: 13.5, color: '#6B7280' }}>
-            Here&apos;s what&apos;s happening with your brand today.
-          </div>
+          <div style={{ fontSize: 13.5, color: MUTED }}>Here&apos;s what&apos;s happening with your brand today.</div>
         </div>
-        <div style={{ fontSize: 12.5, color: '#9CA3AF', whiteSpace: 'nowrap' }}>{today}</div>
+        {!isMobile && <div style={{ fontSize: 12.5, color: '#9CA3AF', whiteSpace: 'nowrap' }}>{today}</div>}
       </div>
 
+      {/* Shortcut cards — the same four as before, now each with one real number */}
       <div
         style={{
           display: 'grid',
@@ -290,6 +526,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
         {/* Messages is hidden on prod. */}
         {QUICK_ACTIONS.filter((a) => !(IS_PRODUCTION && a.id === 'messages')).map((action) => {
           const Icon = action.icon;
+          const pill = pillFor(action.id);
           return (
             <button
               key={action.id}
@@ -323,12 +560,26 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
                 <Icon size={20} color="#fff" />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{ fontSize: 14.5, fontWeight: 700, color: '#1A1523', marginBottom: 3, whiteSpace: 'nowrap' }}
-                >
+                <div style={{ fontSize: 14.5, fontWeight: 700, color: INK, marginBottom: 3, whiteSpace: 'nowrap' }}>
                   {action.title}
                 </div>
-                <div style={{ fontSize: 12, color: '#6B7280', lineHeight: 1.4 }}>{action.description}</div>
+                <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.4 }}>{action.description}</div>
+                {pill && (
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      marginTop: 8,
+                      background: 'rgba(255,255,255,.85)',
+                      borderRadius: 999,
+                      padding: '3px 10px',
+                      fontSize: 11.5,
+                      fontWeight: 800,
+                      color: action.pillColor,
+                    }}
+                  >
+                    {pill}
+                  </span>
+                )}
               </div>
               <div
                 style={{
@@ -342,23 +593,215 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
                   flexShrink: 0,
                 }}
               >
-                <ArrowRight size={14} color="#1A1523" />
+                <ArrowRight size={14} color={INK} />
               </div>
             </button>
           );
         })}
       </div>
 
+      {/* Setup checklist + Jane's picks */}
       <div
         style={{
-          background: '#fff',
-          borderRadius: 16,
-          padding: 20,
-          boxShadow: '0 4px 18px rgba(20,16,14,.05)',
+          display: 'grid',
+          gridTemplateColumns: showChecklist && !isMobile ? '1.35fr 1fr' : '1fr',
+          gap: 18,
+          marginBottom: 20,
+          alignItems: 'start',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#1A1523' }}>
+        {showChecklist && (
+          <div style={card}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+              <Ring done={doneCount} total={steps.length} />
+              <div>
+                <div style={{ fontSize: 19, fontWeight: 900, letterSpacing: -0.3, color: INK }}>
+                  Get your brand fully set up
+                </div>
+                <div style={{ fontSize: 13.5, color: MUTED, marginTop: 2 }}>
+                  {steps.length - doneCount === 1 ? 'One more step' : `${steps.length - doneCount} more steps`} and Jane
+                  can run everything for you.
+                </div>
+              </div>
+            </div>
+            {steps.map((s, i) => (
+              <div
+                key={s.key}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '10px 4px',
+                  opacity: s.done ? 0.6 : 1,
+                  borderTop: i ? '1px solid #F7F0F3' : 'none',
+                }}
+              >
+                <span
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: '50%',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: 13,
+                    fontWeight: 900,
+                    flex: 'none',
+                    background: s.done ? '#E7F6EE' : '#FCE4EE',
+                    color: s.done ? '#1E8E4E' : PINK,
+                  }}
+                >
+                  {s.done ? '✓' : i + 1}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 700, color: INK }}>{s.title}</div>
+                  <div style={{ fontSize: 12.5, color: MUTED }}>{s.note}</div>
+                  {!s.done && typeof s.progress === 'number' && (
+                    <div
+                      style={{
+                        height: 6,
+                        borderRadius: 6,
+                        background: '#F4E8ED',
+                        marginTop: 6,
+                        width: 160,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${Math.round(s.progress * 100)}%`,
+                          borderRadius: 6,
+                          background: `linear-gradient(90deg, ${PINK}, ${PINK2})`,
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+                {!s.done && (
+                  <button
+                    type="button"
+                    onClick={s.go}
+                    style={
+                      s.key === firstTodo
+                        ? {
+                            border: 0,
+                            borderRadius: 999,
+                            padding: '8px 14px',
+                            fontFamily: 'inherit',
+                            fontSize: 12.5,
+                            fontWeight: 800,
+                            color: '#fff',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            background: `linear-gradient(135deg, ${PINK}, ${PINK2})`,
+                            boxShadow: '0 8px 18px -10px rgba(194,24,91,.6)',
+                          }
+                        : {
+                            border: '1px solid #EADDE2',
+                            borderRadius: 999,
+                            padding: '7px 13px',
+                            fontFamily: 'inherit',
+                            fontSize: 12.5,
+                            fontWeight: 800,
+                            color: INK,
+                            background: '#fff',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                          }
+                    }
+                  >
+                    {s.action}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div
+          style={{
+            ...card,
+            position: 'relative',
+            overflow: 'hidden',
+            color: '#fff',
+            background: 'linear-gradient(150deg, #2A0F1E 0%, #4A1430 60%, #7A1E4E 100%)',
+          }}
+        >
+          <span
+            aria-hidden
+            style={{
+              position: 'absolute',
+              right: -60,
+              top: -60,
+              width: 200,
+              height: 200,
+              borderRadius: '50%',
+              background: 'rgba(224,64,127,.25)',
+              filter: 'blur(10px)',
+            }}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
+            <span
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #F06292, #C2185B)',
+                display: 'grid',
+                placeItems: 'center',
+                fontWeight: 900,
+              }}
+            >
+              J
+            </span>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>Jane&apos;s picks for today</div>
+              <div style={{ fontSize: 12, color: '#F3C6D8', fontWeight: 600 }}>
+                Based on your content, campaigns and playbook
+              </div>
+            </div>
+          </div>
+          {picks.slice(0, 3).map((p) => (
+            <button
+              key={p.title}
+              type="button"
+              onClick={p.go}
+              style={{
+                display: 'flex',
+                gap: 10,
+                alignItems: 'flex-start',
+                width: '100%',
+                textAlign: 'left',
+                background: 'rgba(255,255,255,.08)',
+                border: '1px solid rgba(255,255,255,.10)',
+                borderRadius: 14,
+                padding: '11px 12px',
+                marginTop: 10,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                color: '#fff',
+                position: 'relative',
+              }}
+            >
+              <span aria-hidden style={{ fontSize: 17 }}>
+                {p.emoji}
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <b style={{ display: 'block', fontSize: 14 }}>{p.title}</b>
+                <small style={{ fontSize: 12.5, color: '#F3D3E0' }}>{p.note}</small>
+              </span>
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: '#FFB8D2', whiteSpace: 'nowrap' }}>
+                {p.action} →
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Real activity for the chosen period */}
+      <div style={{ ...card, padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: INK }}>
             Overview <span style={{ fontWeight: 400, color: '#9CA3AF' }}>(Last {period} days)</span>
           </div>
           <div style={{ position: 'relative' }}>
@@ -406,51 +849,63 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
               .map((tile) => {
                 const Icon = tile.icon;
                 return (
-                  <div
-                    key={tile.label}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 10,
-                      border: '1px solid #EDECEA',
-                      borderRadius: 14,
-                      padding: 18,
-                    }}
-                  >
-                    <div style={{ minWidth: 0 }}>
+                  <div key={tile.label} style={{ border: '1px solid #EDECEA', borderRadius: 14, padding: 18 }}>
+                    <div
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        background: tile.bg,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 11,
+                      }}
+                    >
+                      <Icon size={15} color={tile.color} />
+                    </div>
+                    <div style={{ fontSize: 12.5, color: MUTED, marginBottom: 4 }}>{tile.label}</div>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: INK, fontVariantNumeric: 'tabular-nums' }}>
+                      {tile.display}
+                    </div>
+                    {tile.value === 0 ? (
+                      <>
+                        <div style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>{tile.empty}</div>
+                        {tile.fix && (
+                          <button
+                            type="button"
+                            onClick={tile.fix.go}
+                            style={{
+                              marginTop: 6,
+                              padding: 0,
+                              border: 0,
+                              background: 'none',
+                              cursor: 'pointer',
+                              fontFamily: 'inherit',
+                              fontSize: 12.5,
+                              fontWeight: 800,
+                              color: PINK,
+                            }}
+                          >
+                            {tile.fix.label} →
+                          </button>
+                        )}
+                      </>
+                    ) : (
                       <div
                         style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: '50%',
-                          background: tile.bg,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          marginBottom: 11,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: tile.change === null ? '#9CA3AF' : tile.change >= 0 ? '#16A34A' : '#DC2626',
                         }}
                       >
-                        <Icon size={15} color={tile.color} />
+                        {tile.change === null
+                          ? `New this ${period === 7 ? 'week' : 'month'}`
+                          : tile.change === 0
+                            ? `Same as the previous ${period} days`
+                            : `${tile.change > 0 ? '↑' : '↓'} ${Math.abs(tile.change)}% vs previous ${period} days`}
                       </div>
-                      <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6, whiteSpace: 'nowrap' }}>
-                        {tile.label}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
-                        <span
-                          style={{
-                            fontSize: 22,
-                            fontWeight: 800,
-                            color: '#1A1523',
-                            fontVariantNumeric: 'tabular-nums',
-                          }}
-                        >
-                          {tile.value}
-                        </span>
-                        <InlineTrend value={tile.change} />
-                      </div>
-                    </div>
-                    <MiniBars current={tile.current} previous={tile.previous} color={tile.color} />
+                    )}
                   </div>
                 );
               })}
