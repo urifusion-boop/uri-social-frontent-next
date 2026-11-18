@@ -299,6 +299,8 @@ function connectDirect(channelId: string) {
   window.location.href = keepInBrowser(`${apiBase}/social-media/connect/${flow}/initiate?source=inbox`);
 }
 
+type SwappablePlatform = 'instagram' | 'facebook';
+
 type IgCandidate = { ig_user_id: string; page_name?: string; username?: string };
 
 const INBOX_CONNECTIONS_URL = '/workspace/?tab=messages&view=connections';
@@ -332,11 +334,20 @@ export default function InboxConnectionsPage({
   const [igCandidates, setIgCandidates] = useState<IgCandidate[]>([]);
   const [igSelected, setIgSelected] = useState<Set<string>>(new Set());
   const [finishing, setFinishing] = useState(false);
+  const [replaceFor, setReplaceFor] = useState<ChannelConnection | null>(null);
 
   // Subscribing the Page is what makes Meta deliver messages, and Meta can refuse it
   // (no full control of the Page, a permission left off) — say so right away.
-  const afterConnect = async (label: string) => {
+  const afterConnect = async (label: string, platform: SwappablePlatform) => {
     ToastService.showToast(`${label} connected`, ToastTypeEnum.Success);
+    try {
+      const swapped = await InboxService.finishReplace(platform);
+      if (swapped.replaced.length > 0) {
+        ToastService.showToast(`${swapped.replaced.join(', ')} replaced in this inbox`, ToastTypeEnum.Success);
+      }
+    } catch {
+      /* the earlier account simply stays listed */
+    }
     try {
       const res = await InboxService.resubscribeChannels();
       const issue = res.subscriptions.find((sub) => !sub.subscribed)?.issue;
@@ -347,11 +358,11 @@ export default function InboxConnectionsPage({
     onChannelsChanged();
   };
 
-  const finish = async (run: () => Promise<{ status?: boolean }>, label: string) => {
+  const finish = async (run: () => Promise<{ status?: boolean }>, label: string, platform: SwappablePlatform) => {
     setFinishing(true);
     try {
       const res = await run();
-      if (res.status) await afterConnect(label);
+      if (res.status) await afterConnect(label, platform);
       else ToastService.showToast(`${label} could not be connected. Please try again.`, ToastTypeEnum.Error);
     } catch {
       ToastService.showToast(`${label} could not be connected. Please try again.`, ToastTypeEnum.Error);
@@ -368,12 +379,14 @@ export default function InboxConnectionsPage({
     if (connected === 'instagram_direct' && param('ig_user_id')) {
       finish(
         () => SocialAccountService.finalizeInstagramDirect(param('ig_user_id')),
-        `Instagram @${param('username') || 'account'}`
+        `Instagram @${param('username') || 'account'}`,
+        'instagram'
       );
     } else if (connected === 'facebook_direct' && param('fb_page_id')) {
       finish(
         () => SocialAccountService.finalizeFacebookDirect(param('fb_page_id')),
-        param('page_name') || 'Facebook Page'
+        param('page_name') || 'Facebook Page',
+        'facebook'
       );
     } else if (connected === 'instagram_pending' && param('token')) {
       const token = param('token');
@@ -401,7 +414,8 @@ export default function InboxConnectionsPage({
     const ids = Array.from(igSelected);
     await finish(
       () => SocialMediaAgentService.finalizeInstagramDirectPending(igPendingToken, ids),
-      ids.length > 1 ? `${ids.length} Instagram accounts` : 'Instagram account'
+      ids.length > 1 ? `${ids.length} Instagram accounts` : 'Instagram account',
+      'instagram'
     );
     setIgPendingToken(null);
     setIgCandidates([]);
@@ -417,6 +431,83 @@ export default function InboxConnectionsPage({
         boxSizing: 'border-box',
       }}
     >
+      {replaceFor && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,.45)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 16,
+              padding: 22,
+              maxWidth: 420,
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              fontFamily: FONT,
+            }}
+          >
+            <div style={{ fontSize: 16, fontWeight: 800, color: INK }}>Replace the {replaceFor.label} account?</div>
+            <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.5 }}>
+              This inbox currently shows {replaceFor.statusNote.replace(/^Connected — /, '')}. If you connect a
+              different {replaceFor.label} account now, it will take its place here. The old account stays connected for
+              publishing and in Connected Accounts. Reconnecting the same account changes nothing.
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setReplaceFor(null)}
+                style={{
+                  ...ghostPill,
+                  padding: '9px 16px',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const id = replaceFor.id as SwappablePlatform;
+                  setReplaceFor(null);
+                  try {
+                    await InboxService.beginReplace(id);
+                  } catch {
+                    /* without it the new account is added next to the old one */
+                  }
+                  connectDirect(id);
+                }}
+                style={{
+                  ...primaryPill,
+                  padding: '9px 16px',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {igPendingToken && (
         <div
           style={{
@@ -684,7 +775,9 @@ export default function InboxConnectionsPage({
 
               <button
                 type="button"
-                onClick={() => (c.id === 'whatsapp' ? setWhatsAppOpen(true) : connectDirect(c.id))}
+                onClick={() =>
+                  c.id === 'whatsapp' ? setWhatsAppOpen(true) : c.connected ? setReplaceFor(c) : connectDirect(c.id)
+                }
                 style={{
                   ...(c.connected || c.id === 'whatsapp' ? ghostPill : primaryPill),
                   width: '100%',

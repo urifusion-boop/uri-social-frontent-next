@@ -204,6 +204,16 @@ const resubscribeChannels = async (): Promise<{
   return r.data;
 };
 
+const beginReplace = async (platform: 'instagram' | 'facebook'): Promise<{ replacing: string[] }> => {
+  const r = await UriHttpClient.getClient().post('/inbox/channels/replace/begin', { platform });
+  return r.data;
+};
+
+const finishReplace = async (platform: 'instagram' | 'facebook'): Promise<{ replaced: string[] }> => {
+  const r = await UriHttpClient.getClient().post('/inbox/channels/replace/finish', { platform });
+  return r.data;
+};
+
 const linkChannels = async (): Promise<{ linked: number }> => {
   const r = await UriHttpClient.getClient().post('/inbox/channels/link', {});
   return r.data;
@@ -298,6 +308,8 @@ export const InboxService = {
   createKnowledge,
   updateKnowledge,
   deleteKnowledge,
+  beginReplace,
+  finishReplace,
   linkChannels,
   listChannels,
   resubscribeChannels,
