@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { InboxService, OneboxPlan, OneboxUsage } from '@/src/api/InboxService';
+import { card, ghostPill, gradient, INK, MUTED, PINK, primaryPill } from './messaging/look';
 
 /*
  * What the inbox's AI has used this month. URI sells a monthly allowance of
@@ -51,7 +52,7 @@ export function OneboxUsagePanel({ isMobile }: { isMobile: boolean }) {
     return <div style={{ padding: 24, fontSize: 13, color: error ? '#C62828' : '#999' }}>{error || 'Loading…'}</div>;
   }
   const u = data.usage;
-  const barColor = u.exhausted ? '#C62828' : u.warning ? '#E65100' : '#2E7D32';
+  const barColor = u.exhausted ? '#C62828' : u.warning ? '#E65100' : gradient;
 
   return (
     <div
@@ -66,25 +67,44 @@ export function OneboxUsagePanel({ isMobile }: { isMobile: boolean }) {
         boxSizing: 'border-box',
       }}
     >
-      <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,.08)', borderRadius: 14, padding: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: '#1a1a1a' }}>{u.plan_name}</div>
-          <div style={{ fontSize: 12, color: '#888' }}>
+      <div style={{ ...card, padding: 22 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 17, fontWeight: 900, color: INK }}>{u.plan_name}</div>
+          <div
+            style={{
+              fontSize: 11.5,
+              fontWeight: 800,
+              color: PINK,
+              background: '#FCE4EE',
+              borderRadius: 999,
+              padding: '4px 10px',
+            }}
+          >
             {u.status === 'trial' ? 'Free trial' : u.status === 'expired' ? 'Expired' : 'Active'} ·{' '}
             {day(u.period_start)} – {day(u.period_end)}
           </div>
         </div>
-        <div style={{ margin: '14px 0 6px', fontSize: 28, fontWeight: 800, color: '#1a1a1a' }}>
+        <div style={{ margin: '14px 0 6px', fontSize: 40, fontWeight: 900, color: INK, letterSpacing: -1 }}>
           {u.used.toLocaleString()}
-          <span style={{ fontSize: 15, fontWeight: 600, color: '#888' }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: MUTED, letterSpacing: 0 }}>
             {' '}
             of {u.allowance.toLocaleString()} AI conversations
           </span>
         </div>
-        <div style={{ height: 10, background: '#f0eeec', borderRadius: 999, overflow: 'hidden' }}>
+        <div style={{ height: 10, background: '#F4E8ED', borderRadius: 999, overflow: 'hidden', marginTop: 6 }}>
           <div style={{ width: `${Math.min(100, u.percent_used)}%`, height: '100%', background: barColor }} />
         </div>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 8, fontSize: 12.5, color: '#555' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 16,
+            flexWrap: 'wrap',
+            marginTop: 8,
+            fontSize: 12.5,
+            fontWeight: 700,
+            color: MUTED,
+          }}
+        >
           <span>{u.percent_used}% used</span>
           <span>{u.remaining.toLocaleString()} remaining</span>
           {u.queued_plan && <span>Next period: {u.queued_plan}</span>}
@@ -122,48 +142,70 @@ export function OneboxUsagePanel({ isMobile }: { isMobile: boolean }) {
               : 'You’ve used every AI conversation in your plan, so new customers won’t get AI replies until you upgrade or it renews. Conversations already counted keep replying, and you can always reply by hand.'}
           </div>
         )}
-        <div style={{ marginTop: 12, fontSize: 11.5, color: '#999', lineHeight: 1.5 }}>
+        <div style={{ marginTop: 12, fontSize: 12, color: MUTED, lineHeight: 1.5 }}>
           A conversation counts once, however many messages it has. After {u.message_cap} messages in one conversation
           the AI stops replying; you can carry on by hand, and it isn’t charged again.
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,.08)', borderRadius: 14, padding: 20 }}>
-        <div style={{ fontSize: 14.5, fontWeight: 800, color: '#1a1a1a', marginBottom: 10 }}>
+      <div style={{ ...card, padding: 22 }}>
+        <div style={{ fontSize: 17, fontWeight: 900, color: INK, marginBottom: 12 }}>
           {u.status === 'active' ? 'Change or renew your plan' : 'Choose a plan'}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
           {data.plans.map((p) => (
             <div
               key={p.plan_id}
               style={{
-                border: p.plan_id === u.plan_id ? '1.5px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
-                borderRadius: 12,
-                padding: 14,
+                position: 'relative',
+                border: p.plan_id === u.plan_id ? '1.5px solid transparent' : '1.5px solid #F1E4EA',
+                background:
+                  p.plan_id === u.plan_id ? `linear-gradient(#fff,#fff) padding-box, ${gradient} border-box` : '#fff',
+                boxShadow: p.plan_id === u.plan_id ? '0 18px 34px -22px rgba(194,24,91,.55)' : 'none',
+                borderRadius: 18,
+                padding: 18,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 6,
               }}
             >
-              <div style={{ fontWeight: 800, fontSize: 14 }}>{p.name}</div>
-              <div style={{ fontSize: 20, fontWeight: 800 }}>
+              {p.plan_id === u.plan_id && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 14,
+                    right: 14,
+                    fontSize: 10.5,
+                    fontWeight: 900,
+                    color: '#fff',
+                    background: gradient,
+                    borderRadius: 999,
+                    padding: '3px 8px',
+                  }}
+                >
+                  Your plan
+                </span>
+              )}
+              <div style={{ fontWeight: 800, fontSize: 15, color: INK }}>{p.name}</div>
+              <div style={{ fontSize: 26, fontWeight: 900, color: INK }}>
                 ₦{p.price_ngn.toLocaleString()}
-                <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}> /month</span>
+                <span style={{ fontSize: 13, color: MUTED, fontWeight: 600 }}> /month</span>
               </div>
-              <div style={{ fontSize: 12.5, color: '#555' }}>{p.conversations.toLocaleString()} AI conversations</div>
+              <div style={{ fontSize: 13, color: '#4a4440', fontWeight: 600 }}>
+                <span style={{ color: '#1E8E4E', fontWeight: 900 }}>✓</span> {p.conversations.toLocaleString()} AI
+                conversations
+              </div>
               {data.can_manage ? (
                 <button
                   type="button"
                   disabled={busy !== ''}
                   onClick={() => subscribe(p.plan_id)}
                   style={{
-                    marginTop: 4,
-                    background: '#AD1457',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: 8,
-                    padding: '8px 14px',
-                    fontWeight: 700,
+                    marginTop: 8,
+                    ...(p.plan_id === u.plan_id ? primaryPill : ghostPill),
+                    padding: '9px 14px',
+                    fontWeight: 800,
+                    fontFamily: 'inherit',
                     fontSize: 13,
                     cursor: busy ? 'default' : 'pointer',
                     opacity: busy ? 0.6 : 1,
@@ -177,7 +219,7 @@ export function OneboxUsagePanel({ isMobile }: { isMobile: boolean }) {
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 10, fontSize: 11.5, color: '#999' }}>
+        <div style={{ marginTop: 12, fontSize: 12, color: MUTED }}>
           Shared across Instagram, Facebook, WhatsApp and TikTok. No automatic overage charges — ever.
         </div>
         {error && <div style={{ marginTop: 8, fontSize: 12.5, color: '#C62828' }}>{error}</div>}
@@ -185,16 +227,14 @@ export function OneboxUsagePanel({ isMobile }: { isMobile: boolean }) {
 
       <div
         style={{
-          background: '#fff',
-          border: '1px solid rgba(0,0,0,.08)',
-          borderRadius: 14,
+          ...card,
           padding: 20,
-          fontSize: 12.5,
-          color: '#555',
+          fontSize: 13,
+          color: MUTED,
           lineHeight: 1.7,
         }}
       >
-        <strong style={{ color: '#1a1a1a' }}>This period</strong>
+        <strong style={{ color: INK, fontSize: 15 }}>This period</strong>
         <div>
           {u.conversations} conversations · typically {u.median_messages} messages each (average {u.average_messages})
         </div>

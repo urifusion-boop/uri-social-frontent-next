@@ -18,6 +18,7 @@ import { OneboxUsagePanel } from './OneboxUsage';
 import type { Notification } from '@/src/api/NotificationService';
 import EmptyState from '@/src/components/app/atoms/EmptyState';
 import PageHeader from '@/src/components/app/atoms/PageHeader';
+import { pageBackground as msgPageBackground } from '@/src/components/app/workspace/messaging/look';
 
 /*
  * Unified Social Inbox — a tab inside WorkspaceDashboard (PAGES.messages),
@@ -1006,7 +1007,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           display: 'flex',
           flexDirection: 'column',
           fontFamily: FONT,
-          background: '#fafafa',
+          background: msgPageBackground,
           color: '#1a1a1a',
           overflow: 'hidden',
         }}
@@ -1014,8 +1015,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         <div
           style={{
             flex: '0 0 auto',
-            background: '#fff',
-            borderBottom: '1px solid rgba(0,0,0,.08)',
+            background: 'transparent',
             padding: isMobile ? '12px 14px' : '16px 24px 14px',
             boxSizing: 'border-box',
           }}
