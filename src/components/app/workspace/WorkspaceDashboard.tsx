@@ -101,6 +101,7 @@ import { useFeatures } from '@/src/hooks/useFeatures';
 import CampaignWalletPage from '@/src/components/app/workspace/campaign-wizard/CampaignWalletPage';
 import CampaignRevenuePage from '@/src/components/app/workspace/campaign-wizard/CampaignRevenuePage';
 import HelpSupportPage from '@/src/components/app/workspace/HelpSupportPage';
+import PageHeader from '@/src/components/app/atoms/PageHeader';
 import CreativesLibraryPage from '@/src/components/app/workspace/CreativesLibraryPage';
 import InboxDashboard from '@/src/components/app/workspace/InboxDashboard';
 import RecordsPanel from '@/src/components/app/workspace/RecordsPanel';
@@ -1293,7 +1294,6 @@ const ContentManagerPage = ({
       }
     };
 
-
     checkV3Status();
   }, []);
 
@@ -1367,30 +1367,18 @@ const ContentManagerPage = ({
   // same reason it moved there: a small chip up in the Topbar read as
   // nothing happening when tapped; the page's own title is the one thing
   // actually visible and obviously "this page" to tap on instead).
-  const DedicatedTitle = ({ children }: { children: ReactNode }) =>
-    isMobile && onOpenSectionNav ? (
-      <button
-        onClick={onOpenSectionNav}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          border: 'none',
-          background: 'none',
-          padding: 0,
-          cursor: 'pointer',
-          font: 'inherit',
-          color: 'inherit',
-        }}
-      >
-        <h2 style={{ fontSize: 15, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>{children}</h2>
-        <I n="chevronRight" s={12} c="#C2185B" />
-      </button>
-    ) : (
-      <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
-        {children}
-      </h2>
-    );
+  // Content Studio's sub-pages (Create, Library, Calendar, Auto-Generate, Video) all use the
+  // shared page header; on mobile the title still opens the section switcher.
+  const StudioHeader = ({ title, desc }: { title: string; desc: string }) => (
+    <PageHeader
+      section="Content Studio"
+      title={title}
+      description={desc}
+      compact={isMobile}
+      titleOnClick={isMobile && onOpenSectionNav ? onOpenSectionNav : undefined}
+      titleSuffix={isMobile && onOpenSectionNav ? <I n="chevronRight" s={12} c="#C2185B" /> : undefined}
+    />
+  );
 
   return (
     <div
@@ -1410,10 +1398,7 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
-          <DedicatedTitle>Create Content</DedicatedTitle>
-          <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
-            Turn your ideas into high-performing content with AI.
-          </p>
+          <StudioHeader title="Create Content" desc="Turn your ideas into high-performing content with AI." />
         </div>
       ) : libraryActive ? (
         <div
@@ -1429,10 +1414,7 @@ const ContentManagerPage = ({
           }}
         >
           <div style={{ minWidth: 0, flex: 1 }}>
-            <DedicatedTitle>Content Library</DedicatedTitle>
-            <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
-              Manage, approve, schedule and track all your content.
-            </p>
+            <StudioHeader title="Content Library" desc="Manage, approve, schedule and track all your content." />
           </div>
           <button
             onClick={() => setActiveTab('create')}
@@ -1459,10 +1441,10 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
-          <DedicatedTitle>Content Calendar</DedicatedTitle>
-          <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
-            A 30-day plan tailored to your brand — ad-ready posts, exact copy, built in.
-          </p>
+          <StudioHeader
+            title="Content Calendar"
+            desc="A 30-day plan tailored to your brand — ad-ready posts, exact copy, built in."
+          />
         </div>
       ) : autoActive ? (
         <div
@@ -1472,10 +1454,10 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
-          <DedicatedTitle>Auto-Generate</DedicatedTitle>
-          <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
-            Jane keeps a steady stream of on-brand drafts flowing — no manual prompting needed.
-          </p>
+          <StudioHeader
+            title="Auto-Generate"
+            desc="Jane keeps a steady stream of on-brand drafts flowing — no manual prompting needed."
+          />
         </div>
       ) : videoActive ? (
         <div
@@ -1485,10 +1467,10 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
-          <DedicatedTitle>🎬 Video</DedicatedTitle>
-          <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
-            Generate branded video Reels from storyboards or edit your own footage.
-          </p>
+          <StudioHeader
+            title="🎬 Video"
+            desc="Generate branded video Reels from storyboards or edit your own footage."
+          />
         </div>
       ) : (
         <div
@@ -2547,7 +2529,9 @@ const CMEmptyState = ({ message, retry }: { message: string; retry?: () => void 
 /* ── SubPage wrapper ─────────────────────────────────────────────────────── */
 const SubPage = ({
   title,
-  icon,
+  // Kept in the signature for callers; the shared PageHeader shows a section label instead.
+  icon: _icon,
+  section,
   desc,
   children,
   onJane,
@@ -2556,6 +2540,8 @@ const SubPage = ({
 }: {
   title: string;
   icon: string;
+  /** The menu section above this page (e.g. "Settings"), shown small above the title. */
+  section?: string;
   desc: string;
   children: ReactNode;
   onJane: () => void;
@@ -2570,44 +2556,14 @@ const SubPage = ({
 }) => (
   <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
     <div style={{ padding: '18px 24px 14px', borderBottom: '1px solid #edecea' }}>
-      {isMobile && onOpenSectionNav ? (
-        <button
-          onClick={onOpenSectionNav}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            border: 'none',
-            background: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            font: 'inherit',
-            color: 'inherit',
-          }}
-        >
-          <h2
-            style={{
-              fontSize: 17,
-              fontWeight: 800,
-              color: '#111',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              margin: 0,
-            }}
-          >
-            <I n={icon} s={18} c="#C2185B" />
-            {title}
-          </h2>
-          <I n="chevronRight" s={13} c="#C2185B" />
-        </button>
-      ) : (
-        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#111', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <I n={icon} s={18} c="#C2185B" />
-          {title}
-        </h2>
-      )}
-      <p style={{ fontSize: 12.5, color: '#999', marginTop: 2 }}>{desc}</p>
+      <PageHeader
+        section={section}
+        title={title}
+        description={desc}
+        compact={isMobile}
+        titleOnClick={isMobile && onOpenSectionNav ? onOpenSectionNav : undefined}
+        titleSuffix={isMobile && onOpenSectionNav ? <I n="chevronRight" s={13} c="#C2185B" /> : undefined}
+      />
     </div>
     <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>{children}</div>
     <div
@@ -3025,7 +2981,9 @@ const ConnectionsPage = ({
     if (loading) return;
     const anchor = searchParams?.get('anchor');
     if (anchor !== 'social' && anchor !== 'ads') return;
-    scrollToAndFlash(document.getElementById(anchor === 'ads' ? 'connections-section-ads' : 'connections-section-social'));
+    scrollToAndFlash(
+      document.getElementById(anchor === 'ads' ? 'connections-section-ads' : 'connections-section-social')
+    );
   }, [loading, searchParams]);
 
   useEffect(() => {
@@ -3615,7 +3573,11 @@ const ConnectionsPage = ({
                 >
                   {pg.picture ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={pg.picture} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
+                    <img
+                      src={pg.picture}
+                      alt=""
+                      style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }}
+                    />
                   ) : (
                     <span style={{ fontSize: 22 }}>📘</span>
                   )}
@@ -3631,7 +3593,15 @@ const ConnectionsPage = ({
               setAdsPickToken(null);
               setAdsPickPages([]);
             }}
-            style={{ marginTop: 12, background: 'none', border: 'none', color: '#6B7280', fontSize: 12.5, cursor: 'pointer', padding: 0 }}
+            style={{
+              marginTop: 12,
+              background: 'none',
+              border: 'none',
+              color: '#6B7280',
+              fontSize: 12.5,
+              cursor: 'pointer',
+              padding: 0,
+            }}
           >
             Cancel
           </button>
@@ -4009,8 +3979,8 @@ const ConnectionsPage = ({
                           {p.id === 'facebook_ads' && s?.meta_connection_state === 'page_not_shared' && (
                             <span style={{ color: '#c62828' }}>
                               {' '}
-                              — approve Uri Creative (URI Social) as a partner in Meta Business Suite (Settings → Requests) to run
-                              ads from this Page.{' '}
+                              — approve Uri Creative (URI Social) as a partner in Meta Business Suite (Settings →
+                              Requests) to run ads from this Page.{' '}
                               <a
                                 href="https://business.facebook.com/latest/settings/requests"
                                 target="_blank"
@@ -6131,6 +6101,7 @@ const IntelPage = ({
   return (
     <SubPage
       title="Market Intel"
+      section="Performance"
       icon="globe"
       desc={
         trends
@@ -7459,6 +7430,7 @@ const PlaybookPage = ({
       <PbEditContext.Provider value={{ onEdit: editAt, onEditSection: jumpToSection, hideEmpty }}>
         <SubPage
           title="Brand Playbook"
+          section="Settings"
           icon="book"
           desc="Everything URI Agent knows about your brand"
           onJane={onJane}
@@ -11162,7 +11134,6 @@ const LOWER_NAV = [
     tooltip: 'Get help or contact support',
   },
 ];
-
 
 /* ══════════════════════════════════════════════════════════════════════════
    MAIN DASHBOARD

@@ -14,6 +14,7 @@ import {
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { FiPlus, FiUsers, FiGrid, FiBarChart2, FiCopy, FiX, FiEdit2, FiCheck } from 'react-icons/fi';
+import PageHeader from '@/src/components/app/atoms/PageHeader';
 
 const URI_PINK = '#CD1B78';
 
@@ -257,9 +258,10 @@ function EditableAgencyName({ agency, onChange }: { agency: Agency; onChange: (a
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0, color: '#111' }}>{agency.name}</h1>
+    <PageHeader
+      section="Settings · Agency"
+      title={agency.name}
+      titleSuffix={
         <button
           onClick={() => setEditing(true)}
           title="Rename agency"
@@ -267,9 +269,9 @@ function EditableAgencyName({ agency, onChange }: { agency: Agency; onChange: (a
         >
           <FiEdit2 size={16} />
         </button>
-      </div>
-      <p style={{ margin: '4px 0 0', fontSize: 14, color: '#6b7280' }}>One agency. Many brands. One credit pool.</p>
-    </div>
+      }
+      description="One agency. Many brands. One credit pool."
+    />
   );
 }
 
