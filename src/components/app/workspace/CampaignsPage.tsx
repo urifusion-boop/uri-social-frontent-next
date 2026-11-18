@@ -48,6 +48,7 @@ import ObjectivePicker from '@/src/components/app/workspace/ObjectivePicker';
 import { ToastService } from '@/src/utils/toast.util';
 import { keepInBrowser } from '@/src/utils/keepInBrowser.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
+import EmptyState from '@/src/components/app/atoms/EmptyState';
 
 /** Where a Page's owner approves Uri Creative (URI Social's Business Manager) as a partner (Meta Business Suite → Settings → Requests). */
 const META_REQUESTS_URL = 'https://business.facebook.com/latest/settings/requests';
@@ -5189,7 +5190,15 @@ export function WalletTab({
       {loading && !wallet ? (
         <p style={{ color: '#9a9090', fontSize: 13 }}>Loading…</p>
       ) : !wallet?.transactions?.length ? (
-        <p style={{ color: '#9a9090', fontSize: 13 }}>No activity yet. Top up to get started.</p>
+        <EmptyState
+          compact
+          emoji="👛"
+          notes={[`${naira(min)} minimum`, '🔒 Secured by Squad']}
+          title="Top up once,"
+          highlight="Jane spends wisely"
+          body="Your wallet funds ads on Meta, TikTok and Google. Every naira shows here, spent or unspent."
+          action={{ label: 'Top up wallet', onClick: topUp }}
+        />
       ) : (
         <div
           style={{

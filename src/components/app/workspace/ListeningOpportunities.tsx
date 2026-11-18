@@ -51,6 +51,7 @@ import { setAdTestSeed, setVideoSeed } from '@/src/utils/contentSeed';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { useConnectedAccounts } from '@/src/hooks/useConnectedAccounts';
+import EmptyState from '@/src/components/app/atoms/EmptyState';
 
 const PLATFORM_LABELS: Record<string, string> = {
   instagram: 'Instagram',
@@ -796,10 +797,16 @@ export default function ListeningOpportunities() {
 
       {cards.length === 0 ? (
         <Card>
-          <CardContent className="p-6 text-[13px] text-muted-foreground">
-            No strong opportunities yet. Uri checks your market every {status?.cadence_hours ?? 12} hours and only shows
-            something when there is enough real evidence — trends need a few days of history before they can be called
-            trends.
+          <CardContent className="p-6">
+            <EmptyState
+              compact
+              emoji="🔭"
+              notes={[`🕒 Checks every ${status?.cadence_hours ?? 12}h`, '📈 Real evidence only']}
+              title="Uri is"
+              highlight="listening to your market"
+              body="Opportunities show up once there's enough real evidence — trends need a few days of history before they can be called trends."
+              action={{ label: watchingOpen ? 'Hide what Uri is watching' : 'See what Uri is watching', onClick: toggleWatching }}
+            />
           </CardContent>
         </Card>
       ) : (
