@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowRight, FileText, Megaphone, MessageCircle, PenLine, Users } from 'lucide-react';
+import { ArrowDown, ArrowRight, ArrowUp, FileText, Megaphone, MessageCircle, PenLine, Users } from 'lucide-react';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { CampaignService } from '@/src/api/CampaignService';
@@ -95,6 +95,55 @@ function greetingForHour(hour: number): string {
 function pctChange(current: number, previous: number): number | null {
   if (previous === 0) return current > 0 ? null : 0;
   return Math.round(((current - previous) / previous) * 100);
+}
+
+function InlineTrend({ value }: { value: number | null }) {
+  if (value === null) return <span style={{ fontSize: 12, fontWeight: 600, color: '#9CA3AF' }}>new</span>;
+  const up = value >= 0;
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 2,
+        fontSize: 12,
+        fontWeight: 700,
+        color: up ? '#16A34A' : '#DC2626',
+      }}
+    >
+      {up ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+      {Math.abs(value)}%
+    </span>
+  );
+}
+
+// A small trend visual built only from the two real period totals this page
+// already fetches (current vs. the period before it) — the in-between bars
+// are a straight-line interpolation between those two real numbers, not an
+// invented daily series, so there's no false claim of day-by-day data.
+function MiniBars({ current, previous, color }: { current: number; previous: number; color: string }) {
+  const steps = 5;
+  const values = Array.from({ length: steps }, (_, i) => previous + ((current - previous) * i) / (steps - 1));
+  const max = Math.max(...values, 1);
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 30 }}>
+      {values.map((v, i) => {
+        const h = Math.max(4, Math.round((v / max) * 30));
+        const isLast = i === values.length - 1;
+        return (
+          <div
+            key={i}
+            style={{
+              width: 6,
+              height: h,
+              borderRadius: 2,
+              background: isLast ? color : `${color}40`,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -443,10 +492,12 @@ export default function HomePage({
           color: '#C2185B',
           bg: '#FDF1F6',
           label: 'Content Published',
+          current: stats.contentPublished,
+          previous: stats.contentPublishedPrevious,
           value: stats.contentPublished,
           display: String(stats.contentPublished),
           change: pctChange(stats.contentPublished, stats.contentPublishedPrevious),
-          empty: period === 7 ? 'Nothing posted this week' : 'Nothing posted this month',
+          empty: period === 7 ? 'none this week' : 'none this month',
           fix: library?.drafts
             ? { label: 'Schedule a draft', go: () => openContent('library') }
             : { label: 'Create a post', go: () => openContent('create') },
@@ -456,10 +507,12 @@ export default function HomePage({
           color: '#F59E0B',
           bg: '#FEF6E7',
           label: 'Ad Campaigns',
+          current: stats.adCampaignsCreated,
+          previous: stats.adCampaignsCreatedPrevious,
           value: stats.adCampaigns,
           display: String(stats.adCampaigns),
           change: pctChange(stats.adCampaignsCreated, stats.adCampaignsCreatedPrevious),
-          empty: 'No ads running',
+          empty: 'none running',
           fix: { label: 'Start a campaign', go: () => onNavigate('campaign-wizard') },
         },
         {
@@ -467,10 +520,12 @@ export default function HomePage({
           color: '#3B82F6',
           bg: '#EDF4FE',
           label: 'Customer Messages',
+          current: stats.customerMessages,
+          previous: stats.customerMessagesPrevious,
           value: stats.customerMessages,
           display: String(stats.customerMessages),
           change: pctChange(stats.customerMessages, stats.customerMessagesPrevious),
-          empty: hasInstagram || hasFacebook ? 'No messages in this period' : 'Connect an account to receive messages',
+          empty: hasInstagram || hasFacebook ? 'none yet' : 'no account connected',
           fix: hasInstagram || hasFacebook ? null : { label: 'Connect', go: () => onNavigate('connections') },
         },
         {
@@ -478,10 +533,12 @@ export default function HomePage({
           color: '#7C3AED',
           bg: '#F3EDFD',
           label: 'Total Reach',
+          current: stats.totalReach,
+          previous: stats.totalReachPrevious,
           value: stats.totalReach,
           display: compact(stats.totalReach),
           change: pctChange(stats.totalReach, stats.totalReachPrevious),
-          empty: 'Reach appears once your posts are seen',
+          empty: 'none yet',
           fix: null,
         },
       ]
@@ -908,63 +965,75 @@ export default function HomePage({
               .map((tile) => {
                 const Icon = tile.icon;
                 return (
-                  <div key={tile.label} style={{ border: '1px solid #EDECEA', borderRadius: 14, padding: 18 }}>
-                    <div
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: '50%',
-                        background: tile.bg,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 11,
-                      }}
-                    >
-                      <Icon size={15} color={tile.color} />
-                    </div>
-                    <div style={{ fontSize: 12.5, color: MUTED, marginBottom: 4 }}>{tile.label}</div>
-                    <div style={{ fontSize: 26, fontWeight: 800, color: INK, fontVariantNumeric: 'tabular-nums' }}>
-                      {tile.display}
-                    </div>
-                    {tile.value === 0 ? (
-                      <>
-                        <div style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>{tile.empty}</div>
-                        {tile.fix && (
-                          <button
-                            type="button"
-                            onClick={tile.fix.go}
-                            style={{
-                              marginTop: 6,
-                              padding: 0,
-                              border: 0,
-                              background: 'none',
-                              cursor: 'pointer',
-                              fontFamily: 'inherit',
-                              fontSize: 12.5,
-                              fontWeight: 800,
-                              color: PINK,
-                            }}
-                          >
-                            {tile.fix.label} →
-                          </button>
-                        )}
-                      </>
-                    ) : (
+                  <div
+                    key={tile.label}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      border: '1px solid #EDECEA',
+                      borderRadius: 14,
+                      padding: 18,
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
                       <div
                         style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: tile.change === null ? '#9CA3AF' : tile.change >= 0 ? '#16A34A' : '#DC2626',
+                          width: 32,
+                          height: 32,
+                          borderRadius: '50%',
+                          background: tile.bg,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginBottom: 11,
                         }}
                       >
-                        {tile.change === null
-                          ? `New this ${period === 7 ? 'week' : 'month'}`
-                          : tile.change === 0
-                            ? `Same as the previous ${period} days`
-                            : `${tile.change > 0 ? '↑' : '↓'} ${Math.abs(tile.change)}% vs previous ${period} days`}
+                        <Icon size={15} color={tile.color} />
                       </div>
-                    )}
+                      <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6, whiteSpace: 'nowrap' }}>
+                        {tile.label}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
+                        <span
+                          style={{
+                            fontSize: 22,
+                            fontWeight: 800,
+                            color: '#1A1523',
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          {tile.display}
+                        </span>
+                        {/* A zero says why instead of a green "↑ 0%". */}
+                        {tile.value === 0 ? (
+                          <span style={{ fontSize: 11.5, fontWeight: 600, color: '#9CA3AF' }}>{tile.empty}</span>
+                        ) : (
+                          <InlineTrend value={tile.change} />
+                        )}
+                      </div>
+                      {tile.value === 0 && tile.fix && (
+                        <button
+                          type="button"
+                          onClick={tile.fix.go}
+                          style={{
+                            marginTop: 4,
+                            padding: 0,
+                            border: 0,
+                            background: 'none',
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                            fontSize: 12,
+                            fontWeight: 800,
+                            color: PINK,
+                          }}
+                        >
+                          {tile.fix.label} →
+                        </button>
+                      )}
+                    </div>
+                    <MiniBars current={tile.current} previous={tile.previous} color={tile.color} />
                   </div>
                 );
               })}
