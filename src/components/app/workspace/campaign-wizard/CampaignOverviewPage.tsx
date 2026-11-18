@@ -27,6 +27,7 @@ import {
   mergeWizardDrafts,
   WizardDraft,
 } from './wizardDraft';
+import PageHeader from '@/src/components/app/atoms/PageHeader';
 
 const PINK = '#C2185B';
 const AMBER = '#a15c00';
@@ -171,15 +172,14 @@ function PageShell({
   return (
     <div style={{ minHeight: '100%', background: 'linear-gradient(180deg, #FCE4EC 0%, #FBF8F7 40%, #FAFAF8 100%)' }}>
       <div style={{ maxWidth: 1040, margin: '0 auto', padding: isMobile ? '14px 12px 28px' : '18px 20px 28px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1a0a12' }}>Overview</h2>
-            <p style={{ margin: '2px 0 16px', fontSize: 12.5, color: '#7a7270' }}>
-              What&rsquo;s happening across your campaigns, at a glance.
-            </p>
-          </div>
-          {action}
-        </div>
+        <PageHeader
+          section="Campaign Manager"
+          title="Overview"
+          description="What’s happening across your campaigns, at a glance."
+          actions={action}
+          compact={isMobile}
+          style={{ marginBottom: 16 }}
+        />
         {children}
       </div>
     </div>

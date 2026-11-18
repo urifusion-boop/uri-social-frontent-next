@@ -68,6 +68,7 @@ import ListeningOpportunities from '@/src/components/app/workspace/ListeningOppo
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { CONTINENTS, COUNTRIES } from '@/src/utils/worldLocations';
+import PageHeader from '@/src/components/app/atoms/PageHeader';
 
 // A rejected MI request (e.g. a 403 from require_mi_write_access when a
 // view-only teammate tries to act) is shaped like http.config.ts's
@@ -2513,13 +2514,11 @@ export default function MarketIntelligencePage() {
       <div className="w-full px-4 py-6 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Market Intelligence</h1>
-            <p className="mt-1 max-w-2xl text-[13.5px] text-muted-foreground">
-              What customers want, what stops them buying, and what&apos;s changing in your market — with evidence, not
-              guesses.
-            </p>
-          </div>
+          <PageHeader
+            section="Performance"
+            title="Market Intelligence"
+            description="What customers want, what stops them buying, and what’s changing in your market — with evidence, not guesses."
+          />
           <Button
             onClick={() => {
               setActiveTab('topics');

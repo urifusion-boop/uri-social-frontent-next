@@ -10,6 +10,7 @@
 'use client';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { BillingTab } from '../CampaignsPage';
+import PageHeader from '@/src/components/app/atoms/PageHeader';
 
 export default function CampaignRevenuePage() {
   const isMobile = useIsMobile();
@@ -19,10 +20,12 @@ export default function CampaignRevenuePage() {
           which has no wrapper of its own to supply it) — only the heading gets this
           page's usual max-width/side padding, so the two don't stack. */}
       <div style={{ maxWidth: 900, margin: '0 auto', padding: isMobile ? '14px 12px 0' : '18px 20px 0' }}>
-        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1a0a12' }}>Revenue</h2>
-        <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#7a7270' }}>
-          Fee revenue from ad spend across every brand, with a CSV export.
-        </p>
+        <PageHeader
+          section="Campaign Manager"
+          title="Revenue"
+          description="Fee revenue from ad spend across every brand, with a CSV export."
+          compact={isMobile}
+        />
       </div>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
         <BillingTab />

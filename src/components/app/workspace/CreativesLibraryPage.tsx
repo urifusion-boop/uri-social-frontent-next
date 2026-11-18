@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
 import { CampaignService, DraftSummary } from '@/src/api/CampaignService';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
+import PageHeader from '@/src/components/app/atoms/PageHeader';
 
 const PINK = '#C2185B';
 
@@ -116,10 +117,13 @@ export default function CreativesLibraryPage({ onUseInWizard }: { onUseInWizard:
 
   return (
     <div style={{ padding: isMobile ? '14px 12px 28px' : '20px 24px 40px' }}>
-      <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1a0a12' }}>Creatives</h2>
-      <p style={{ margin: '2px 0 18px', fontSize: 12.5, color: '#7a7270' }}>
-        Everything you've generated or uploaded — reuse any of it as a new campaign's creative.
-      </p>
+      <PageHeader
+        section="Campaign Manager"
+        title="Creatives"
+        description="Everything you've generated or uploaded — reuse any of it as a new campaign's creative."
+        compact={isMobile}
+        style={{ marginBottom: 18 }}
+      />
 
       {drafts === null && !failed && <p style={{ fontSize: 13, color: '#7a7270' }}>Loading your creative…</p>}
       {failed && (
