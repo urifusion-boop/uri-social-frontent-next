@@ -14,6 +14,7 @@ import { PersonalityAssessment } from './PersonalityAssessment';
 import { PersonalityLearn } from './PersonalityLearn';
 import { PersonalityPlayground } from './PersonalityPlayground';
 import { Btn, Card, Chip, FONT, PINK, PINK_SOFT, TRAIT_NAMES, errorText, statusOf, when } from './ui';
+import { gradient, iconTile, INK, MUTED } from '../messaging/look';
 
 /*
  * Brand Voice (Personality PRD): how the inbox agent sounds. Three ways in (a
@@ -149,11 +150,45 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
       }}
     >
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-        {(['overview', 'history'] as Tab[]).map((t) => (
-          <Chip key={t} active={tab === t} onClick={t === 'history' && !profile ? undefined : () => go(t)}>
-            {t === 'overview' ? 'Overview' : 'History'}
-          </Chip>
-        ))}
+        <div
+          role="tablist"
+          style={{
+            display: 'inline-flex',
+            background: '#fff',
+            borderRadius: 999,
+            padding: 4,
+            boxShadow: '0 0 0 1px #F1E4EA',
+          }}
+        >
+          {(['overview', 'history'] as Tab[]).map((t) => {
+            const disabled = t === 'history' && !profile;
+            const on = tab === t;
+            return (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                disabled={disabled}
+                onClick={disabled ? undefined : () => go(t)}
+                style={{
+                  border: 0,
+                  borderRadius: 999,
+                  padding: '7px 16px',
+                  fontFamily: FONT,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: disabled ? 'not-allowed' : 'pointer',
+                  opacity: disabled ? 0.5 : 1,
+                  color: on ? '#fff' : MUTED,
+                  background: on ? gradient : 'transparent',
+                }}
+              >
+                {t === 'overview' ? 'Overview' : 'History'}
+              </button>
+            );
+          })}
+        </div>
         <div style={{ flex: 1 }} />
         {stepIndex(tab) < 0 && (
           <Btn
@@ -512,18 +547,32 @@ function Overview({
         title="Give your inbox agent a voice"
         desc="Choose how URI sounds when it replies to your customers. Facts still come only from your FAQs and Brand Playbook."
       >
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
           {[
-            { tab: 'templates' as Tab, title: 'Choose a template', text: 'Eight ready-made styles. Two minutes.' },
+            {
+              tab: 'templates' as Tab,
+              title: 'Choose a template',
+              text: 'Eight ready-made styles. Two minutes.',
+              emoji: '🎨',
+              tint: '#FCE4EE',
+              tag: 'Quickest',
+              go: 'Browse styles',
+            },
             {
               tab: 'assessment' as Tab,
               title: 'Discover my brand voice',
               text: 'Answer questions about how you talk to customers.',
+              emoji: '💭',
+              tint: '#EEE7FB',
+              go: 'Start',
             },
             {
               tab: 'templates' as Tab,
               title: 'Learn from my conversations',
               text: 'Start from a template, then teach URI from replies you have sent.',
+              emoji: '📚',
+              tint: '#E6F0FF',
+              go: 'Start',
             },
           ].map((o) => (
             <button
@@ -531,17 +580,39 @@ function Overview({
               type="button"
               onClick={() => onGo(o.tab)}
               style={{
+                position: 'relative',
                 textAlign: 'left',
-                border: '1px solid rgba(0,0,0,.1)',
-                borderRadius: 12,
-                padding: 14,
-                background: '#fff',
+                border: o.tag ? '1.5px solid transparent' : '1.5px solid #F1E4EA',
+                background: o.tag ? `linear-gradient(#fff,#fff) padding-box, ${gradient} border-box` : '#fff',
+                borderRadius: 18,
+                padding: 18,
                 cursor: 'pointer',
                 fontFamily: FONT,
               }}
             >
-              <div style={{ fontWeight: 800, fontSize: 14, color: PINK }}>{o.title}</div>
-              <div style={{ fontSize: 12.5, color: '#666', marginTop: 4 }}>{o.text}</div>
+              {o.tag && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 14,
+                    right: 14,
+                    fontSize: 10.5,
+                    fontWeight: 900,
+                    color: '#fff',
+                    background: gradient,
+                    borderRadius: 999,
+                    padding: '3px 8px',
+                  }}
+                >
+                  {o.tag}
+                </span>
+              )}
+              <span aria-hidden style={{ ...iconTile(o.tint, 42), marginBottom: 12 }}>
+                {o.emoji}
+              </span>
+              <div style={{ fontWeight: 800, fontSize: 15.5, color: INK }}>{o.title}</div>
+              <div style={{ fontSize: 13, color: MUTED, marginTop: 4, lineHeight: 1.45 }}>{o.text}</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: PINK, marginTop: 12 }}>{o.go} →</div>
             </button>
           ))}
         </div>

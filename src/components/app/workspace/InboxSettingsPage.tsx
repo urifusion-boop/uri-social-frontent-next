@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect, useState } from 'react';
 import { InboxKnowledgeEntry, InboxService } from '@/src/api/InboxService';
+import { card, gradient, iconTile, INK, MUTED, PINK, primaryPill } from './messaging/look';
 
 /*
  * Inbox settings — per PRD §4.3: business hours, the automation policy for
@@ -79,22 +80,34 @@ interface SavedReply {
   text: string;
 }
 
+// Each section's icon tile — the same tinted-tile language as the rest of the dashboard.
+const SECTION_ICONS: Record<string, [string, string]> = {
+  'Business hours': ['🕘', '#E6F0FF'],
+  'Auto-reply policy': ['🤖', '#FCE4EE'],
+  'FAQ answers': ['📚', '#EEE7FB'],
+  'Saved replies': ['💬', '#E7F6EE'],
+};
+
 function SectionCard({ title, desc, children }: { title: string; desc?: string; children: ReactNode }) {
+  const icon = SECTION_ICONS[title] ?? ['⚙️', '#F4EEF0'];
   return (
     <div
       style={{
-        background: '#fff',
-        border: '1px solid rgba(0,0,0,.08)',
-        borderRadius: 14,
-        padding: '18px 20px',
+        ...card,
+        padding: '20px 22px',
         display: 'flex',
         flexDirection: 'column',
         gap: 14,
       }}
     >
-      <div>
-        <div style={{ fontSize: 14.5, fontWeight: 800, color: '#1a1a1a' }}>{title}</div>
-        {desc && <div style={{ fontSize: 12, color: '#888', marginTop: 3, lineHeight: 1.5 }}>{desc}</div>}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <span aria-hidden style={iconTile(icon[1], 38)}>
+          {icon[0]}
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 900, color: INK }}>{title}</div>
+          {desc && <div style={{ fontSize: 12.5, color: MUTED, marginTop: 3, lineHeight: 1.5 }}>{desc}</div>}
+        </div>
       </div>
       {children}
     </div>
@@ -109,11 +122,11 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
       aria-checked={on}
       onClick={onClick}
       style={{
-        width: 40,
-        height: 22,
-        borderRadius: 11,
+        width: 42,
+        height: 24,
+        borderRadius: 999,
         border: 'none',
-        background: on ? '#AD1457' : 'rgba(0,0,0,.15)',
+        background: on ? gradient : '#EADDE2',
         position: 'relative',
         cursor: 'pointer',
         flex: '0 0 auto',
@@ -123,8 +136,8 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
       <span
         style={{
           position: 'absolute',
-          top: 2,
-          left: on ? 20 : 2,
+          top: 3,
+          left: on ? 21 : 3,
           width: 18,
           height: 18,
           borderRadius: '50%',
@@ -312,12 +325,13 @@ export default function InboxSettingsPage({
   }
 
   const inputStyle: React.CSSProperties = {
-    border: '1px solid rgba(0,0,0,.12)',
-    borderRadius: 8,
-    padding: '8px 10px',
+    border: '1.5px solid #F1E4EA',
+    borderRadius: 12,
+    padding: '8px 12px',
     fontSize: 13,
     fontFamily: FONT,
     outline: 'none',
+    background: '#fff',
   };
 
   return (
@@ -343,13 +357,14 @@ export default function InboxSettingsPage({
               type="button"
               onClick={() => setOpenDays((prev) => ({ ...prev, [d]: !prev[d] }))}
               style={{
-                padding: '7px 12px',
-                borderRadius: 8,
-                border: openDays[d] ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
-                background: openDays[d] ? 'rgba(194,24,91,.08)' : '#fff',
-                color: openDays[d] ? '#AD1457' : '#999',
+                minWidth: 48,
+                padding: '8px 10px',
+                borderRadius: 12,
+                border: openDays[d] ? '1.5px solid #F3B7CD' : '1.5px solid #F1E4EA',
+                background: openDays[d] ? '#FCE4EE' : '#fff',
+                color: openDays[d] ? PINK : '#9A9090',
                 fontSize: 12.5,
-                fontWeight: 700,
+                fontWeight: 800,
                 cursor: 'pointer',
                 fontFamily: FONT,
               }}
@@ -457,13 +472,13 @@ export default function InboxSettingsPage({
 
         <div
           style={{
-            fontSize: 11.5,
+            fontSize: 12.5,
             color: '#7A4B00',
             lineHeight: 1.55,
-            background: '#FFF7E6',
-            border: '1px solid #F5D9A8',
-            borderRadius: 10,
-            padding: '10px 12px',
+            background: '#FFF7EC',
+            border: '1px solid #F6DFB8',
+            borderRadius: 16,
+            padding: '14px 16px',
           }}
         >
           <div style={{ fontWeight: 700, marginBottom: 4 }}>Why some messages still ask you to send</div>
@@ -539,13 +554,11 @@ export default function InboxSettingsPage({
             onClick={saveAgentSettings}
             disabled={!settingsLoaded || saveState === 'saving'}
             style={{
-              padding: '9px 18px',
-              borderRadius: 8,
-              border: 'none',
-              background: settingsLoaded ? '#AD1457' : 'rgba(0,0,0,.15)',
+              ...(settingsLoaded ? primaryPill : { border: 'none', borderRadius: 999, background: 'rgba(0,0,0,.15)' }),
+              padding: '10px 20px',
               color: '#fff',
               fontSize: 13,
-              fontWeight: 700,
+              fontWeight: 800,
               cursor: settingsLoaded ? 'pointer' : 'default',
               fontFamily: FONT,
             }}
