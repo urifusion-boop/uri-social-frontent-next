@@ -37,6 +37,64 @@ function timeAgo(iso: string): string {
   return new Date(utc).toLocaleDateString();
 }
 
+/** The creative's image, or — when there is none or it no longer loads — a soft branded tile with
+ *  the platform icon and the start of the caption, instead of an empty grey square. */
+function Thumb({ url, caption, icon }: { url?: string | null; caption: string; icon?: React.ReactNode }) {
+  const [broken, setBroken] = useState(false);
+  if (url && !broken) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={url}
+        alt=""
+        loading="lazy"
+        onError={() => setBroken(true)}
+        style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block', background: '#f6f3f2' }}
+      />
+    );
+  }
+  return (
+    <div
+      style={{
+        aspectRatio: '1',
+        background: 'linear-gradient(135deg, #FCE4EE 0%, #F8F0F3 55%, #EEE7FB 100%)',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        padding: 12,
+      }}
+    >
+      <span
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: 9,
+          background: '#fff',
+          display: 'grid',
+          placeItems: 'center',
+          boxShadow: '0 4px 10px -4px rgba(120,20,60,.25)',
+        }}
+      >
+        {icon}
+      </span>
+      <span
+        style={{
+          fontSize: 13,
+          fontWeight: 800,
+          color: '#1a0a12',
+          lineHeight: 1.25,
+          display: '-webkit-box',
+          WebkitLineClamp: 3,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+        }}
+      >
+        {caption.replace(/\s+/g, ' ').trim() || 'Text post'}
+      </span>
+    </div>
+  );
+}
+
 export default function CreativesLibraryPage({ onUseInWizard }: { onUseInWizard: (draft: DraftSummary) => void }) {
   const isMobile = useIsMobile();
   const [drafts, setDrafts] = useState<DraftSummary[] | null>(null);
@@ -95,12 +153,7 @@ export default function CreativesLibraryPage({ onUseInWizard }: { onUseInWizard:
                   flexDirection: 'column',
                 }}
               >
-                <div
-                  style={{
-                    aspectRatio: '1',
-                    background: d.image_url ? `center/cover no-repeat url(${d.image_url})` : '#f6f3f2',
-                  }}
-                />
+                <Thumb url={d.image_url} caption={d.content || ''} icon={platform?.icon} />
                 <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     {platform ? (

@@ -17,7 +17,9 @@ export default function BugReportButton() {
         style={{
           position: 'fixed',
           // Clear the mobile bottom nav (56px + safe area) instead of sitting on top of it.
-          bottom: isMobile ? 'calc(56px + 16px + env(safe-area-inset-bottom, 0px))' : 24,
+          // Desktop: above the "Ask about…" bar several pages pin to the bottom (it sat on that
+          // bar's send button).
+          bottom: isMobile ? 'calc(56px + 16px + env(safe-area-inset-bottom, 0px))' : 84,
           right: isMobile ? 16 : 24,
           zIndex: 9000,
           width: 44,

@@ -1326,7 +1326,11 @@ export default function BillingPage({ onBack, initialTab = 'overview', focusBuyC
                         </svg>
                       </div>
                     </Tooltip>
-                    <div style={{ fontSize: 24, fontWeight: 900, color: '#111' }}>{balance?.total_credits || 0}</div>
+                    {/* The plan's own monthly allowance. The wallet's total_credits is the live balance
+                        (it goes down as credits are used), so showing it here read as "10 total, 108 used". */}
+                    <div style={{ fontSize: 24, fontWeight: 900, color: '#111' }}>
+                      {subscription?.credits || balance?.total_credits || 0}
+                    </div>
                   </div>
                 </div>
                 <div style={{ fontSize: 11, color: '#666' }}>Monthly allowance</div>
@@ -1350,7 +1354,7 @@ export default function BillingPage({ onBack, initialTab = 'overview', focusBuyC
                   </div>
                   <div>
                     <Tooltip
-                      title="Credits consumed so far this billing cycle. Each content generation uses one credit."
+                      title="Every credit used on this account since you joined. Each content generation uses one credit."
                       arrow
                       placement="top"
                       enterTouchDelay={0}
@@ -1377,7 +1381,7 @@ export default function BillingPage({ onBack, initialTab = 'overview', focusBuyC
                     <div style={{ fontSize: 24, fontWeight: 900, color: '#111' }}>{balance?.credits_used || 0}</div>
                   </div>
                 </div>
-                <div style={{ fontSize: 11, color: '#666' }}>Consumed this cycle</div>
+                <div style={{ fontSize: 11, color: '#666' }}>Used since you joined</div>
               </div>
 
               {/* Credits Remaining */}
