@@ -13,6 +13,7 @@ import CompetitorSheet from './CompetitorSheet';
 import BusinessesTab from './BusinessesTab';
 import TheirAdsTab from './TheirAdsTab';
 import { btn, C, errorText, font, Notice } from './ui';
+import PageHeader from '@/src/components/app/atoms/PageHeader';
 
 type Tab = 'businesses' | 'ads';
 
@@ -89,12 +90,12 @@ export default function CompetitorsPage({
   return (
     <div style={{ minHeight: '100%', background: 'linear-gradient(180deg, #FCE4EC 0%, #FBF8F7 40%, #FAFAF8 100%)' }}>
       <div style={{ ...font, maxWidth: 1040, margin: '0 auto', padding: isMobile ? '14px 12px 28px' : '18px 20px 28px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: C.ink }}>Competitors</h2>
-          <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#7a7270' }}>
-            Who you&apos;re up against, the ads they run, and your own take on the ideas that work.
-          </p>
-        </div>
+        <PageHeader
+          section="Campaign Manager"
+          title="Competitors"
+          description="Who you’re up against, the ads they run, and your own take on the ideas that work."
+          compact={isMobile}
+        />
         <div role="tablist" style={{ display: 'flex', gap: 6 }}>
           {tabs.map(([key, label]) => (
             <button

@@ -6,6 +6,7 @@ import { AdAnalysis, AdList, Competitor, CompetitorAd, CompetitorService } from 
 import { Drawer } from '@mui/material';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { btn, C, card, errorText, font, input, linkLabel, Notice, pill } from './ui';
+import EmptyState from '@/src/components/app/atoms/EmptyState';
 
 interface Props {
   competitors: Competitor[];
@@ -136,15 +137,15 @@ export default function TheirAdsTab({ competitors, competitorId, onCompetitorCha
       {error && <Notice>{error}</Notice>}
 
       {!loading && !ads.length && !adding && (
-        <div style={{ ...card, alignItems: 'center', textAlign: 'center', padding: '28px 18px', gap: 10 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: C.ink }}>{filtered ? 'No ads here yet' : 'Save ads you see from competitors'}</div>
-          <div style={{ fontSize: 13.5, color: C.muted, maxWidth: 480, lineHeight: 1.55 }}>
-            Take a screenshot of a competitor&apos;s ad on Instagram, Facebook or TikTok and add it here. Jane reads it — the angle, the hook,
-            the offer and why it works — and can make your own version of the idea in your brand.
-          </div>
-          <button type="button" onClick={() => setAdding(true)} style={btn('primary')}>
-            + Add an ad you&apos;ve seen
-          </button>
+        <div style={{ ...card, alignItems: 'center', padding: '8px 18px 20px' }}>
+          <EmptyState
+            emoji="📸"
+            notes={['🎯 The angle and hook', '✨ Your own version']}
+            title={filtered ? 'No ads here' : 'Save ads you see from'}
+            highlight={filtered ? 'yet' : 'competitors'}
+            body="Take a screenshot of a competitor’s ad on Instagram, Facebook or TikTok and add it here. Jane reads it — the angle, the hook, the offer and why it works — and can make your own version of the idea in your brand."
+            action={{ label: 'Add an ad you’ve seen', onClick: () => setAdding(true) }}
+          />
         </div>
       )}
 
