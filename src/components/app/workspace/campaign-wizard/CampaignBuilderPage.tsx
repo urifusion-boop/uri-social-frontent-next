@@ -33,6 +33,7 @@ import {
   WizardDraft,
 } from './wizardDraft';
 import EmptyState from '@/src/components/app/atoms/EmptyState';
+import PageHeader from '@/src/components/app/atoms/PageHeader';
 
 const PINK = '#C2185B';
 
@@ -256,12 +257,12 @@ export default function CampaignBuilderPage({
             marginBottom: 16,
           }}
         >
-          <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1a0a12' }}>Campaigns</h2>
-            <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#7a7270' }}>
-              Everything you&rsquo;ve launched or paused. Start, stop, or change who a running one targets.
-            </p>
-          </div>
+          <PageHeader
+            section="Campaign Manager"
+            title="Campaigns"
+            description="Everything you’ve launched or paused. Start, stop, or change who a running one targets."
+            compact={isMobile}
+          />
           <button
             type="button"
             onClick={startWizard}

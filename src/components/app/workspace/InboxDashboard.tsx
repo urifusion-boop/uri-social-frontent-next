@@ -17,6 +17,7 @@ import { WhatsAppTemplatePicker } from './WhatsAppTemplates';
 import { OneboxUsagePanel } from './OneboxUsage';
 import type { Notification } from '@/src/api/NotificationService';
 import EmptyState from '@/src/components/app/atoms/EmptyState';
+import PageHeader from '@/src/components/app/atoms/PageHeader';
 
 /*
  * Unified Social Inbox — a tab inside WorkspaceDashboard (PAGES.messages),
@@ -1012,58 +1013,41 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
       >
         <div
           style={{
-            height: 56,
-            flex: '0 0 56px',
+            flex: '0 0 auto',
             background: '#fff',
             borderBottom: '1px solid rgba(0,0,0,.08)',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 16px',
-            gap: 10,
+            padding: isMobile ? '12px 14px' : '16px 24px 14px',
             boxSizing: 'border-box',
           }}
         >
-          <button
-            type="button"
-            aria-label="Back to Customer Messages"
-            onClick={() => setSubView('inbox')}
-            style={{
-              width: 34,
-              height: 34,
-              border: 'none',
-              background: 'transparent',
-              color: '#444',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              borderRadius: 8,
-              flex: '0 0 auto',
-            }}
-          >
-            <I n="chevronLeft" s={20} />
-          </button>
-          <div
-            style={{
-              flex: 1,
-              fontSize: isMobile ? 16 : 18,
-              fontWeight: 800,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {subView === 'connections'
-              ? 'Channel Connections'
-              : subView === 'insights'
-                ? 'Insights'
-                : subView === 'voice'
-                  ? 'Brand Voice'
-                  : subView === 'usage'
-                    ? 'AI Usage'
-                    : 'Inbox Settings'}
-          </div>
-          {notificationBell}
+          <PageHeader
+            section="Messaging"
+            onBack={() => setSubView('inbox')}
+            compact={isMobile}
+            title={
+              subView === 'connections'
+                ? 'Channel Connections'
+                : subView === 'insights'
+                  ? 'Insights'
+                  : subView === 'voice'
+                    ? 'Brand Voice'
+                    : subView === 'usage'
+                      ? 'AI Usage'
+                      : 'Inbox Settings'
+            }
+            description={
+              subView === 'connections'
+                ? 'Connect the accounts whose messages and comments come into your inbox.'
+                : subView === 'insights'
+                  ? 'What your customers keep asking about.'
+                  : subView === 'voice'
+                    ? 'How Jane sounds when she replies to your customers.'
+                    : subView === 'usage'
+                      ? 'Your AI conversations this period, and your plan.'
+                      : 'Business hours, automatic replies and who gets alerted.'
+            }
+            actions={notificationBell}
+          />
         </div>
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
           {subView === 'connections' ? (

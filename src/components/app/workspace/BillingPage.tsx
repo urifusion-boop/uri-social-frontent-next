@@ -22,6 +22,7 @@ import {
   CUSTOM_CREDIT_MAX_QUANTITY,
 } from '@/src/api/BillingService';
 import Script from 'next/script';
+import PageHeader from '@/src/components/app/atoms/PageHeader';
 
 // Squad Payment Modal TypeScript declaration
 interface SquadPaymentData {
@@ -561,29 +562,12 @@ export default function BillingPage({ onBack, initialTab = 'overview', focusBuyC
       `}</style>
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-          <div>
-            <button
-              onClick={onBack}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#C2185B',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                marginBottom: 8,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-              }}
-            >
-              ← Back to Workspace
-            </button>
-            <h1 style={{ fontSize: 26, fontWeight: 900, color: '#111', margin: 0 }}>Billing & Credits</h1>
-            <p style={{ fontSize: 13, color: '#666', margin: '4px 0 0' }}>Manage your credits and subscription</p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <PageHeader
+          section="Settings"
+          title="Billing & Credits"
+          description="Manage your credits and subscription"
+          style={{ marginBottom: 24 }}
+          actions={
             <button
               onClick={handleRefresh}
               style={{
@@ -602,8 +586,8 @@ export default function BillingPage({ onBack, initialTab = 'overview', focusBuyC
               <I n="refresh" s={14} c="#666" />
               Refresh
             </button>
-          </div>
-        </div>
+          }
+        />
 
         {/* Comp-grant status — a redeemed access code grants its plan's credits
             ONCE (never refilled monthly). It ends whichever comes first: the
