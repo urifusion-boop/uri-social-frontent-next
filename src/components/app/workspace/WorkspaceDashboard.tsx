@@ -100,6 +100,7 @@ import CompetitorsPage from '@/src/components/app/competitors/CompetitorsPage';
 import { useFeatures } from '@/src/hooks/useFeatures';
 import CampaignWalletPage from '@/src/components/app/workspace/campaign-wizard/CampaignWalletPage';
 import CampaignRevenuePage from '@/src/components/app/workspace/campaign-wizard/CampaignRevenuePage';
+import HelpSupportPage from '@/src/components/app/workspace/HelpSupportPage';
 import CreativesLibraryPage from '@/src/components/app/workspace/CreativesLibraryPage';
 import InboxDashboard from '@/src/components/app/workspace/InboxDashboard';
 import RecordsPanel from '@/src/components/app/workspace/RecordsPanel';
@@ -11162,35 +11163,6 @@ const LOWER_NAV = [
   },
 ];
 
-// No real help/support destination exists anywhere in the app yet (no
-// article/FAQ system, no live chat widget) — this is an honest placeholder,
-// not a built-out help center, so it says so rather than pretending.
-const HelpSupportPage = () => (
-  <div style={{ padding: '18px 24px 32px', fontFamily: 'var(--wf)', maxWidth: 520 }}>
-    <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1A1523', margin: '0 0 6px' }}>Help &amp; Support</h1>
-    <p style={{ fontSize: 13.5, color: '#6B7280', lineHeight: 1.5, margin: '0 0 18px' }}>
-      A real help centre isn&apos;t built yet — for now, reach the team directly.
-    </p>
-    <a
-      href="mailto:support@urisocial.com"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '10px 16px',
-        borderRadius: 10,
-        background: '#C2185B',
-        color: '#fff',
-        fontSize: 13,
-        fontWeight: 700,
-        textDecoration: 'none',
-      }}
-    >
-      <I n="send" s={14} c="#fff" />
-      Email support
-    </a>
-  </div>
-);
 
 /* ══════════════════════════════════════════════════════════════════════════
    MAIN DASHBOARD

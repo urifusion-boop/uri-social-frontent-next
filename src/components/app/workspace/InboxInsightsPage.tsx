@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode } from 'react';
+import EmptyState from '@/src/components/app/atoms/EmptyState';
 
 /*
  * Insights — counts and recurring themes computed only from the conversations
@@ -123,7 +124,14 @@ export default function InboxInsightsPage({
       <div>
         <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a', marginBottom: 10 }}>Recurring themes</div>
         {themes.length === 0 ? (
-          <div style={{ fontSize: 12.5, color: '#888' }}>Not enough conversations yet.</div>
+          <EmptyState
+            compact
+            emoji="🧭"
+            notes={['🔁 Recurring questions', '⚠️ Common complaints']}
+            title="Themes appear as"
+            highlight="customers write in"
+            body="Once there are enough conversations, Uri groups what customers keep asking about and complaining about."
+          />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {themes.map((theme) => (
