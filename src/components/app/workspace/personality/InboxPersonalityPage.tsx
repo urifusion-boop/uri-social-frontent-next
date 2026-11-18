@@ -154,10 +154,6 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
           alignItems: 'center',
           flexWrap: 'wrap',
           justifyContent: 'flex-end',
-          // Up in the page's title row, beside the bell, like the approved mockup.
-          ...(isMobile
-            ? {}
-            : { marginTop: -84, marginRight: 44, alignSelf: 'flex-end', position: 'relative', zIndex: 1 }),
         }}
       >
         <div
