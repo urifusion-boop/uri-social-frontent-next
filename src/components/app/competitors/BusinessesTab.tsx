@@ -4,6 +4,7 @@ import { trackEvent } from '@/lib/analytics';
 import { Competitor, CompetitorList, CompetitorService } from '@/src/api/CompetitorService';
 import { useState } from 'react';
 import { btn, C, card, errorText, font, input, linkLabel, Notice, pill, Steps } from './ui';
+import EmptyState from '@/src/components/app/atoms/EmptyState';
 
 interface Props {
   data: CompetitorList | null;
@@ -66,20 +67,16 @@ export default function BusinessesTab({ data, loading, discovering, onDiscover, 
       )}
 
       {empty && !discovering && !failed && (
-        <div style={{ ...card, alignItems: 'center', textAlign: 'center', padding: '28px 18px', gap: 10 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: C.ink }}>Find businesses like yours</div>
-          <div style={{ fontSize: 13.5, color: C.muted, maxWidth: 460, lineHeight: 1.55 }}>
-            Jane searches the web using your Brand Playbook — what you sell and where — and checks every business she finds is real.
-            You decide which ones count.
-          </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <button type="button" onClick={() => onDiscover(false)} style={btn('primary')}>
-              Find my competitors
-            </button>
-            <button type="button" onClick={() => setAdding(true)} style={btn('ghost')}>
-              Add one I know
-            </button>
-          </div>
+        <div style={{ ...card, alignItems: 'center', padding: '8px 18px 20px' }}>
+          <EmptyState
+            emoji="🔍"
+            notes={['🌐 Searches the web', '✅ Only real businesses']}
+            title="Find businesses"
+            highlight="like yours"
+            body="Jane searches the web using your Brand Playbook — what you sell and where — and checks every business she finds is real. You decide which ones count."
+            action={{ label: 'Find my competitors', onClick: () => onDiscover(false) }}
+            secondary={{ label: 'Add one I know', onClick: () => setAdding(true) }}
+          />
         </div>
       )}
 
