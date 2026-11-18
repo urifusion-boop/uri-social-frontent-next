@@ -3024,9 +3024,7 @@ const ConnectionsPage = ({
     if (loading) return;
     const anchor = searchParams?.get('anchor');
     if (anchor !== 'social' && anchor !== 'ads') return;
-    document
-      .getElementById(anchor === 'ads' ? 'connections-section-ads' : 'connections-section-social')
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    scrollToAndFlash(document.getElementById(anchor === 'ads' ? 'connections-section-ads' : 'connections-section-social'));
   }, [loading, searchParams]);
 
   useEffect(() => {
@@ -10360,7 +10358,7 @@ const SettingsPage = ({
   useEffect(() => {
     const anchor = searchParams?.get('anchor');
     if (!anchor) return;
-    document.getElementById(`settings-section-${anchor}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    scrollToAndFlash(document.getElementById(`settings-section-${anchor}`));
   }, [searchParams]);
 
   return (
@@ -11197,6 +11195,21 @@ const HelpSupportPage = () => (
 /* ══════════════════════════════════════════════════════════════════════════
    MAIN DASHBOARD
 ═══════════════════════════════════════════════════════════════════════════ */
+/** Scroll to a section of a page and glow it briefly, so a sub-menu jump is visible even when
+ *  the section is already on screen (Settings' Account/Security/Brand Profile all fit one view). */
+function scrollToAndFlash(el: HTMLElement | null) {
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  el.animate?.(
+    [
+      { boxShadow: '0 0 0 0 rgba(194,24,91,0)' },
+      { boxShadow: '0 0 0 4px rgba(194,24,91,.35)', offset: 0.25 },
+      { boxShadow: '0 0 0 0 rgba(194,24,91,0)' },
+    ],
+    { duration: 1600, easing: 'ease-out' }
+  );
+}
+
 export default function WorkspaceDashboard() {
   // Same gate the Revenue tab uses (/jane-ads/admin/access). The Records item shows
   // other businesses' reasoning and performance, so it is hidden for everyone else —
@@ -11556,21 +11569,21 @@ export default function WorkspaceDashboard() {
       id: 'settings-account',
       icon: 'settings',
       label: 'Account',
-      active: false,
+      active: nav === 'settings' && searchParams?.get('anchor') === 'account',
       onClick: () => goToSettingsAnchor('account'),
     },
     {
       id: 'settings-security',
       icon: 'lock',
       label: 'Security',
-      active: false,
+      active: nav === 'settings' && searchParams?.get('anchor') === 'security',
       onClick: () => goToSettingsAnchor('security'),
     },
     {
       id: 'settings-brand',
       icon: 'edit',
       label: 'Brand Profile',
-      active: false,
+      active: nav === 'settings' && searchParams?.get('anchor') === 'brand',
       onClick: () => goToSettingsAnchor('brand'),
     },
     {
@@ -11613,14 +11626,14 @@ export default function WorkspaceDashboard() {
       id: 'connections-social',
       icon: 'share',
       label: 'Social Accounts',
-      active: false,
+      active: nav === 'connections' && searchParams?.get('anchor') === 'social',
       onClick: () => goToConnectionsAnchor('social'),
     },
     {
       id: 'connections-ads',
       icon: 'megaphone',
       label: 'Ad Accounts',
-      active: false,
+      active: nav === 'connections' && searchParams?.get('anchor') === 'ads',
       onClick: () => goToConnectionsAnchor('ads'),
     },
   ];
@@ -13597,7 +13610,9 @@ export default function WorkspaceDashboard() {
                 </div>
               </div>
             ) : (
-              PAGES[nav]
+              // Revenue is admin-only (hidden from the menu too). Opened directly by anyone
+              // else it showed a red "Not authorized" — show the Campaign Overview instead.
+              PAGES[nav === 'campaign-revenue' && !isAdsAdmin ? 'campaign-overview' : nav]
             )}
           </div>
 
