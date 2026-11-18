@@ -92,12 +92,10 @@ export default function InboxInsightsPage({
   return (
     <div
       style={{
-        padding: isMobile ? 14 : 24,
+        padding: isMobile ? 14 : '22px 28px 32px',
         display: 'flex',
         flexDirection: 'column',
         gap: 20,
-        maxWidth: 880,
-        margin: '0 auto',
         boxSizing: 'border-box',
       }}
     >
