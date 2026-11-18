@@ -19,12 +19,14 @@ const CHOICES: { value: AssetAttestation | undefined; label: string; primary: bo
 ];
 
 export default function WizardAssetAttestation({
-  previewUrl,
+  previewUrls,
   onAnswer,
 }: {
-  previewUrl: string;
+  /** One photo, or several picked together — asked once for the whole set. */
+  previewUrls: string[];
   onAnswer: (value: AssetAttestation | undefined) => void;
 }) {
+  const several = previewUrls.length > 1;
   return (
     <div
       style={{
@@ -38,15 +40,34 @@ export default function WizardAssetAttestation({
         marginTop: 8,
       }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={previewUrl}
-        alt=""
-        style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}
-      />
+      <div style={{ display: 'flex', flexShrink: 0 }}>
+        {previewUrls.slice(0, 3).map((url, i) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={url + i}
+            src={url}
+            alt=""
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 8,
+              objectFit: 'cover',
+              marginLeft: i ? -18 : 0,
+              border: '2px solid #faf7f6',
+            }}
+          />
+        ))}
+        {previewUrls.length > 3 && (
+          <span style={{ alignSelf: 'center', marginLeft: 4, fontSize: 11.5, fontWeight: 700, color: '#7a7270' }}>
+            +{previewUrls.length - 3}
+          </span>
+        )}
+      </div>
       <div style={{ minWidth: 0 }}>
         <p style={{ margin: '0 0 8px', fontSize: 12.5, fontWeight: 700, color: '#1a0a12' }}>
-          What does this photo actually show?
+          {several
+            ? `What do these ${previewUrls.length} photos actually show?`
+            : 'What does this photo actually show?'}
         </p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {CHOICES.map((c) => (
