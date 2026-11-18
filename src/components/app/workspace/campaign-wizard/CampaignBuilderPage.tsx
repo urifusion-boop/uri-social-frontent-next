@@ -32,6 +32,7 @@ import {
   mergeWizardDrafts,
   WizardDraft,
 } from './wizardDraft';
+import EmptyState from '@/src/components/app/atoms/EmptyState';
 
 const PINK = '#C2185B';
 
@@ -405,35 +406,14 @@ export default function CampaignBuilderPage({
             <p style={{ color: '#9a9090', fontSize: 13, margin: 0 }}>Loading your campaigns…</p>
           </div>
         ) : campaigns.length === 0 ? (
-          <div
-            style={{
-              background: '#fff',
-              border: '1px solid #ece8e6',
-              borderRadius: 16,
-              padding: '48px 24px',
-              textAlign: 'center',
-            }}
-          >
-            <p style={{ fontSize: 14, color: '#7a7270', margin: '0 0 14px' }}>
-              You haven&rsquo;t launched a campaign yet.
-            </p>
-            <button
-              type="button"
-              onClick={startWizard}
-              style={{
-                border: 'none',
-                background: PINK,
-                color: '#fff',
-                borderRadius: 10,
-                padding: '10px 20px',
-                fontSize: 13.5,
-                fontWeight: 800,
-                cursor: 'pointer',
-              }}
-            >
-              + New Campaign
-            </button>
-          </div>
+          <EmptyState
+            emoji="📣"
+            notes={['✨ Jane writes it', '✅ You approve']}
+            title="Nothing running"
+            highlight="yet"
+            body="Tell Jane what to promote and she'll build the plan, the ad and the audience. Nothing spends until you say go."
+            action={{ label: 'New campaign', onClick: startWizard }}
+          />
         ) : (
           <>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>

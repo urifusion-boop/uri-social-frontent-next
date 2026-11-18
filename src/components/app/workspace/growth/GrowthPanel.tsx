@@ -10,6 +10,7 @@ import { GrowthHistory } from './GrowthHistory';
 import { GrowthPlanner } from './GrowthPlanner';
 import { setAdsMode, useAdsMode } from './adsMode';
 import { ago, naira, pct } from './format';
+import EmptyState from '@/src/components/app/atoms/EmptyState';
 
 /*
  * Growth Intelligence: what each campaign is doing, what's wrong with it, and what to
@@ -162,7 +163,14 @@ export function GrowthPanel({ isMobile }: { isMobile: boolean }) {
           desc="URI checks each campaign hourly against its target or, without one, its own recent past."
         >
           {campaigns.length === 0 && (
-            <div style={{ fontSize: 12.5, color: '#666' }}>Launch a campaign with Jane and it will appear here.</div>
+            <EmptyState
+              compact
+              emoji="📈"
+              notes={['⏱ Checked hourly', '🎯 Against your target']}
+              title="Health checks start"
+              highlight="at launch"
+              body="Launch a campaign with Jane and it will appear here, checked every hour against its target."
+            />
           )}
           {campaigns.map((c) => (
             <button

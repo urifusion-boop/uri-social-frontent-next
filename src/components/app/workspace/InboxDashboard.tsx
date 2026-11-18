@@ -16,6 +16,7 @@ import { GrowthService } from '@/src/api/GrowthService';
 import { WhatsAppTemplatePicker } from './WhatsAppTemplates';
 import { OneboxUsagePanel } from './OneboxUsage';
 import type { Notification } from '@/src/api/NotificationService';
+import EmptyState from '@/src/components/app/atoms/EmptyState';
 
 /*
  * Unified Social Inbox — a tab inside WorkspaceDashboard (PAGES.messages),
@@ -1141,10 +1142,15 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           </>
         ) : (
           <>
-            <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#1F2430' }}>No conversations yet</p>
-            <p style={{ margin: 0, fontSize: 14, maxWidth: 420 }}>
-              Messages and comments from your connected Instagram and Facebook accounts will appear here as they arrive.
-            </p>
+            <EmptyState
+              emoji="💬"
+              notes={['📸 Instagram DMs', '💬 Facebook']}
+              title="Your customers will"
+              highlight="land here"
+              body="Messages and comments from your connected Instagram and Facebook accounts arrive here as they come in. Jane can draft the replies."
+              action={{ label: 'Connect an account', onClick: () => setSubView('connections') }}
+              secondary={{ label: "Set up Jane's brand voice first", onClick: () => setSubView('voice') }}
+            />
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginTop: 10 }}>
               {(
                 [
@@ -1162,9 +1168,10 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                   style={{
                     padding: '9px 16px',
                     borderRadius: 8,
-                    border: id === 'voice' ? 'none' : '1px solid rgba(0,0,0,.12)',
-                    background: id === 'voice' ? '#C2185B' : '#fff',
-                    color: id === 'voice' ? '#fff' : '#333',
+                    // The empty state above owns the main action; these stay quiet shortcuts.
+                    border: '1px solid rgba(0,0,0,.12)',
+                    background: '#fff',
+                    color: '#333',
                     fontFamily: FONT,
                     fontSize: 13.5,
                     fontWeight: 600,
