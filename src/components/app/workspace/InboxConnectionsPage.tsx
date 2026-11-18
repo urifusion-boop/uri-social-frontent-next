@@ -213,7 +213,7 @@ const TROUBLESHOOTING: Record<string, { title: string; detail: string }[]> = {
     {
       title: 'Allow access to messages',
       detail:
-        'In the Instagram app on your business account: Settings → Messages and story replies → Message controls → Connected tools → turn on "Allow access to messages".',
+        'Log in to the Instagram app as the Business or Creator account you connected, then open Settings → Messages and story replies → Message requests. Under "Connected tools", turn on "Allow access to messages".',
     },
     {
       title: 'Use a Professional account linked to your Facebook Page',
