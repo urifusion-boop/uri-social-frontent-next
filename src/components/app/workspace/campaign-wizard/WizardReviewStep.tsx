@@ -140,7 +140,9 @@ function RecapStrip({
         ? 'Creative from a past draft'
         : creative.is_video
           ? 'Your uploaded video'
-          : 'Your uploaded photo';
+          : (creative.carouselExtraUrls?.length ?? 0) > 0
+            ? `Your ${1 + (creative.carouselExtraUrls?.length ?? 0)} uploaded photos`
+            : 'Your uploaded photo';
   const items = [
     objective.label || objective.value,
     platformText,
