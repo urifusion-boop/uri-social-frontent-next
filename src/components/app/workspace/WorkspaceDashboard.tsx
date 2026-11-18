@@ -12235,7 +12235,7 @@ export default function WorkspaceDashboard() {
     .toUpperCase();
 
   const PAGES: Record<string, ReactNode> = {
-    home: <HomePage onNavigate={goTo} />,
+    home: <HomePage onNavigate={goTo} onOpenContent={goToContentStudioTab} />,
     help: <HelpSupportPage />,
     messages: <InboxDashboard isMobile={isMobile} />,
     schedule: (

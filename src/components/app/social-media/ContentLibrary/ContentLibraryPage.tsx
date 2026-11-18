@@ -43,7 +43,7 @@ const PINK = '#CD1B78';
 // that old status (this is a display-only reclassification, no backend data
 // changes) shows up exactly where "approve it from Drafts" already expects
 // it, same as the old product worked.
-type LibraryTab = 'all' | 'draft' | 'scheduled' | 'published' | 'archived';
+export type LibraryTab = 'all' | 'draft' | 'scheduled' | 'published' | 'archived';
 
 const TABS: { key: LibraryTab; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -92,7 +92,7 @@ function badgeFor(d: ContentDraft, cat: LibraryTab) {
 // Buckets a real draft into one of this page's 6 real categories. Several
 // drafts in production carry `approval_status` but no `status` (confirmed
 // live) — mirrors DraftCard's own `status ?? approval_status` fallback.
-function categorize(d: ContentDraft): LibraryTab {
+export function categorize(d: ContentDraft): LibraryTab {
   const s = d.status ?? (d.approval_status === 'pending' ? 'pending_approval' : d.approval_status);
   switch (s) {
     case 'published':
