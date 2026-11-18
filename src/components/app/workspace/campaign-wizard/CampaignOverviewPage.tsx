@@ -18,6 +18,7 @@ import { FileEdit, Megaphone, MessageCircle, Sparkles, Wallet as WalletIcon } fr
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { CampaignService, type DashboardHome } from '@/src/api/CampaignService';
 import { draftHasPlan, draftIsVideo, draftThumbnail, platformLabel } from './CampaignBuilderPage';
+import FirstCampaignHero from './FirstCampaignHero';
 import {
   deleteWizardDraft,
   fetchRemoteWizardDrafts,
@@ -157,14 +158,28 @@ const smallBtn: React.CSSProperties = {
   flexShrink: 0,
 };
 
-function PageShell({ children, isMobile }: { children: React.ReactNode; isMobile: boolean }) {
+function PageShell({
+  children,
+  isMobile,
+  action,
+}: {
+  children: React.ReactNode;
+  isMobile: boolean;
+  /** Shown at the top right of the title row (e.g. the first-run "Start a campaign"). */
+  action?: React.ReactNode;
+}) {
   return (
     <div style={{ minHeight: '100%', background: 'linear-gradient(180deg, #FCE4EC 0%, #FBF8F7 40%, #FAFAF8 100%)' }}>
       <div style={{ maxWidth: 1040, margin: '0 auto', padding: isMobile ? '14px 12px 28px' : '18px 20px 28px' }}>
-        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1a0a12' }}>Overview</h2>
-        <p style={{ margin: '2px 0 16px', fontSize: 12.5, color: '#7a7270' }}>
-          What&rsquo;s happening across your campaigns, at a glance.
-        </p>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1a0a12' }}>Overview</h2>
+            <p style={{ margin: '2px 0 16px', fontSize: 12.5, color: '#7a7270' }}>
+              What&rsquo;s happening across your campaigns, at a glance.
+            </p>
+          </div>
+          {action}
+        </div>
         {children}
       </div>
     </div>
@@ -281,19 +296,26 @@ export default function CampaignOverviewPage({
   // next step than the generic "let's get started" CTA — resuming it.
   if (is_first_run && drafts.length === 0) {
     return (
-      <PageShell isMobile={isMobile}>
-        <div style={{ ...card, maxWidth: 560 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 6px', color: '#1a0a12' }}>
-            Let&rsquo;s get your first campaign running
-          </h3>
-          <p style={{ fontSize: 12.5, color: '#7a7270', margin: '4px 0 14px', lineHeight: 1.55 }}>
-            Tell Jane what you want to promote. She writes the copy, designs the visual and sets it up — you approve
-            before anything goes live.
-          </p>
-          <button type="button" onClick={goToCampaigns} style={primaryBtn}>
-            Start a campaign
+      <PageShell
+        isMobile={isMobile}
+        action={
+          <button
+            type="button"
+            onClick={goToCampaigns}
+            style={{
+              ...primaryBtn,
+              borderRadius: 999,
+              padding: isMobile ? '9px 14px' : '10px 18px',
+              background: 'linear-gradient(135deg, #C2185B, #E0407F)',
+              boxShadow: '0 10px 22px -10px rgba(194,24,91,.55)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            + Start a campaign
           </button>
-        </div>
+        }
+      >
+        <FirstCampaignHero onStart={goToCampaigns} isMobile={isMobile} />
       </PageShell>
     );
   }
