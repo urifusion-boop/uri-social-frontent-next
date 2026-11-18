@@ -80,6 +80,10 @@ function creativePayload(creative: WizardCreativeChoice): Partial<PlanFromMessag
       reference_image_url: creative.reference_image_url,
       is_video: creative.is_video,
       ...(carouselUrls ? { carousel_image_urls: carouselUrls } : {}),
+      // Meta runs every extra photo as another ad in the same campaign; other platforms ignore it.
+      ...(creative.carouselExtraUrls && creative.carouselExtraUrls.length > 0 && !creative.is_video
+        ? { extra_image_urls: creative.carouselExtraUrls }
+        : {}),
       ...(creative.asset_attestation ? { asset_attestation: creative.asset_attestation } : {}),
     };
   }
@@ -730,7 +734,7 @@ export default function WizardReviewStep({
             onPickPlatform={(p) => void submitSingle({ preferred_platform: p || undefined })}
           />
           {pendingAttestation && (
-            <WizardAssetAttestation previewUrl={pendingAttestation.url} onAnswer={resolveAttestation} />
+            <WizardAssetAttestation previewUrls={[pendingAttestation.url]} onAnswer={resolveAttestation} />
           )}
           {pendingVideoWho && (
             <div style={{ background: '#faf7f6', border: '1px solid #ece8e6', borderRadius: 12, padding: 12 }}>
@@ -974,7 +978,7 @@ export default function WizardReviewStep({
               onChooseDestination={(answer) => void submitMulti(active, answer as Partial<PlanFromMessagePayload>)}
             />
             {multiPendingAttestation?.platform === active && (
-              <WizardAssetAttestation previewUrl={multiPendingAttestation.url} onAnswer={resolveMultiAttestation} />
+              <WizardAssetAttestation previewUrls={[multiPendingAttestation.url]} onAnswer={resolveMultiAttestation} />
             )}
             {multiPendingVideoWho?.platform === active && (
               <div style={{ background: '#faf7f6', border: '1px solid #ece8e6', borderRadius: 12, padding: 12 }}>

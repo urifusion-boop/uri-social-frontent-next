@@ -16,6 +16,8 @@ import { useCreativePaths, VideoWhoPrompt } from '../CreativePathControls';
 import WizardAssetAttestation from './WizardAssetAttestation';
 
 const PINK = '#C2185B';
+// Meta tests at most this many ads in one campaign (backend concepts.MAX_ADS).
+const META_MAX_PHOTOS = 6;
 
 export type WizardCreativeChoice =
   | {
@@ -31,9 +33,9 @@ export type WizardCreativeChoice =
       reference_image_url: string;
       is_video: boolean;
       previewUrl: string;
-      // TikTok Carousel Ads only — extra slides beyond the base photo
-      // (reference_image_url is reused as slide 1), mirrors CampaignsPage.tsx's
-      // own carouselExtraUrls exactly.
+      // The client's other photos, after reference_image_url (photo 1). TikTok runs
+      // them as Carousel Ad slides (mirrors CampaignsPage.tsx's own carouselExtraUrls);
+      // Meta runs each as another ad in the same campaign (extra_image_urls).
       carouselExtraUrls?: string[];
       // What the photo actually shows, per VSG-01 v3 §1.2/§6 — collected right
       // after upload, same as the chat flow; undefined for "Skip" or for a video
@@ -111,7 +113,7 @@ export default function WizardCreativeStep({
   // A real (non-video) photo waits here for "what does this show?" before it
   // actually becomes the chosen creative — same gate the chat flow applies to
   // every real-photo entry point (CampaignsPage.tsx's pendingAssetAttestation).
-  const [pendingAttestation, setPendingAttestation] = useState<string | null>(null);
+  const [pendingAttestation, setPendingAttestation] = useState<string[] | null>(null);
   // Same idea for a real video — "who's in it?" (CampaignsPage.tsx's pendingVideoWho).
   const [pendingVideoWho, setPendingVideoWho] = useState<string | null>(null);
   const creativePaths = useCreativePaths('');
@@ -152,6 +154,83 @@ export default function WizardCreativeStep({
       .finally(() => setDraftsLoading(false));
   };
 
+  // Several photos can run together: Meta as separate ads in one campaign, TikTok as a
+  // carousel. Other platforms use one photo or video, as before.
+  const allowsSeveral = isMeta || isTikTok;
+  const maxPhotos = isTikTok && !isMeta ? 35 : META_MAX_PHOTOS;
+
+  const describeUploadError = (err: unknown) => {
+    const e = err as { message?: string; response?: { data?: { detail?: string } } };
+    const known = e?.response?.data?.detail || (e && !e.response ? e.message : '');
+    return known && known.length < 200 ? known : "Couldn't upload that file — try again.";
+  };
+
+  /** Several photos picked at once (or more added later): uploaded in parallel, a video
+   *  or a failed file is skipped with a note, the rest kept in the order picked. */
+  const handlePhotos = async (files: File[]) => {
+    const current =
+      value?.creative_source === 'upload' && !value.is_video
+        ? [value.reference_image_url, ...(value.carouselExtraUrls ?? [])]
+        : [];
+    const room = Math.max(0, maxPhotos - current.length);
+    const toUpload = files.slice(0, room);
+    const dropped = files.length - toUpload.length;
+    setUploadError('');
+    if (!toUpload.length) {
+      setUploadError(`That's the most this campaign can use — ${maxPhotos} photos.`);
+      return;
+    }
+    setUploading(true);
+    try {
+      const results = await Promise.allSettled(toUpload.map((file) => CampaignService.uploadMedia(file)));
+      const urls: string[] = [];
+      let videos = 0;
+      let failed = 0;
+      let firstError = '';
+      for (const r of results) {
+        if (r.status !== 'fulfilled') {
+          failed += 1;
+          firstError = firstError || describeUploadError(r.reason);
+        } else if (r.value.is_video) videos += 1;
+        else urls.push(r.value.url);
+      }
+      if (urls.length && current.length && value?.creative_source === 'upload') {
+        // Adding to photos already chosen — they were already described, so no new question.
+        onChange({ ...value, carouselExtraUrls: [...(value.carouselExtraUrls ?? []), ...urls] });
+      } else if (urls.length) {
+        setPendingAttestation(urls);
+      }
+      const notes: string[] = [];
+      if (dropped > 0) notes.push(`${dropped} skipped — ${maxPhotos} photos is the most this campaign can use`);
+      if (videos > 0) notes.push(`${videos} video${videos > 1 ? 's' : ''} skipped — pick one video on its own`);
+      if (failed > 0) notes.push(failed === toUpload.length ? firstError : `${failed} failed to upload`);
+      if (notes.length) setUploadError(notes.join('; ') + (notes[notes.length - 1].endsWith('.') ? '' : '.'));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleFiles = (files: File[]) => {
+    if (!files.length) return;
+    if (files.length === 1 || !allowsSeveral) {
+      const already = value?.creative_source === 'upload' && !value.is_video;
+      if (already && allowsSeveral && files[0].type.startsWith('image/')) void handlePhotos(files);
+      else void handleUpload(files[0]);
+      return;
+    }
+    void handlePhotos(files);
+  };
+
+  const removePhoto = (i: number) => {
+    if (value?.creative_source !== 'upload') return;
+    const all = [value.reference_image_url, ...(value.carouselExtraUrls ?? [])].filter((_, idx) => idx !== i);
+    if (!all.length) {
+      onChange({ creative_source: 'generate' });
+      return;
+    }
+    onChange({ ...value, reference_image_url: all[0], previewUrl: all[0], carouselExtraUrls: all.slice(1) });
+  };
+
   const handleUpload = async (file: File) => {
     setUploadError('');
     setUploading(true);
@@ -160,7 +239,7 @@ export default function WizardCreativeStep({
       if (is_video) {
         setPendingVideoWho(url);
       } else {
-        setPendingAttestation(url);
+        setPendingAttestation([url]);
       }
     } catch (err) {
       // Say why when we know (too large, connection dropped, refused) — a bare
@@ -174,14 +253,15 @@ export default function WizardCreativeStep({
   };
 
   const resolveAttestation = (asset_attestation: AssetAttestation | undefined) => {
-    const url = pendingAttestation;
-    if (!url) return;
+    const urls = pendingAttestation;
+    if (!urls?.length) return;
     setPendingAttestation(null);
     onChange({
       creative_source: 'upload',
-      reference_image_url: url,
+      reference_image_url: urls[0],
       is_video: false,
-      previewUrl: url,
+      previewUrl: urls[0],
+      ...(urls.length > 1 ? { carouselExtraUrls: urls.slice(1) } : {}),
       asset_attestation,
     });
   };
@@ -358,22 +438,139 @@ export default function WizardCreativeStep({
             id="wizard-creative-upload-input"
             type="file"
             accept="image/*,video/*"
+            multiple={allowsSeveral}
             style={{ display: 'none' }}
             onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void handleUpload(file);
+              const files = Array.from(e.target.files ?? []);
               e.target.value = '';
+              handleFiles(files);
             }}
           />
+          {allowsSeveral && mode !== 'upload' && (
+            <span style={{ fontSize: 11.5, color: '#9a9290' }}>You can pick several photos at once.</span>
+          )}
           {uploading && <span style={{ fontSize: 12, color: '#7a7270' }}>Uploading…</span>}
           {uploadError && <span style={{ fontSize: 12, color: '#b91c1c' }}>{uploadError}</span>}
           {mode === 'upload' && value?.creative_source === 'upload' && !uploading && (
             <span style={{ fontSize: 12, color: PINK, fontWeight: 700 }}>
-              {value.is_video ? 'Video uploaded ✓' : 'Image uploaded ✓'}
+              {value.is_video
+                ? 'Video uploaded ✓'
+                : (value.carouselExtraUrls?.length ?? 0) > 0
+                  ? `${1 + (value.carouselExtraUrls?.length ?? 0)} photos uploaded ✓`
+                  : 'Image uploaded ✓'}
             </span>
           )}
         </OptionCard>
-        {pendingAttestation && <WizardAssetAttestation previewUrl={pendingAttestation} onAnswer={resolveAttestation} />}
+        {pendingAttestation && (
+          <WizardAssetAttestation previewUrls={pendingAttestation} onAnswer={resolveAttestation} />
+        )}
+        {/* The chosen media itself — every photo (or the video), so the person sees exactly
+            what will run. A sibling of the card above, which is a <button> and can't hold
+            the remove/add buttons. TikTok keeps its own carousel strip below. */}
+        {mode === 'upload' && value?.creative_source === 'upload' && !isTikTok && (
+          <div style={{ marginTop: -2 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {(value.is_video
+                ? [value.reference_image_url]
+                : [value.reference_image_url, ...(value.carouselExtraUrls ?? [])]
+              ).map((url, i) => (
+                <div
+                  key={url + i}
+                  style={{
+                    position: 'relative',
+                    width: 76,
+                    height: 76,
+                    borderRadius: 10,
+                    overflow: 'hidden',
+                    border: '1px solid #ece8e6',
+                    background: '#f6f5f3',
+                  }}
+                >
+                  {value.is_video ? (
+                    <video src={url} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={url}
+                      alt={`Photo ${i + 1}`}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  )}
+                  {!value.is_video && (value.carouselExtraUrls?.length ?? 0) > 0 && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: 4,
+                        bottom: 4,
+                        background: 'rgba(26,10,18,.72)',
+                        color: '#fff',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        borderRadius: 6,
+                        padding: '1px 5px',
+                      }}
+                    >
+                      Ad {i + 1}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${value.is_video ? 'video' : `photo ${i + 1}`}`}
+                    onClick={() => removePhoto(i)}
+                    style={{
+                      position: 'absolute',
+                      top: 4,
+                      right: 4,
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      border: 'none',
+                      background: 'rgba(255,255,255,.92)',
+                      color: PINK,
+                      fontSize: 13,
+                      lineHeight: '20px',
+                      padding: 0,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {allowsSeveral && !value.is_video && 1 + (value.carouselExtraUrls?.length ?? 0) < maxPhotos && (
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('wizard-creative-upload-input')?.click()}
+                  disabled={uploading}
+                  style={{
+                    width: 76,
+                    height: 76,
+                    borderRadius: 10,
+                    border: '1.5px dashed #e0b8c9',
+                    background: '#fff',
+                    color: PINK,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: uploading ? 'default' : 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 2,
+                  }}
+                >
+                  <span style={{ fontSize: 20, lineHeight: 1 }}>+</span>
+                  {uploading ? 'Uploading…' : 'Add photos'}
+                </button>
+              )}
+            </div>
+            {isMeta && !value.is_video && (value.carouselExtraUrls?.length ?? 0) > 0 && (
+              <p style={{ margin: '6px 0 0', fontSize: 11.5, color: '#7a7270' }}>
+                Each photo runs as its own ad in this campaign — Meta shows people the one that works best.
+              </p>
+            )}
+          </div>
+        )}
         {pendingVideoWho && (
           <div
             style={{
