@@ -865,6 +865,8 @@ export class CampaignService {
     // how a photo-only business reaches TikTok without shooting a video. Ignored
     // entirely for a Meta-bound plan, and ignored here too unless there are 2+ URLs.
     carousel_image_urls?: string[];
+    // Meta: the client's other photos, each run as another ad in the same campaign.
+    extra_image_urls?: string[];
     // Multi-platform campaigns: an explicit real number instead of folding it into
     // `message` for the NL layer to re-parse — safer for a money-critical field.
     // Applied deterministically server-side, overriding whatever the brief text says.
