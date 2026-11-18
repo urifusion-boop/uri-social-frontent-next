@@ -94,9 +94,10 @@ export function OneboxUsagePanel({ isMobile }: { isMobile: boolean }) {
             {u.used.toLocaleString()}
             <span style={{ fontSize: 15, fontWeight: 700, color: MUTED, letterSpacing: 0 }}>
               {' '}
-              of {u.allowance.toLocaleString()} AI conversations
+              / {u.allowance.toLocaleString()}
             </span>
           </div>
+          <div style={{ fontSize: 13, color: MUTED, marginTop: -4 }}>AI conversations used</div>
           <div style={{ height: 10, background: '#F4E8ED', borderRadius: 999, overflow: 'hidden', marginTop: 6 }}>
             <div style={{ width: `${Math.min(100, u.percent_used)}%`, height: '100%', background: barColor }} />
           </div>
@@ -157,6 +158,9 @@ export function OneboxUsagePanel({ isMobile }: { isMobile: boolean }) {
         <div style={{ ...card, padding: 22 }}>
           <div style={{ fontSize: 17, fontWeight: 900, color: INK, marginBottom: 12 }}>
             {u.status === 'active' ? 'Change or renew your plan' : 'Choose a plan'}
+          </div>
+          <div style={{ fontSize: 12.5, color: MUTED, margin: '-8px 0 14px' }}>
+            Shared across Instagram, Facebook, WhatsApp and TikTok. No automatic overage charges — ever.
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
             {data.plans.map((p) => (
@@ -224,9 +228,6 @@ export function OneboxUsagePanel({ isMobile }: { isMobile: boolean }) {
                 )}
               </div>
             ))}
-          </div>
-          <div style={{ marginTop: 12, fontSize: 12, color: MUTED }}>
-            Shared across Instagram, Facebook, WhatsApp and TikTok. No automatic overage charges — ever.
           </div>
           {error && <div style={{ marginTop: 8, fontSize: 12.5, color: '#C62828' }}>{error}</div>}
         </div>

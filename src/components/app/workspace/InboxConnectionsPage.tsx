@@ -686,7 +686,7 @@ export default function InboxConnectionsPage({
                 type="button"
                 onClick={() => (c.id === 'whatsapp' ? setWhatsAppOpen(true) : connectDirect(c.id))}
                 style={{
-                  ...(c.connected ? ghostPill : primaryPill),
+                  ...(c.connected || c.id === 'whatsapp' ? ghostPill : primaryPill),
                   width: '100%',
                   padding: '10px 16px',
                   fontSize: 13,
