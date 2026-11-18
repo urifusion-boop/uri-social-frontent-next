@@ -147,7 +147,19 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
         fontFamily: FONT,
       }}
     >
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 10,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          justifyContent: 'flex-end',
+          // Up in the page's title row, beside the bell, like the approved mockup.
+          ...(isMobile
+            ? {}
+            : { marginTop: -84, marginRight: 44, alignSelf: 'flex-end', position: 'relative', zIndex: 1 }),
+        }}
+      >
         <div
           role="tablist"
           style={{

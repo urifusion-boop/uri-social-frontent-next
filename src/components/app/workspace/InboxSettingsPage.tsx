@@ -411,7 +411,7 @@ export default function InboxSettingsPage({
             <Toggle on={autoReplyEnabled} onClick={() => setAutoReplyEnabled((v) => !v)} />
           </div>
 
-          <div style={{ opacity: autoReplyEnabled ? 1 : 0.5 }}>
+          <div style={{ opacity: autoReplyEnabled ? 1 : 0.5, paddingTop: 10, borderTop: '1px solid #F7F0F3' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: '#444' }}>Confidence threshold</span>
               <span style={{ fontSize: 12.5, fontWeight: 800, color: '#AD1457' }}>{confidenceThreshold}%</span>
@@ -445,7 +445,16 @@ export default function InboxSettingsPage({
                 toggle: () => setAutoComments((v) => !v),
               },
             ].map((row) => (
-              <div key={row.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div
+                key={row.label}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingTop: 10,
+                  borderTop: '1px solid #F7F0F3',
+                }}
+              >
                 <div>
                   <div style={{ fontSize: 12.5, fontWeight: 700, color: '#444' }}>{row.label}</div>
                   <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{row.hint}</div>
