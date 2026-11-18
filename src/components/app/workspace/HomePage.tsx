@@ -299,6 +299,8 @@ export default function HomePage({
   const platforms = connected.loaded ? connected.platforms.map((p) => p.toLowerCase()) : null;
   const hasFacebook = platforms?.includes('facebook') ?? false;
   const hasInstagram = platforms?.includes('instagram') ?? false;
+  // A Page that was connected once but whose connection has stopped working still has an entry.
+  const facebookNeedsReconnect = !hasFacebook && (connected.connections?.facebook?.length ?? 0) > 0;
   const totalContent = library ? library.drafts + library.scheduled + library.published : 0;
 
   // ── Setup checklist — only steps we can actually check are shown ────────
@@ -306,10 +308,14 @@ export default function HomePage({
   if (platforms) {
     steps.push({
       key: 'facebook',
-      title: 'Connect Facebook',
-      note: hasFacebook ? 'Your Facebook Page is connected' : 'Post to your Page and run ads from it',
+      title: facebookNeedsReconnect ? 'Reconnect Facebook' : 'Connect Facebook',
+      note: hasFacebook
+        ? 'Your Facebook Page is connected'
+        : facebookNeedsReconnect
+          ? 'Your Page connection stopped working — reconnect to keep posting'
+          : 'Post to your Page and run ads from it',
       done: hasFacebook,
-      action: 'Connect',
+      action: facebookNeedsReconnect ? 'Reconnect' : 'Connect',
       go: () => onNavigate('connections'),
     });
   }
@@ -425,8 +431,7 @@ export default function HomePage({
             ? 'None live right now'
             : 'No campaigns yet'
         : null;
-    if (id === 'messages')
-      return stats ? `${plural(stats.customerMessages, 'conversation')} this ${period === 7 ? 'week' : 'month'}` : null;
+    if (id === 'messages') return stats ? `${stats.customerMessages} this ${period === 7 ? 'week' : 'month'}` : null;
     if (id === 'performance') return stats ? `${compact(stats.totalReach)} reach · last ${period} days` : null;
     return null;
   };
