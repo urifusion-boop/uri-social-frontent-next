@@ -18,6 +18,7 @@ import { FileEdit, Megaphone, MessageCircle, Sparkles, Wallet as WalletIcon } fr
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { CampaignService, type DashboardHome } from '@/src/api/CampaignService';
 import { draftHasPlan, draftIsVideo, draftThumbnail, platformLabel } from './CampaignBuilderPage';
+import FirstCampaignHero from './FirstCampaignHero';
 import {
   deleteWizardDraft,
   fetchRemoteWizardDrafts,
@@ -282,18 +283,7 @@ export default function CampaignOverviewPage({
   if (is_first_run && drafts.length === 0) {
     return (
       <PageShell isMobile={isMobile}>
-        <div style={{ ...card, maxWidth: 560 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 6px', color: '#1a0a12' }}>
-            Let&rsquo;s get your first campaign running
-          </h3>
-          <p style={{ fontSize: 12.5, color: '#7a7270', margin: '4px 0 14px', lineHeight: 1.55 }}>
-            Tell Jane what you want to promote. She writes the copy, designs the visual and sets it up — you approve
-            before anything goes live.
-          </p>
-          <button type="button" onClick={goToCampaigns} style={primaryBtn}>
-            Start a campaign
-          </button>
-        </div>
+        <FirstCampaignHero onStart={goToCampaigns} isMobile={isMobile} />
       </PageShell>
     );
   }
