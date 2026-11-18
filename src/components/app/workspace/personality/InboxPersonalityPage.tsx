@@ -139,17 +139,15 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
   return (
     <div
       style={{
-        padding: isMobile ? 14 : 24,
+        padding: isMobile ? 14 : '22px 28px 32px',
         display: 'flex',
         flexDirection: 'column',
         gap: 16,
-        maxWidth: 820,
-        margin: '0 auto',
         boxSizing: 'border-box',
         fontFamily: FONT,
       }}
     >
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         <div
           role="tablist"
           style={{
@@ -189,7 +187,6 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
             );
           })}
         </div>
-        <div style={{ flex: 1 }} />
         {stepIndex(tab) < 0 && (
           <Btn
             small
