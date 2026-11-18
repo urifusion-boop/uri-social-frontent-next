@@ -91,13 +91,13 @@ export default function FirstCampaignHero({ onStart, isMobile }: { onStart: () =
         alignItems: 'center',
         textAlign: 'center',
         maxWidth: 760,
-        margin: `${isMobile ? 16 : 40}px auto 0`,
+        margin: `${isMobile ? 4 : 0}px auto 0`,
       }}
     >
       <style>{CSS}</style>
 
       {/* Illustration — decorative, hidden from screen readers */}
-      <div aria-hidden style={{ position: 'relative', width: artW, height: isMobile ? 260 : 300 }}>
+      <div aria-hidden style={{ position: 'relative', width: artW, height: isMobile ? 200 : 228, marginTop: 34, transform: `scale(${isMobile ? 0.78 : 0.76})`, transformOrigin: 'top center' }}>
         <div
           style={{
             position: 'absolute',
@@ -259,8 +259,8 @@ export default function FirstCampaignHero({ onStart, isMobile }: { onStart: () =
       <h3
         style={{
           maxWidth: 640,
-          margin: `${isMobile ? 20 : 34}px 0 0`,
-          fontSize: isMobile ? 32 : 44,
+          margin: `${isMobile ? 6 : 10}px 0 0`,
+          fontSize: isMobile ? 28 : 38,
           lineHeight: 1.08,
           fontWeight: 900,
           letterSpacing: -1,
@@ -280,7 +280,7 @@ export default function FirstCampaignHero({ onStart, isMobile }: { onStart: () =
           one message away
         </span>
       </h3>
-      <p style={{ margin: '14px 0 0', maxWidth: 540, fontSize: isMobile ? 15.5 : 18, lineHeight: 1.55, color: MUTED }}>
+      <p style={{ margin: '10px 0 0', maxWidth: 540, fontSize: isMobile ? 15 : 16.5, lineHeight: 1.55, color: MUTED }}>
         Tell Jane what you want to promote. She writes the copy, designs the visual and sets it all up. Nothing goes
         live until you say so.
       </p>
@@ -290,18 +290,18 @@ export default function FirstCampaignHero({ onStart, isMobile }: { onStart: () =
         onClick={onStart}
         className="fch-btn"
         style={{
-          marginTop: 30,
+          marginTop: 20,
           width: isMobile ? '100%' : undefined,
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
           gap: 10,
-          padding: isMobile ? '17px 24px' : '18px 34px',
+          padding: isMobile ? '15px 24px' : '15px 30px',
           borderRadius: 999,
           border: 0,
           cursor: 'pointer',
           fontFamily: 'inherit',
-          fontSize: 18,
+          fontSize: 17,
           fontWeight: 800,
           color: '#fff',
           background: `linear-gradient(135deg, ${PINK}, ${PINK2})`,
@@ -323,13 +323,13 @@ export default function FirstCampaignHero({ onStart, isMobile }: { onStart: () =
           →
         </span>
       </button>
-      <div style={{ marginTop: 14, fontSize: 13.5, fontWeight: 600, color: '#9A9090' }}>
+      <div style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: '#9A9090' }}>
         Takes about 2 minutes · You approve before anything spends
       </div>
 
       <div
         style={{
-          marginTop: isMobile ? 30 : 44,
+          marginTop: isMobile ? 22 : 24,
           display: 'flex',
           flexDirection: isMobile ? 'column' : 'row',
           alignItems: isMobile ? 'stretch' : 'center',
@@ -346,8 +346,8 @@ export default function FirstCampaignHero({ onStart, isMobile }: { onStart: () =
               display: 'flex',
               alignItems: 'center',
               gap: 10,
-              padding: '12px 16px',
-              borderRadius: 16,
+              padding: '10px 14px',
+              borderRadius: 14,
               background: 'rgba(255,255,255,.7)',
               border: '1px solid rgba(194,24,91,.10)',
               fontSize: 14,
