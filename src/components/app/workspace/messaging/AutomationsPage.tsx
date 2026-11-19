@@ -15,7 +15,13 @@ type AutomationId = 'dm' | 'comments' | 'away' | 'faq' | 'alerts' | 'ad_welcome'
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DAY_NAMES: Record<string, string> = {
-  Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday',
+  Mon: 'Monday',
+  Tue: 'Tuesday',
+  Wed: 'Wednesday',
+  Thu: 'Thursday',
+  Fri: 'Friday',
+  Sat: 'Saturday',
+  Sun: 'Sunday',
 };
 // Always sent to a person, whatever the settings (the agent's own exclusions).
 const NEVER_AUTOMATED = ['Payment disputes', 'Refunds', 'Safety concerns', 'Legal threats', 'Ambiguous stock or price'];
@@ -23,7 +29,11 @@ const NEVER_AUTOMATED = ['Payment disputes', 'Refunds', 'Safety concerns', 'Lega
 /** Turning a channel on turns auto-replies on; turning the last one off turns them off. */
 function withChannel(s: InboxAgentSettings, channel: 'dm' | 'comment', on: boolean): InboxAgentSettings {
   const channels = { ...s.auto_reply_channels, [channel]: on };
-  return { ...s, auto_reply_channels: channels, auto_reply_enabled: on ? true : s.auto_reply_enabled && (channels.dm || channels.comment) };
+  return {
+    ...s,
+    auto_reply_channels: channels,
+    auto_reply_enabled: on ? true : s.auto_reply_enabled && (channels.dm || channels.comment),
+  };
 }
 
 function fmtTime(t: string): string {
@@ -63,7 +73,9 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
         setEmails((s.alert_emails ?? []).join(', '));
       })
       .catch(() => setError("Couldn't load your automations."));
-    InboxService.listConversations({ limit: 200 }).then(setConvs).catch(() => undefined);
+    InboxService.listConversations({ limit: 200 })
+      .then(setConvs)
+      .catch(() => undefined);
   }, []);
 
   const save = async (next: InboxAgentSettings, okMessage = 'Saved') => {
@@ -81,14 +93,21 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
 
   const handedToYou = useMemo(() => convs.filter((c) => c.needs_human && c.status !== 'resolved').length, [convs]);
 
-  if (!settings || !draft) return <div style={{ padding: 28 }}><Muted>{error || 'Loading…'}</Muted></div>;
+  if (!settings || !draft)
+    return (
+      <div style={{ padding: 28 }}>
+        <Muted>{error || 'Loading…'}</Muted>
+      </div>
+    );
 
   const away = settings.away_message ?? { enabled: false, text: '' };
   const welcome = settings.ad_lead_welcome ?? { enabled: false, text: '' };
   const hours = settings.business_hours;
   const openDays = DAYS.filter((d) => hours.days[d]);
   const hoursLine =
-    openDays.length === 0 ? 'Always closed' : `${openDays[0]}–${openDays[openDays.length - 1]} ${fmtTime(hours.open)}–${fmtTime(hours.close)}`;
+    openDays.length === 0
+      ? 'Always closed'
+      : `${openDays[0]}–${openDays[openDays.length - 1]} ${fmtTime(hours.open)}–${fmtTime(hours.close)}`;
 
   const cards: {
     id: AutomationId;
@@ -102,7 +121,10 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
     toggle?: (v: boolean) => void;
   }[] = [
     {
-      id: 'dm', icon: <Bot size={17} />, tone: 'pink', title: 'Auto-reply to DMs',
+      id: 'dm',
+      icon: <Bot size={17} />,
+      tone: 'pink',
+      title: 'Auto-reply to DMs',
       desc: 'Jane answers direct messages by herself, in your brand voice, when she is sure.',
       on: settings.auto_reply_enabled && settings.auto_reply_channels.dm,
       state: settings.auto_reply_enabled && settings.auto_reply_channels.dm ? 'Auto-send' : 'Off',
@@ -110,7 +132,10 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
       toggle: (v) => save(withChannel(settings, 'dm', v)),
     },
     {
-      id: 'comments', icon: <MessageCircle size={17} />, tone: 'amber', title: 'Reply to comments',
+      id: 'comments',
+      icon: <MessageCircle size={17} />,
+      tone: 'amber',
+      title: 'Reply to comments',
       desc: 'Jane drafts replies to public comments for you to approve, or sends them herself.',
       on: settings.auto_reply_enabled && settings.auto_reply_channels.comment,
       state: settings.auto_reply_enabled && settings.auto_reply_channels.comment ? 'Auto-send' : 'Draft only',
@@ -118,26 +143,45 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
       toggle: (v) => save(withChannel(settings, 'comment', v)),
     },
     {
-      id: 'away', icon: <Clock size={17} />, tone: 'blue', title: 'Away message',
+      id: 'away',
+      icon: <Clock size={17} />,
+      tone: 'blue',
+      title: 'Away message',
       desc: 'Sent outside business hours, so no one waits in silence.',
-      on: away.enabled, state: away.enabled ? 'Out of hours' : 'Off', meta: hoursLine,
+      on: away.enabled,
+      state: away.enabled ? 'Out of hours' : 'Off',
+      meta: hoursLine,
       toggle: (v) => save({ ...settings, away_message: { ...away, enabled: v } }),
     },
     {
-      id: 'faq', icon: <BookOpenCheck size={17} />, tone: 'green', title: 'FAQ answers',
+      id: 'faq',
+      icon: <BookOpenCheck size={17} />,
+      tone: 'green',
+      title: 'FAQ answers',
       desc: 'Your own answers, the only facts Jane may send without review.',
-      on: faqs.some((f) => f.approved), state: `${faqs.length} answer${faqs.length === 1 ? '' : 's'}`,
+      on: faqs.some((f) => f.approved),
+      state: `${faqs.length} answer${faqs.length === 1 ? '' : 's'}`,
       meta: `${faqs.filter((f) => f.approved).length} approved`,
     },
     {
-      id: 'alerts', icon: <Siren size={17} />, tone: 'red', title: 'Escalation alerts',
+      id: 'alerts',
+      icon: <Siren size={17} />,
+      tone: 'red',
+      title: 'Escalation alerts',
       desc: 'When a customer is waiting for a person, you are emailed and sent a WhatsApp.',
-      on: true, state: 'Alerts on', meta: `${(settings.alert_emails ?? []).length + 1} recipient${settings.alert_emails?.length ? 's' : ''}`,
+      on: true,
+      state: 'Alerts on',
+      meta: `${(settings.alert_emails ?? []).length + 1} recipient${settings.alert_emails?.length ? 's' : ''}`,
     },
     {
-      id: 'ad_welcome', icon: <Megaphone size={17} />, tone: welcome.enabled ? 'pink' : 'grey', title: 'Ad lead welcome',
+      id: 'ad_welcome',
+      icon: <Megaphone size={17} />,
+      tone: welcome.enabled ? 'pink' : 'grey',
+      title: 'Ad lead welcome',
       desc: 'First reply to people who message you from your ads.',
-      on: welcome.enabled, state: welcome.enabled ? 'On' : 'Off', meta: welcome.enabled ? 'Sent once per lead' : 'Not set up',
+      on: welcome.enabled,
+      state: welcome.enabled ? 'On' : 'Off',
+      meta: welcome.enabled ? 'Sent once per lead' : 'Not set up',
       toggle: (v) => save({ ...settings, ad_lead_welcome: { ...welcome, enabled: v } }),
     },
   ];
@@ -169,7 +213,18 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
   const detailHead = (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <div style={{ width: 34, height: 34, borderRadius: 9, background: TONE[sel.tone].bg, color: TONE[sel.tone].fg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 9,
+            background: TONE[sel.tone].bg,
+            color: TONE[sel.tone].fg,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           {sel.icon}
         </div>
         <Title sub={sel.meta}>{sel.title}</Title>
@@ -194,13 +249,26 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
             <Label>How sure Jane must be</Label>
             <span style={{ color: '#D0145C', fontWeight: 700, fontSize: 13 }}>{draft.confidence_threshold}%</span>
           </div>
-          <input type="range" min={50} max={99} value={draft.confidence_threshold} onChange={(e) => setDraft({ ...draft, confidence_threshold: Number(e.target.value) })} style={{ width: '100%', accentColor: '#E0156B', marginTop: 6 }} />
+          <input
+            type="range"
+            min={50}
+            max={99}
+            value={draft.confidence_threshold}
+            onChange={(e) => setDraft({ ...draft, confidence_threshold: Number(e.target.value) })}
+            style={{ width: '100%', accentColor: '#E0156B', marginTop: 6 }}
+          />
           <Muted>Below this, a reply is drafted for you to check instead of sent.</Muted>
           <Label style={{ marginTop: 16 }}>Always sent to you, never automated</Label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-            {NEVER_AUTOMATED.map((t) => <Pill key={t} fg="#5C5460" bg="#F3F2EF">{t}</Pill>)}
+            {NEVER_AUTOMATED.map((t) => (
+              <Pill key={t} fg="#5C5460" bg="#F3F2EF">
+                {t}
+              </Pill>
+            ))}
           </div>
-          <Btn style={{ marginTop: 16 }} onClick={() => save(draft)}>Save changes</Btn>
+          <Btn style={{ marginTop: 16 }} onClick={() => save(draft)}>
+            Save changes
+          </Btn>
         </>
       )}
       {selected === 'comments' && (
@@ -211,9 +279,14 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
           </Muted>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
             <Label>Let Jane send comment replies herself</Label>
-            <Toggle on={draft.auto_reply_channels.comment} onChange={(v) => setDraft(withChannel(draft, 'comment', v))} />
+            <Toggle
+              on={draft.auto_reply_channels.comment}
+              onChange={(v) => setDraft(withChannel(draft, 'comment', v))}
+            />
           </div>
-          <Btn style={{ marginTop: 16 }} onClick={() => save(draft)}>Save changes</Btn>
+          <Btn style={{ marginTop: 16 }} onClick={() => save(draft)}>
+            Save changes
+          </Btn>
         </>
       )}
       {selected === 'away' && (
@@ -232,16 +305,51 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
                 setDraftHours({ day_hours: dh });
               };
               return (
-                <div key={d} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', fontSize: 12.5 }}>
+                <div
+                  key={d}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '4px 0',
+                    fontSize: 12.5,
+                  }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Toggle on={on} onChange={(v) => setDraftHours({ days: { ...draft.business_hours.days, [d]: v } })} label={DAY_NAMES[d]} />
+                    <Toggle
+                      on={on}
+                      onChange={(v) => setDraftHours({ days: { ...draft.business_hours.days, [d]: v } })}
+                      label={DAY_NAMES[d]}
+                    />
                     <span style={{ width: 80 }}>{DAY_NAMES[d]}</span>
                   </div>
                   {on ? (
                     <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                      <input type="time" value={open} onChange={(e) => setDay(e.target.value, close)} style={{ border: '1px solid #ECE6EA', borderRadius: 7, fontSize: 12, padding: '3px 5px', fontFamily: 'inherit' }} />
+                      <input
+                        type="time"
+                        value={open}
+                        onChange={(e) => setDay(e.target.value, close)}
+                        style={{
+                          border: '1px solid #ECE6EA',
+                          borderRadius: 7,
+                          fontSize: 12,
+                          padding: '3px 5px',
+                          fontFamily: 'inherit',
+                        }}
+                      />
                       –
-                      <input type="time" value={close} onChange={(e) => setDay(open, e.target.value)} style={{ border: '1px solid #ECE6EA', borderRadius: 7, fontSize: 12, padding: '3px 5px', fontFamily: 'inherit' }} />
+                      <input
+                        type="time"
+                        value={close}
+                        onChange={(e) => setDay(open, e.target.value)}
+                        style={{
+                          border: '1px solid #ECE6EA',
+                          borderRadius: 7,
+                          fontSize: 12,
+                          padding: '3px 5px',
+                          fontFamily: 'inherit',
+                        }}
+                      />
                     </span>
                   ) : (
                     <span style={{ color: MSG_MUTED }}>Closed</span>
@@ -251,21 +359,43 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
             })}
           </div>
           <Label style={{ marginTop: 12 }}>Message sent out of hours</Label>
-          <Field multiline value={draft.away_message?.text ?? ''} onChange={(v) => setDraft({ ...draft, away_message: { enabled: draft.away_message?.enabled ?? false, text: v } })} style={{ marginTop: 6 }} />
+          <Field
+            multiline
+            value={draft.away_message?.text ?? ''}
+            onChange={(v) =>
+              setDraft({ ...draft, away_message: { enabled: draft.away_message?.enabled ?? false, text: v } })
+            }
+            style={{ marginTop: 6 }}
+          />
           <Muted style={{ marginTop: 4 }}>
-            <Pill fg="#D0145C" bg="#FDEBF2">{'{first_name}'}</Pill> is replaced with the customer&apos;s first name. Sent once per closed stretch, on DMs only.
+            <Pill fg="#D0145C" bg="#FDEBF2">
+              {'{first_name}'}
+            </Pill>{' '}
+            is replaced with the customer&apos;s first name. Sent once per closed stretch, on DMs only.
           </Muted>
-          <Btn style={{ marginTop: 14 }} onClick={() => save(draft)}>Save changes</Btn>
+          <Btn style={{ marginTop: 14 }} onClick={() => save(draft)}>
+            Save changes
+          </Btn>
         </>
       )}
       {selected === 'ad_welcome' && (
         <>
           <Label style={{ marginTop: 16 }}>Welcome message</Label>
-          <Field multiline value={draft.ad_lead_welcome?.text ?? ''} onChange={(v) => setDraft({ ...draft, ad_lead_welcome: { enabled: draft.ad_lead_welcome?.enabled ?? false, text: v } })} style={{ marginTop: 6 }} />
+          <Field
+            multiline
+            value={draft.ad_lead_welcome?.text ?? ''}
+            onChange={(v) =>
+              setDraft({ ...draft, ad_lead_welcome: { enabled: draft.ad_lead_welcome?.enabled ?? false, text: v } })
+            }
+            style={{ marginTop: 6 }}
+          />
           <Muted style={{ marginTop: 4 }}>
-            Sent once, on the first message from someone who came from one of your ads. Jane still answers their question after it.
+            Sent once, on the first message from someone who came from one of your ads. Jane still answers their
+            question after it.
           </Muted>
-          <Btn style={{ marginTop: 14 }} onClick={() => save(draft)}>Save changes</Btn>
+          <Btn style={{ marginTop: 14 }} onClick={() => save(draft)}>
+            Save changes
+          </Btn>
         </>
       )}
       {selected === 'faq' && (
@@ -273,31 +403,88 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
           <Muted style={{ marginTop: 12 }}>Only approved answers can be sent automatically.</Muted>
           <div style={{ marginTop: 8 }}>
             {faqs.map((f) => (
-              <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '9px 0', borderBottom: '1px dashed #EFE6EA' }}>
+              <div
+                key={f.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  padding: '9px 0',
+                  borderBottom: '1px dashed #EFE6EA',
+                }}
+              >
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 12.5 }}>{f.question}</div>
                   <Muted>{f.answer}</Muted>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-                  <Toggle on={f.approved} label="Approved" onChange={async (v) => {
-                    await InboxService.updateKnowledge({ ...f, approved: v });
-                    setFaqs(faqs.map((x) => (x.id === f.id ? { ...x, approved: v } : x)));
-                  }} />
-                  <button type="button" aria-label="Edit" onClick={() => { setFaqEditing(f.id); setFaqQ(f.question); setFaqA(f.answer); }} style={{ border: 'none', background: 'none', cursor: 'pointer', color: MSG_MUTED }}><Pencil size={14} /></button>
-                  <button type="button" aria-label="Delete" onClick={async () => {
-                    await InboxService.deleteKnowledge(f.id);
-                    setFaqs(faqs.filter((x) => x.id !== f.id));
-                  }} style={{ border: 'none', background: 'none', cursor: 'pointer', color: MSG_MUTED }}><Trash2 size={14} /></button>
+                  <Toggle
+                    on={f.approved}
+                    label="Approved"
+                    onChange={async (v) => {
+                      await InboxService.updateKnowledge({ ...f, approved: v });
+                      setFaqs(faqs.map((x) => (x.id === f.id ? { ...x, approved: v } : x)));
+                    }}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Edit"
+                    onClick={() => {
+                      setFaqEditing(f.id);
+                      setFaqQ(f.question);
+                      setFaqA(f.answer);
+                    }}
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: MSG_MUTED }}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Delete"
+                    onClick={async () => {
+                      await InboxService.deleteKnowledge(f.id);
+                      setFaqs(faqs.filter((x) => x.id !== f.id));
+                    }}
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: MSG_MUTED }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
             ))}
-            {faqs.length === 0 && <Muted>No answers yet. Add the questions customers ask most — hours, delivery, how to order.</Muted>}
+            {faqs.length === 0 && (
+              <Muted>No answers yet. Add the questions customers ask most — hours, delivery, how to order.</Muted>
+            )}
           </div>
-          <Field value={faqQ} onChange={setFaqQ} placeholder="Question, e.g. Do you deliver outside Lagos?" style={{ marginTop: 12 }} />
-          <Field multiline value={faqA} onChange={setFaqA} placeholder="Your answer, exactly as a customer should hear it" style={{ marginTop: 8 }} />
+          <Field
+            value={faqQ}
+            onChange={setFaqQ}
+            placeholder="Question, e.g. Do you deliver outside Lagos?"
+            style={{ marginTop: 12 }}
+          />
+          <Field
+            multiline
+            value={faqA}
+            onChange={setFaqA}
+            placeholder="Your answer, exactly as a customer should hear it"
+            style={{ marginTop: 8 }}
+          />
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            <Btn onClick={saveFaq} disabled={!faqQ.trim() || !faqA.trim()}>{faqEditing ? 'Save answer' : 'Add answer'}</Btn>
-            {faqEditing && <Btn kind="outline" onClick={() => { setFaqEditing(null); setFaqQ(''); setFaqA(''); }}>Cancel</Btn>}
+            <Btn onClick={saveFaq} disabled={!faqQ.trim() || !faqA.trim()}>
+              {faqEditing ? 'Save answer' : 'Add answer'}
+            </Btn>
+            {faqEditing && (
+              <Btn
+                kind="outline"
+                onClick={() => {
+                  setFaqEditing(null);
+                  setFaqQ('');
+                  setFaqA('');
+                }}
+              >
+                Cancel
+              </Btn>
+            )}
           </div>
         </>
       )}
@@ -306,15 +493,35 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
           <Muted style={{ marginTop: 12 }}>
             The account owner is always alerted. Add up to 5 more addresses, separated by commas.
           </Muted>
-          <Field value={emails} onChange={setEmails} placeholder="support@yourbusiness.com, manager@yourbusiness.com" style={{ marginTop: 8 }} />
-          <Btn style={{ marginTop: 10 }} onClick={() => {
-            const list = emails.split(',').map((e) => e.trim()).filter(Boolean);
-            if (list.length > 5) { setError('Add up to 5 addresses.'); return; }
-            save({ ...settings, alert_emails: list });
-          }}>Save</Btn>
+          <Field
+            value={emails}
+            onChange={setEmails}
+            placeholder="support@yourbusiness.com, manager@yourbusiness.com"
+            style={{ marginTop: 8 }}
+          />
+          <Btn
+            style={{ marginTop: 10 }}
+            onClick={() => {
+              const list = emails
+                .split(',')
+                .map((e) => e.trim())
+                .filter(Boolean);
+              if (list.length > 5) {
+                setError('Add up to 5 addresses.');
+                return;
+              }
+              save({ ...settings, alert_emails: list });
+            }}
+          >
+            Save
+          </Btn>
           <Label style={{ marginTop: 16 }}>Always sent to a person</Label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-            {NEVER_AUTOMATED.map((t) => <Pill key={t} fg="#5C5460" bg="#F3F2EF">{t}</Pill>)}
+            {NEVER_AUTOMATED.map((t) => (
+              <Pill key={t} fg="#5C5460" bg="#F3F2EF">
+                {t}
+              </Pill>
+            ))}
           </div>
         </>
       )}
@@ -324,7 +531,11 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
   );
 
   const stats = [
-    { label: 'Auto-replies', value: settings.auto_reply_enabled ? 'On' : 'Off', sub: settings.auto_reply_enabled ? `when ${settings.confidence_threshold}%+ sure` : 'Jane drafts only' },
+    {
+      label: 'Auto-replies',
+      value: settings.auto_reply_enabled ? 'On' : 'Off',
+      sub: settings.auto_reply_enabled ? `when ${settings.confidence_threshold}%+ sure` : 'Jane drafts only',
+    },
     { label: 'Handed to you', value: String(handedToYou), sub: 'waiting for a person' },
     { label: 'FAQ answers', value: String(faqs.filter((f) => f.approved).length), sub: 'approved for Jane' },
     { label: 'Never automated', value: `${NEVER_AUTOMATED.length} topics`, sub: 'always sent to you' },
@@ -333,7 +544,14 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
   const grid = (
     <>
       <Title sub="What Jane does on her own, and when she hands over to you.">Automations</Title>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 10, marginTop: 14 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)',
+          gap: 10,
+          marginTop: 14,
+        }}
+      >
         {stats.map((s) => (
           <Box key={s.label} style={{ padding: '12px 14px' }}>
             <div style={{ fontSize: 11, color: MSG_MUTED }}>{s.label}</div>
@@ -342,12 +560,32 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
           </Box>
         ))}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 12, marginTop: 14 }}>
+      <div
+        style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 12, marginTop: 14 }}
+      >
         {cards.map((c) => (
-          <div key={c.id} role="button" tabIndex={0} onClick={() => setSelected(c.id)} onKeyDown={(e) => e.key === 'Enter' && setSelected(c.id)} style={{ cursor: 'pointer' }}>
+          <div
+            key={c.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => setSelected(c.id)}
+            onKeyDown={(e) => e.key === 'Enter' && setSelected(c.id)}
+            style={{ cursor: 'pointer' }}
+          >
             <Box selected={selected === c.id} style={{ padding: '13px 14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <div style={{ width: 34, height: 34, borderRadius: 9, background: TONE[c.tone].bg, color: TONE[c.tone].fg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 9,
+                    background: TONE[c.tone].bg,
+                    color: TONE[c.tone].fg,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
                   {c.icon}
                 </div>
                 {c.toggle && (
@@ -357,9 +595,13 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
                 )}
               </div>
               <div style={{ fontWeight: 700, fontSize: 13.5, marginTop: 10 }}>{c.title}</div>
-              <div style={{ color: MSG_MUTED, fontSize: 11.8, lineHeight: 1.45, marginTop: 3, minHeight: 34 }}>{c.desc}</div>
+              <div style={{ color: MSG_MUTED, fontSize: 11.8, lineHeight: 1.45, marginTop: 3, minHeight: 34 }}>
+                {c.desc}
+              </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 9, gap: 6 }}>
-                <Pill fg={TONE[c.tone].fg} bg={TONE[c.tone].bg}>{c.state}</Pill>
+                <Pill fg={TONE[c.tone].fg} bg={TONE[c.tone].bg}>
+                  {c.state}
+                </Pill>
                 <span style={{ fontSize: 11, color: MSG_MUTED, textAlign: 'right' }}>{c.meta}</span>
               </div>
             </Box>

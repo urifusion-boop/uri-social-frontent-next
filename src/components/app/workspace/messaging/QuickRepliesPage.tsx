@@ -116,7 +116,12 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
   const setButton = (i: number, b: Partial<QuickReplyButton>) =>
     editing && setEditing({ ...editing, buttons: editing.buttons.map((x, j) => (j === i ? { ...x, ...b } : x)) });
 
-  if (!prefs) return <div style={{ padding: 28 }}><Muted>{error || 'Loading…'}</Muted></div>;
+  if (!prefs)
+    return (
+      <div style={{ padding: 28 }}>
+        <Muted>{error || 'Loading…'}</Muted>
+      </div>
+    );
 
   const counts = (c: string) => prefs.quick_replies.filter((r) => !c || r.category === c).length;
   const isNew = editing && !prefs.quick_replies.some((r) => r.id === editing.id && editing.id);
@@ -128,18 +133,39 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
         {!isNew && <span style={{ fontSize: 11, color: MSG_MUTED }}>Used {editing.uses} times</span>}
       </div>
       <Label style={{ marginTop: 12 }}>Title</Label>
-      <Field value={editing.title} onChange={(v) => setEditing({ ...editing, title: v })} placeholder="e.g. Welcome" style={{ marginTop: 5 }} />
+      <Field
+        value={editing.title}
+        onChange={(v) => setEditing({ ...editing, title: v })}
+        placeholder="e.g. Welcome"
+        style={{ marginTop: 5 }}
+      />
       <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
         <div style={{ flex: 1 }}>
           <Label>Shortcut</Label>
-          <Field mono value={editing.shortcut} onChange={(v) => setEditing({ ...editing, shortcut: v.replace(/\s/g, '') })} placeholder="/hi" style={{ marginTop: 5 }} />
+          <Field
+            mono
+            value={editing.shortcut}
+            onChange={(v) => setEditing({ ...editing, shortcut: v.replace(/\s/g, '') })}
+            placeholder="/hi"
+            style={{ marginTop: 5 }}
+          />
         </div>
         <div style={{ flex: 1 }}>
           <Label>Category</Label>
           <select
             value={editing.category}
             onChange={(e) => setEditing({ ...editing, category: e.target.value })}
-            style={{ marginTop: 5, width: '100%', height: 34, border: '1px solid #ECE6EA', borderRadius: 9, padding: '0 8px', fontSize: 12.5, fontFamily: 'inherit', background: '#fff' }}
+            style={{
+              marginTop: 5,
+              width: '100%',
+              height: 34,
+              border: '1px solid #ECE6EA',
+              borderRadius: 9,
+              padding: '0 8px',
+              fontSize: 12.5,
+              fontFamily: 'inherit',
+              background: '#fff',
+            }}
           >
             <option value="">No category</option>
             {prefs.categories.map((c) => (
@@ -151,11 +177,26 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
         </div>
       </div>
       <Label style={{ marginTop: 10 }}>Message</Label>
-      <Field multiline value={editing.text} onChange={(v) => setEditing({ ...editing, text: v })} placeholder="Hi {first_name}! …" style={{ marginTop: 5 }} />
+      <Field
+        multiline
+        value={editing.text}
+        onChange={(v) => setEditing({ ...editing, text: v })}
+        placeholder="Hi {first_name}! …"
+        style={{ marginTop: 5 }}
+      />
       <button
         type="button"
         onClick={() => setEditing({ ...editing, text: `${editing.text}{first_name}` })}
-        style={{ marginTop: 6, border: 'none', background: '#FDEBF2', color: '#D0145C', fontSize: 11, padding: '2px 8px', borderRadius: 6, cursor: 'pointer' }}
+        style={{
+          marginTop: 6,
+          border: 'none',
+          background: '#FDEBF2',
+          color: '#D0145C',
+          fontSize: 11,
+          padding: '2px 8px',
+          borderRadius: 6,
+          cursor: 'pointer',
+        }}
       >
         + {'{first_name}'}
       </button>
@@ -168,7 +209,14 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
               const kind = e.target.value as QuickReplyButtonKind;
               setButton(i, { kind, label: b.label || BUTTON_KIND_LABEL[kind] });
             }}
-            style={{ height: 30, border: '1px solid #ECE6EA', borderRadius: 8, fontSize: 12, background: '#fff', fontFamily: 'inherit' }}
+            style={{
+              height: 30,
+              border: '1px solid #ECE6EA',
+              borderRadius: 8,
+              fontSize: 12,
+              background: '#fff',
+              fontFamily: 'inherit',
+            }}
           >
             {(Object.keys(BUTTON_KIND_LABEL) as QuickReplyButtonKind[]).map((k) => (
               <option key={k} value={k}>
@@ -176,8 +224,18 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
               </option>
             ))}
           </select>
-          <Field value={b.label} onChange={(v) => setButton(i, { label: v })} placeholder="Button text" style={{ height: 30 }} />
-          <Field value={b.url} onChange={(v) => setButton(i, { url: v })} placeholder="https://yourpage.com/book" style={{ height: 30 }} />
+          <Field
+            value={b.label}
+            onChange={(v) => setButton(i, { label: v })}
+            placeholder="Button text"
+            style={{ height: 30 }}
+          />
+          <Field
+            value={b.url}
+            onChange={(v) => setButton(i, { url: v })}
+            placeholder="https://yourpage.com/book"
+            style={{ height: 30 }}
+          />
           <button
             type="button"
             aria-label="Remove button"
@@ -192,27 +250,68 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
         <Btn
           kind="outline"
           style={{ marginTop: 6, height: 28 }}
-          onClick={() => setEditing({ ...editing, buttons: [...editing.buttons, { kind: 'book', label: 'Book now', url: '' }] })}
+          onClick={() =>
+            setEditing({ ...editing, buttons: [...editing.buttons, { kind: 'book', label: 'Book now', url: '' }] })
+          }
         >
           <Plus size={13} /> Add a button
         </Btn>
       )}
       {editing.buttons.length > 0 && (
-        <Muted style={{ marginTop: 6 }}>Each button goes out as a tap-able link under the reply, on every network.</Muted>
+        <Muted style={{ marginTop: 6 }}>
+          Each button goes out as a tap-able link under the reply, on every network.
+        </Muted>
       )}
       <Label style={{ marginTop: 12 }}>Preview</Label>
       <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'flex-start' }}>
-        <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#26348B', color: '#fff', fontSize: 9.5, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <div
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: '50%',
+            background: '#26348B',
+            color: '#fff',
+            fontSize: 9.5,
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
           ZP
         </div>
         <div>
-          <div style={{ background: '#FCEEF4', borderRadius: 12, padding: '8px 12px', fontSize: 12.5, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
+          <div
+            style={{
+              background: '#FCEEF4',
+              borderRadius: 12,
+              padding: '8px 12px',
+              fontSize: 12.5,
+              lineHeight: 1.45,
+              whiteSpace: 'pre-wrap',
+            }}
+          >
             {fillReply(editing.text, 'Zino') || '…'}
           </div>
           {editing.buttons.length > 0 && (
             <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
               {editing.buttons.map((b, i) => (
-                <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, border: `1px solid ${i === 0 ? '#F6C9DB' : '#EFE7EB'}`, background: i === 0 ? '#FDF1F6' : '#fff', color: i === 0 ? '#D0145C' : '#2A2230', borderRadius: 8, padding: '4px 10px' }}>
+                <span
+                  key={i}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    border: `1px solid ${i === 0 ? '#F6C9DB' : '#EFE7EB'}`,
+                    background: i === 0 ? '#FDF1F6' : '#fff',
+                    color: i === 0 ? '#D0145C' : '#2A2230',
+                    borderRadius: 8,
+                    padding: '4px 10px',
+                  }}
+                >
                   <ButtonIcon kind={b.kind} size={12} color={i === 0 ? '#D0145C' : '#2A2230'} />
                   {b.label || '…'}
                 </span>
@@ -240,7 +339,12 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
           <Search size={15} color={MSG_MUTED} style={{ position: 'absolute', left: 11, top: 10 }} />
-          <Field value={query} onChange={setQuery} placeholder="Search replies or shortcuts…" style={{ paddingLeft: 32 }} />
+          <Field
+            value={query}
+            onChange={setQuery}
+            placeholder="Search replies or shortcuts…"
+            style={{ paddingLeft: 32 }}
+          />
         </div>
         <Btn onClick={() => setEditing({ ...EMPTY, category })}>
           <Plus size={15} /> New reply
@@ -248,20 +352,36 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginTop: 14 }}>
         {replies.map((r) => (
-          <button
-            key={r.id}
-            type="button"
-            onClick={() => setEditing(r)}
-            style={{ all: 'unset', cursor: 'pointer' }}
-          >
+          <button key={r.id} type="button" onClick={() => setEditing(r)} style={{ all: 'unset', cursor: 'pointer' }}>
             <Box selected={editing?.id === r.id} style={{ padding: '12px 13px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                 <span style={{ fontWeight: 700, fontSize: 13 }}>{r.title}</span>
-                {r.shortcut && <Pill fg="#5C5460" bg="#F6F2F4" style={{ fontFamily: 'ui-monospace, Menlo, monospace' }}>{r.shortcut}</Pill>}
+                {r.shortcut && (
+                  <Pill fg="#5C5460" bg="#F6F2F4" style={{ fontFamily: 'ui-monospace, Menlo, monospace' }}>
+                    {r.shortcut}
+                  </Pill>
+                )}
               </div>
-              <div style={{ color: MSG_MUTED, fontSize: 11.8, lineHeight: 1.45, marginTop: 5, height: 34, overflow: 'hidden' }}>{r.text}</div>
+              <div
+                style={{
+                  color: MSG_MUTED,
+                  fontSize: 11.8,
+                  lineHeight: 1.45,
+                  marginTop: 5,
+                  height: 34,
+                  overflow: 'hidden',
+                }}
+              >
+                {r.text}
+              </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-                {r.category ? <Pill fg="#5C5460" bg="#F3F2EF">{r.category}</Pill> : <span />}
+                {r.category ? (
+                  <Pill fg="#5C5460" bg="#F3F2EF">
+                    {r.category}
+                  </Pill>
+                ) : (
+                  <span />
+                )}
                 <span style={{ fontSize: 11, color: MSG_MUTED }}>Used {r.uses}×</span>
               </div>
             </Box>
@@ -275,7 +395,8 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: MSG_MUTED, marginTop: 14 }}>
         <Zap size={14} color={MSG_PINK} />
-        Type <b style={{ color: '#2A2230', fontFamily: 'ui-monospace, Menlo, monospace' }}>/</b> in any chat to insert a quick reply.
+        Type <b style={{ color: '#2A2230', fontFamily: 'ui-monospace, Menlo, monospace' }}>/</b> in any chat to insert a
+        quick reply.
       </div>
     </>
   );
@@ -302,7 +423,19 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
           ))}
           <div style={{ margin: '14px 20px 0' }}>
             {newCategory === null ? (
-              <button type="button" onClick={() => setNewCategory('')} style={{ border: 'none', background: 'none', color: '#D0145C', fontWeight: 600, fontSize: 12, cursor: 'pointer', padding: 0 }}>
+              <button
+                type="button"
+                onClick={() => setNewCategory('')}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  color: '#D0145C',
+                  fontWeight: 600,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
                 + New category
               </button>
             ) : (

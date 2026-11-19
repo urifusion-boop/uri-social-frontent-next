@@ -10,11 +10,7 @@ import {
   type DeskChange,
   type DeskNote,
 } from '@/src/api/InboxService';
-import {
-  INITIAL_CHANNEL_CONNECTIONS,
-  channelsFromApi,
-  type ChannelConnection,
-} from './InboxConnectionsPage';
+import { INITIAL_CHANNEL_CONNECTIONS, channelsFromApi, type ChannelConnection } from './InboxConnectionsPage';
 import { InboxPersonalityPage } from './personality/InboxPersonalityPage';
 import { useNotifications } from '@/src/providers/NotificationProvider';
 import { ToastService } from '@/src/utils/toast.util';
@@ -942,7 +938,11 @@ export default function InboxDashboard({
         setLoadedThreads((prev) => ({ ...prev, [selectedId]: true }));
         // The team's internal notes on this conversation.
         InboxService.getDesk(selectedId)
-          .then((d) => !cancelled && setNoteOverrides((prev) => ({ ...prev, [selectedId]: d.notes.slice().reverse().map(deskNote) })))
+          .then(
+            (d) =>
+              !cancelled &&
+              setNoteOverrides((prev) => ({ ...prev, [selectedId]: d.notes.slice().reverse().map(deskNote) }))
+          )
           .catch(() => undefined);
       } catch {
         // Leave the thread unloaded so reopening it tries again, rather than
@@ -1040,7 +1040,18 @@ export default function InboxDashboard({
     });
     return newestFirst ? list : list.slice().reverse();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations, selectedQueue, cardQueues, typeFilter, tagFilter, searchQuery, channelFilter, ownerFilter, newestFirst, team]);
+  }, [
+    conversations,
+    selectedQueue,
+    cardQueues,
+    typeFilter,
+    tagFilter,
+    searchQuery,
+    channelFilter,
+    ownerFilter,
+    newestFirst,
+    team,
+  ]);
 
   const groups = useMemo(() => buildGroups(filteredConversations, groupBy), [filteredConversations, groupBy]);
 
@@ -1257,101 +1268,93 @@ export default function InboxDashboard({
     return (
       <div
         style={{
-          fontFamily: FONT,
+          width: '100%',
+          height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 10,
-          padding: '64px 24px',
-          textAlign: 'center',
-          color: '#5B6472',
+          background: MSG_BG,
+          overflowY: 'auto',
         }}
       >
-        {loadingList ? (
-          <p style={{ margin: 0, fontSize: 15 }}>Loading your inbox…</p>
-        ) : loadError ? (
-          <>
-            <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#1F2430' }}>
-              We couldn&apos;t load your inbox
-            </p>
-            <p style={{ margin: 0, fontSize: 14, maxWidth: 420 }}>{loadError}</p>
-            <button
-              type="button"
-              onClick={() => {
-                setLoadingList(true);
-                refreshConversations();
-              }}
+        <MessagingHeader
+          active="inbox"
+          onSelect={(s) => setSubView(s)}
+          connections={connectionsSummaryOf(channelConnections)}
+          extra={notificationBell}
+          compact={isMobile}
+        />
+        <div style={{ height: 16, flex: '0 0 16px' }} />
+        <div style={{ padding: isMobile ? '0 14px 14px' : '0 28px 24px' }}>
+          <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #F4E9EE' }}>
+            <div
               style={{
-                marginTop: 6,
-                padding: '9px 18px',
-                borderRadius: 8,
-                border: 'none',
-                background: '#C2185B',
-                color: '#fff',
                 fontFamily: FONT,
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                padding: '64px 24px',
+                textAlign: 'center',
+                color: '#5B6472',
               }}
             >
-              Try again
-            </button>
-          </>
-        ) : (
-          <>
-            {channelConnections.some((c) => c.connected) ? (
-              <EmptyState
-                emoji="💬"
-                notes={['📸 Instagram DMs', '💬 Facebook']}
-                title="No messages"
-                highlight="yet"
-                body="Your accounts are connected. New messages and comments will show up here as they arrive."
-              />
-            ) : (
-              <EmptyState
-                emoji="💬"
-                notes={['📸 Instagram DMs', '💬 Facebook']}
-                title="Your customers will"
-                highlight="land here"
-                body="Messages and comments from your connected Instagram and Facebook accounts arrive here as they come in. Jane can draft the replies."
-                action={{ label: 'Connect an account', onClick: () => setSubView('connections') }}
-                secondary={{ label: "Set up Jane's brand voice first", onClick: () => setSubView('voice') }}
-              />
-            )}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginTop: 10 }}>
-              {(
-                [
-                  ['connections', 'Connections'],
-                  ['voice', 'Brand Voice'],
-                  ['usage', 'AI Usage'],
-                  ['settings', 'Inbox Settings'],
-                  ['insights', 'Insights'],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setSubView(id)}
-                  style={{
-                    padding: '9px 16px',
-                    borderRadius: 8,
-                    // The empty state above owns the main action; these stay quiet shortcuts.
-                    border: '1px solid rgba(0,0,0,.12)',
-                    background: '#fff',
-                    color: '#333',
-                    fontFamily: FONT,
-                    fontSize: 13.5,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
+              {loadingList ? (
+                <p style={{ margin: 0, fontSize: 15 }}>Loading your inbox…</p>
+              ) : loadError ? (
+                <>
+                  <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#1F2430' }}>
+                    We couldn&apos;t load your inbox
+                  </p>
+                  <p style={{ margin: 0, fontSize: 14, maxWidth: 420 }}>{loadError}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoadingList(true);
+                      refreshConversations();
+                    }}
+                    style={{
+                      marginTop: 6,
+                      padding: '9px 18px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: '#C2185B',
+                      color: '#fff',
+                      fontFamily: FONT,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Try again
+                  </button>
+                </>
+              ) : (
+                <>
+                  {channelConnections.some((c) => c.connected) ? (
+                    <EmptyState
+                      emoji="💬"
+                      notes={['📸 Instagram DMs', '💬 Facebook']}
+                      title="No messages"
+                      highlight="yet"
+                      body="Your accounts are connected. New messages and comments will show up here as they arrive."
+                    />
+                  ) : (
+                    <EmptyState
+                      emoji="💬"
+                      notes={['📸 Instagram DMs', '💬 Facebook']}
+                      title="Your customers will"
+                      highlight="land here"
+                      body="Messages and comments from your connected Instagram and Facebook accounts arrive here as they come in. Jane can draft the replies."
+                      action={{ label: 'Connect an account', onClick: () => setSubView('connections') }}
+                      secondary={{ label: "Set up Jane's brand voice first", onClick: () => setSubView('voice') }}
+                    />
+                  )}
+                </>
+              )}
             </div>
-          </>
-        )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -1601,7 +1604,13 @@ export default function InboxDashboard({
     const value = Number(budget.replace(/[^\d.]/g, ''));
     setLeadOverrides((prev) => ({
       ...prev,
-      [id]: { interest: leadFormInterest.trim(), budget, notes: leadFormNotes.trim(), createdBy: 'You', createdAt: 'Just now' },
+      [id]: {
+        interest: leadFormInterest.trim(),
+        budget,
+        notes: leadFormNotes.trim(),
+        createdBy: 'You',
+        createdAt: 'Just now',
+      },
     }));
     setLeadModalOpen(false);
     saveDesk(
@@ -1657,7 +1666,10 @@ export default function InboxDashboard({
     Promise.allSettled(ids.map((id) => InboxService.updateDesk(id, { status: 'resolved' }))).then((r) => {
       const failed = r.filter((x) => x.status === 'rejected').length;
       if (failed)
-        ToastService.showToast(`${failed} conversation${failed === 1 ? '' : 's'} couldn't be marked done.`, ToastTypeEnum.Error);
+        ToastService.showToast(
+          `${failed} conversation${failed === 1 ? '' : 's'} couldn't be marked done.`,
+          ToastTypeEnum.Error
+        );
     });
   }
 
@@ -3083,12 +3095,35 @@ export default function InboxDashboard({
         flex: '0 0 auto',
       }}
     >
-      <PlatformBadge platform={selectedConv.channel} size={46} initials={selectedConv.initials} color={selectedConv.avatarColor} />
+      <PlatformBadge
+        platform={selectedConv.channel}
+        size={46}
+        initials={selectedConv.initials}
+        color={selectedConv.avatarColor}
+      />
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: -0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div
+          style={{
+            fontSize: 20,
+            fontWeight: 700,
+            letterSpacing: -0.2,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
           {selectedConv.name}
         </div>
-        <div style={{ fontSize: 12, color: '#6D6572', marginTop: 2 }}>
+        <div
+          style={{
+            fontSize: 12,
+            color: '#6D6572',
+            marginTop: 2,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
           {PLATFORM_LABEL[selectedConv.channel]}
           {selectedConv.type === 'comment' ? ' comment' : ''} · Last active {selectedConv.time}
         </div>
@@ -3099,7 +3134,11 @@ export default function InboxDashboard({
         onClick={toggleStar}
         style={{ ...deskButton, width: 36, padding: 0 }}
       >
-        <Star size={16} fill={selectedConv.starred ? '#F5B301' : 'none'} color={selectedConv.starred ? '#F5B301' : '#2A2230'} />
+        <Star
+          size={16}
+          fill={selectedConv.starred ? '#F5B301' : 'none'}
+          color={selectedConv.starred ? '#F5B301' : '#2A2230'}
+        />
       </button>
       <div style={{ position: 'relative' }}>
         <button type="button" onClick={() => setAssignOpen((o) => !o)} style={deskButton}>
@@ -3114,14 +3153,36 @@ export default function InboxDashboard({
         {selectedConv.status === 'resolved' ? 'Reopen' : 'Mark as done'}
       </button>
       <div style={{ position: 'relative' }}>
-        <button type="button" aria-label="More" onClick={() => setMoreMenuOpen((o) => !o)} style={{ ...deskButton, border: 'none', width: 30, padding: 0 }}>
+        <button
+          type="button"
+          aria-label="More"
+          onClick={() => setMoreMenuOpen((o) => !o)}
+          style={{ ...deskButton, border: 'none', width: 30, padding: 0 }}
+        >
           <MoreHorizontal size={18} />
         </button>
         {moreMenuOpen && (
           <>
             <div onClick={() => setMoreMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-            <div style={{ position: 'absolute', top: '110%', right: 0, zIndex: 999, background: '#fff', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.15)', border: '1px solid rgba(0,0,0,.06)', minWidth: 190, padding: 6 }}>
-              <button type="button" onClick={openLeadModal} style={{ ...deskButton, border: 'none', width: '100%', justifyContent: 'flex-start' }}>
+            <div
+              style={{
+                position: 'absolute',
+                top: '110%',
+                right: 0,
+                zIndex: 999,
+                background: '#fff',
+                borderRadius: 10,
+                boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                border: '1px solid rgba(0,0,0,.06)',
+                minWidth: 190,
+                padding: 6,
+              }}
+            >
+              <button
+                type="button"
+                onClick={openLeadModal}
+                style={{ ...deskButton, border: 'none', width: '100%', justifyContent: 'flex-start' }}
+              >
                 <I n="target" s={14} c={selectedConv.lead ? '#2E7D32' : '#999'} />
                 {selectedConv.lead ? 'Edit lead' : 'Create lead'}
               </button>
@@ -3151,7 +3212,7 @@ export default function InboxDashboard({
         width: 214,
         flex: '0 0 214px',
         borderLeft: '1px solid #F1EBEE',
-        padding: '18px 16px',
+        padding: '16px 16px',
         overflowY: 'auto',
         boxSizing: 'border-box',
         fontFamily: FONT,
@@ -3207,9 +3268,34 @@ export default function InboxDashboard({
         {(selectedConv.tags ?? []).map((t) => {
           const l = tagLook(t);
           return (
-            <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 500, padding: '3px 9px', borderRadius: 7, background: l.bg, color: l.fg }}>
+            <span
+              key={t}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                fontSize: 12,
+                fontWeight: 500,
+                padding: '3px 9px',
+                borderRadius: 7,
+                background: l.bg,
+                color: l.fg,
+              }}
+            >
               {t}
-              <button type="button" aria-label={`Remove ${t}`} onClick={() => removeTag(t)} style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', color: l.fg, display: 'flex' }}>
+              <button
+                type="button"
+                aria-label={`Remove ${t}`}
+                onClick={() => removeTag(t)}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  color: l.fg,
+                  display: 'flex',
+                }}
+              >
                 <X size={12} />
               </button>
             </span>
@@ -3227,11 +3313,33 @@ export default function InboxDashboard({
               if (e.key === 'Escape') setTagAdding(false);
             }}
             placeholder="New tag…"
-            style={{ width: '100%', height: 30, border: '1px solid #ECE6EA', borderRadius: 8, padding: '0 9px', fontSize: 12.5, fontFamily: FONT, boxSizing: 'border-box' }}
+            style={{
+              width: '100%',
+              height: 30,
+              border: '1px solid #ECE6EA',
+              borderRadius: 8,
+              padding: '0 9px',
+              fontSize: 12.5,
+              fontFamily: FONT,
+              boxSizing: 'border-box',
+            }}
           />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
             {presetsLeft.map((t) => (
-              <button key={t} type="button" onClick={() => addTag(t)} style={{ border: '1px solid #ECE6EA', background: '#fff', borderRadius: 7, fontSize: 11.5, padding: '2px 8px', cursor: 'pointer', fontFamily: FONT }}>
+              <button
+                key={t}
+                type="button"
+                onClick={() => addTag(t)}
+                style={{
+                  border: '1px solid #ECE6EA',
+                  background: '#fff',
+                  borderRadius: 7,
+                  fontSize: 11.5,
+                  padding: '2px 8px',
+                  cursor: 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
                 + {t}
               </button>
             ))}
@@ -3245,7 +3353,19 @@ export default function InboxDashboard({
       <div style={{ height: 1, background: '#F1EBEE', margin: '14px 0' }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={detailsLabel}>Lead</span>
-        <button type="button" onClick={openLeadModal} style={{ border: 'none', background: 'none', color: '#D0145C', fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: FONT }}>
+        <button
+          type="button"
+          onClick={openLeadModal}
+          style={{
+            border: 'none',
+            background: 'none',
+            color: '#D0145C',
+            fontWeight: 600,
+            fontSize: 12,
+            cursor: 'pointer',
+            fontFamily: FONT,
+          }}
+        >
           {selectedConv.lead ? 'Edit' : '+ Create'}
         </button>
       </div>
@@ -3268,14 +3388,36 @@ export default function InboxDashboard({
         }}
         placeholder="Add a note…"
         rows={3}
-        style={{ width: '100%', marginTop: 8, border: '1px solid #ECE6EA', borderRadius: 8, background: '#FAF8F9', padding: '8px 10px', fontSize: 12, fontFamily: FONT, resize: 'vertical', boxSizing: 'border-box' }}
+        style={{
+          width: '100%',
+          marginTop: 8,
+          border: '1px solid #ECE6EA',
+          borderRadius: 8,
+          background: '#FAF8F9',
+          padding: '8px 10px',
+          fontSize: 12,
+          fontFamily: FONT,
+          resize: 'vertical',
+          boxSizing: 'border-box',
+        }}
       />
       <div style={{ fontSize: 10.5, color: '#8A8290', marginTop: 3 }}>Only your team sees notes. Enter to save.</div>
       {(selectedConv.notes ?? [])
         .slice()
         .reverse()
         .map((n) => (
-          <div key={n.id} style={{ marginTop: 8, fontSize: 12, background: '#fff', border: '1px solid #EFE8EC', borderRadius: 8, padding: '7px 9px', lineHeight: 1.45 }}>
+          <div
+            key={n.id}
+            style={{
+              marginTop: 8,
+              fontSize: 12,
+              background: '#fff',
+              border: '1px solid #EFE8EC',
+              borderRadius: 8,
+              padding: '7px 9px',
+              lineHeight: 1.45,
+            }}
+          >
             {n.text}
             <div style={{ fontSize: 10.5, color: '#8A8290', marginTop: 2 }}>
               {n.by} · {n.time}
@@ -4492,7 +4634,16 @@ export default function InboxDashboard({
             boxSizing: 'border-box',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', background: '#f4f4f5', borderRadius: 9, padding: 3, gap: 2 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              background: '#f4f4f5',
+              borderRadius: 9,
+              padding: 3,
+              gap: 2,
+            }}
+          >
             {(['list', 'board'] as const).map((v) => (
               <button key={v} type="button" onClick={() => setView(v)} style={pillStyle(view === v)}>
                 {v === 'list' ? 'List' : 'Board'}
@@ -4640,7 +4791,10 @@ export default function InboxDashboard({
                   </button>
                   {typeFilterMenuOpen && (
                     <>
-                      <div onClick={() => setTypeFilterMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+                      <div
+                        onClick={() => setTypeFilterMenuOpen(false)}
+                        style={{ position: 'fixed', inset: 0, zIndex: 998 }}
+                      />
                       <div
                         style={{
                           position: 'absolute',
@@ -4674,7 +4828,11 @@ export default function InboxDashboard({
                           }}
                         />
                         <div style={deskMenuLabel}>Type</div>
-                        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as 'all' | ConversationType)} style={{ ...deskSelect, width: '100%' }}>
+                        <select
+                          value={typeFilter}
+                          onChange={(e) => setTypeFilter(e.target.value as 'all' | ConversationType)}
+                          style={{ ...deskSelect, width: '100%' }}
+                        >
                           <option value="all">All types</option>
                           <option value="dm">Messages only</option>
                           <option value="comment">Comments only</option>
@@ -4682,7 +4840,11 @@ export default function InboxDashboard({
                         {allTagsInUse.length > 0 && (
                           <>
                             <div style={deskMenuLabel}>Tag</div>
-                            <select value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} style={{ ...deskSelect, width: '100%' }}>
+                            <select
+                              value={tagFilter}
+                              onChange={(e) => setTagFilter(e.target.value)}
+                              style={{ ...deskSelect, width: '100%' }}
+                            >
                               <option value="all">All tags</option>
                               {allTagsInUse.map((t) => (
                                 <option key={t} value={t}>
@@ -4693,7 +4855,11 @@ export default function InboxDashboard({
                           </>
                         )}
                         <div style={deskMenuLabel}>Group by</div>
-                        <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupMode)} style={{ ...deskSelect, width: '100%' }}>
+                        <select
+                          value={groupBy}
+                          onChange={(e) => setGroupBy(e.target.value as GroupMode)}
+                          style={{ ...deskSelect, width: '100%' }}
+                        >
                           <option value="time">Time</option>
                           <option value="platform">Platform</option>
                           <option value="customer">Customer</option>
@@ -4729,7 +4895,16 @@ export default function InboxDashboard({
                               setTagFilter('all');
                               setSearchQuery('');
                             }}
-                            style={{ marginTop: 8, border: 'none', background: 'none', color: '#D0145C', fontWeight: 600, fontSize: 12.5, cursor: 'pointer', fontFamily: FONT }}
+                            style={{
+                              marginTop: 8,
+                              border: 'none',
+                              background: 'none',
+                              color: '#D0145C',
+                              fontWeight: 600,
+                              fontSize: 12.5,
+                              cursor: 'pointer',
+                              fontFamily: FONT,
+                            }}
                           >
                             Clear filters
                           </button>
@@ -4742,7 +4917,12 @@ export default function InboxDashboard({
               {selectMode && (
                 <div style={{ padding: '0 14px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 12, color: '#666', fontWeight: 600 }}>{selectedIds.size} selected</span>
-                  <button type="button" disabled={selectedIds.size === 0} onClick={bulkMarkResolved} style={{ ...deskButton, height: 28 }}>
+                  <button
+                    type="button"
+                    disabled={selectedIds.size === 0}
+                    onClick={bulkMarkResolved}
+                    style={{ ...deskButton, height: 28 }}
+                  >
                     Mark as done
                   </button>
                   <button type="button" onClick={exitSelectMode} style={{ ...deskButton, height: 28 }}>
@@ -4757,7 +4937,15 @@ export default function InboxDashboard({
                     {grp.label && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 10px 4px' }}>
                         <span style={{ width: 7, height: 7, borderRadius: '50%', background: grp.dotColor }} />
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#8A8290', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: '#8A8290',
+                            textTransform: 'uppercase',
+                            letterSpacing: '.04em',
+                          }}
+                        >
                           {grp.label}
                         </span>
                         <span style={{ fontSize: 10.5, color: '#aaa' }}>({grp.items.length})</span>
@@ -4805,24 +4993,77 @@ export default function InboxDashboard({
                               {selectedIds.has(item.id) && <I n="check" s={12} c="#fff" />}
                             </span>
                           )}
-                          <PlatformBadge platform={item.channel} size={45} initials={item.initials} color={item.avatarColor} />
+                          <PlatformBadge
+                            platform={item.channel}
+                            size={45}
+                            initials={item.initials}
+                            color={item.avatarColor}
+                          />
                           <span style={{ flex: 1, minWidth: 0 }}>
                             <span style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
-                              <span style={{ fontSize: 13.5, fontWeight: 700, color: '#1B1520', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {item.starred && <Star size={11} fill="#F5B301" color="#F5B301" style={{ marginRight: 4, verticalAlign: -1 }} />}
+                              <span
+                                style={{
+                                  fontSize: 13.5,
+                                  fontWeight: 700,
+                                  color: '#1B1520',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                {item.starred && (
+                                  <Star
+                                    size={11}
+                                    fill="#F5B301"
+                                    color="#F5B301"
+                                    style={{ marginRight: 4, verticalAlign: -1 }}
+                                  />
+                                )}
                                 {item.name}
                               </span>
                               <span style={{ fontSize: 11, color: '#8A8290', flex: '0 0 auto' }}>{item.time}</span>
                             </span>
-                            <span style={{ display: 'block', fontSize: 11.5, color: openedIds.has(item.id) ? '#8A8290' : '#4B4350', fontWeight: openedIds.has(item.id) ? 400 : 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 3 }}>
+                            <span
+                              style={{
+                                display: 'block',
+                                fontSize: 11.5,
+                                color: openedIds.has(item.id) ? '#8A8290' : '#4B4350',
+                                fontWeight: openedIds.has(item.id) ? 400 : 600,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                marginTop: 3,
+                              }}
+                            >
                               {item.excerpt}
                             </span>
-                            <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 5, marginTop: 6, background: pill.bg, color: pill.fg }}>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                fontSize: 11,
+                                fontWeight: 600,
+                                padding: '2px 9px',
+                                borderRadius: 5,
+                                marginTop: 6,
+                                background: pill.bg,
+                                color: pill.fg,
+                              }}
+                            >
                               {pill.label}
                             </span>
                           </span>
                           {!openedIds.has(item.id) && (
-                            <span style={{ position: 'absolute', right: 12, bottom: 16, width: 7, height: 7, borderRadius: '50%', background: '#E0155F' }} />
+                            <span
+                              style={{
+                                position: 'absolute',
+                                right: 12,
+                                bottom: 16,
+                                width: 7,
+                                height: 7,
+                                borderRadius: '50%',
+                                background: '#E0155F',
+                              }}
+                            />
                           )}
                         </button>
                       );
@@ -4832,17 +5073,19 @@ export default function InboxDashboard({
               </div>
             </div>
 
-            {/* chat */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
+            {/* chat + details: the header runs across both, as in the design */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
               {deskHeader}
-              {sourceStrip}
-              {agentStrip}
-              {messagesView}
-              {threadComposer}
+              <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
+                  {sourceStrip}
+                  {agentStrip}
+                  {messagesView}
+                  {threadComposer}
+                </div>
+                {detailsPanel}
+              </div>
             </div>
-
-            {/* conversation details */}
-            {detailsPanel}
           </div>
         </div>
       ) : (

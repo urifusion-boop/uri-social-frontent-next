@@ -11928,8 +11928,7 @@ export default function WorkspaceDashboard() {
     icon,
     label,
     active:
-      messagesView === view ||
-      (view === 'settings' && (messagesView === 'connections' || messagesView === 'usage')),
+      messagesView === view || (view === 'settings' && (messagesView === 'connections' || messagesView === 'usage')),
     onClick: () => goToMessagesView(view),
   }));
 

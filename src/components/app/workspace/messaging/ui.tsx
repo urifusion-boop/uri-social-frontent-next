@@ -145,7 +145,17 @@ export function Toggle({ on, onChange, label }: { on: boolean; onChange?: (v: bo
   );
 }
 
-export function Pill({ children, fg, bg, style }: { children: ReactNode; fg: string; bg: string; style?: CSSProperties }) {
+export function Pill({
+  children,
+  fg,
+  bg,
+  style,
+}: {
+  children: ReactNode;
+  fg: string;
+  bg: string;
+  style?: CSSProperties;
+}) {
   return (
     <span
       style={{

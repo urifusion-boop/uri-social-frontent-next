@@ -309,7 +309,6 @@ const oneboxUsage = async (): Promise<{ usage: OneboxUsage; plans: OneboxPlan[];
 const oneboxSubscribe = async (planId: string): Promise<{ payment_url: string; transaction_ref: string }> =>
   (await UriHttpClient.getClient().post('/inbox/onebox/subscribe', { plan_id: planId })).data;
 
-
 // ── Desk: what the team does to a conversation (saved per brand) ────────────
 export type DeskStatus = 'open' | 'pending' | 'resolved';
 export type LeadStage = '' | 'new' | 'qualified' | 'won' | 'lost';
@@ -404,8 +403,11 @@ const saveDeskPrefs = async (change: Partial<DeskPrefs>): Promise<DeskPrefs> =>
 const quickReplyUsed = async (replyId: string): Promise<void> => {
   await UriHttpClient.getClient().post(`/inbox/desk/prefs/quick-replies/${replyId}/used`);
 };
-const listAudience = async (params: { segment?: AudienceSegment; q?: string; channel?: string }): Promise<AudienceResult> =>
-  (await UriHttpClient.getClient().get('/inbox/audience', { params })).data;
+const listAudience = async (params: {
+  segment?: AudienceSegment;
+  q?: string;
+  channel?: string;
+}): Promise<AudienceResult> => (await UriHttpClient.getClient().get('/inbox/audience', { params })).data;
 const listTeam = async (): Promise<TeamMember[]> =>
   (await UriHttpClient.getClient().get('/inbox/team')).data?.members ?? [];
 

@@ -26,7 +26,15 @@ function Glyph({ platform, size }: { platform: string; size: number }) {
 }
 
 /** A network's own round mark. */
-export function PlatformIcon({ platform, size = 16, radius = '50%' }: { platform: string; size?: number; radius?: string }) {
+export function PlatformIcon({
+  platform,
+  size = 16,
+  radius = '50%',
+}: {
+  platform: string;
+  size?: number;
+  radius?: string;
+}) {
   return (
     <span
       style={{
