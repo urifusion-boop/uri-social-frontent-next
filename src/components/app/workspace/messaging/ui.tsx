@@ -183,6 +183,7 @@ export function Field({
   style,
   mono,
   onEnter,
+  id,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -191,6 +192,7 @@ export function Field({
   style?: CSSProperties;
   mono?: boolean;
   onEnter?: () => void;
+  id?: string;
 }) {
   const base: CSSProperties = {
     width: '100%',
@@ -210,9 +212,10 @@ export function Field({
     ...style,
   };
   return multiline ? (
-    <textarea value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} style={base} />
+    <textarea id={id} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} style={base} />
   ) : (
     <input
+      id={id}
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}

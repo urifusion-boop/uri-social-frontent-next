@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Calendar, Link2, Plus, Search, ShoppingBag, Trash2, X, Zap } from 'lucide-react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { BookOpen, Calendar, Link2, Pencil, Plus, Search, ShoppingBag, Trash2, X, Zap } from 'lucide-react';
 import {
   InboxService,
   type DeskPrefs,
@@ -10,6 +10,7 @@ import {
   type QuickReplyButtonKind,
 } from '@/src/api/InboxService';
 import { MSG_MUTED, MSG_PINK } from './MessagingHeader';
+import { PlatformBadge, avatarColor, initialsOf } from './platform';
 import { Box, Btn, Col, Field, Label, Muted, NavRow, Pane, Pill, Title, apiError } from './ui';
 
 // A button is a link to the business's own page; DMs carry text, so it goes out as a
@@ -37,6 +38,16 @@ export function fillReply(text: string, firstName: string): string {
   return text.replace(/\{first_name\}/g, firstName || 'there');
 }
 
+const catIcon: CSSProperties = {
+  border: 'none',
+  background: 'none',
+  padding: 4,
+  cursor: 'pointer',
+  color: MSG_MUTED,
+  display: 'flex',
+  borderRadius: 6,
+};
+
 const EMPTY: QuickReply = { id: '', title: '', text: '', shortcut: '', category: '', buttons: [], uses: 0 };
 
 export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
@@ -47,6 +58,27 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
   const [editing, setEditing] = useState<QuickReply | null>(null);
   const [saving, setSaving] = useState(false);
   const [newCategory, setNewCategory] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
+  const [flash, setFlash] = useState(false);
+  // The preview shows the reply as your newest real customer would get it.
+  const [sample, setSample] = useState<{ name: string; platform: string } | null>(null);
+  useEffect(() => {
+    InboxService.listConversations({ limit: 1 })
+      .then((c) => c[0] && setSample({ name: c[0].contact_name || '', platform: c[0].platform }))
+      .catch(() => undefined);
+  }, []);
+
+  const startNewReply = () => {
+    setEditing({ ...EMPTY, category });
+    setError('');
+    setFlash(true);
+    window.setTimeout(() => setFlash(false), 700);
+    window.setTimeout(() => {
+      const el = document.getElementById('qr-title') as HTMLInputElement | null;
+      el?.focus();
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 30);
+  };
 
   useEffect(() => {
     InboxService.getDeskPrefs()
@@ -113,6 +145,38 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
     if (await persist({ categories: [...prefs.categories, c] })) setNewCategory(null);
   };
 
+  // Renaming keeps every reply in the category; deleting leaves its replies uncategorised.
+  const renameCategory = async () => {
+    if (!prefs || !renaming) return;
+    const to = renaming.to.trim();
+    if (!to || to === renaming.from) return setRenaming(null);
+    if (prefs.categories.includes(to)) return setError(`There's already a category called ${to}.`);
+    const next = await persist({
+      categories: prefs.categories.map((c) => (c === renaming.from ? to : c)),
+      quick_replies: prefs.quick_replies.map((r) => (r.category === renaming.from ? { ...r, category: to } : r)),
+    });
+    if (next) {
+      if (category === renaming.from) setCategory(to);
+      if (editing?.category === renaming.from) setEditing({ ...editing, category: to });
+      setRenaming(null);
+    }
+  };
+  const deleteCategory = async (c: string) => {
+    if (!prefs) return;
+    const n = prefs.quick_replies.filter((r) => r.category === c).length;
+    if (
+      !window.confirm(
+        n ? `Delete "${c}"? Its ${n} repl${n === 1 ? 'y stays' : 'ies stay'}, without a category.` : `Delete "${c}"?`
+      )
+    )
+      return;
+    if (await persist({ categories: prefs.categories.filter((x) => x !== c) })) {
+      if (category === c) setCategory('');
+      if (editing?.category === c) setEditing({ ...editing, category: '' });
+      setRenaming(null);
+    }
+  };
+
   const setButton = (i: number, b: Partial<QuickReplyButton>) =>
     editing && setEditing({ ...editing, buttons: editing.buttons.map((x, j) => (j === i ? { ...x, ...b } : x)) });
 
@@ -134,6 +198,7 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
       </div>
       <Label style={{ marginTop: 12 }}>Title</Label>
       <Field
+        id="qr-title"
         value={editing.title}
         onChange={(v) => setEditing({ ...editing, title: v })}
         placeholder="e.g. Welcome"
@@ -202,48 +267,50 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
       </button>
       <Label style={{ marginTop: 12 }}>Buttons under the reply</Label>
       {editing.buttons.map((b, i) => (
-        <div key={i} style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'center' }}>
-          <select
-            value={b.kind}
-            onChange={(e) => {
-              const kind = e.target.value as QuickReplyButtonKind;
-              setButton(i, { kind, label: b.label || BUTTON_KIND_LABEL[kind] });
-            }}
-            style={{
-              height: 30,
-              border: '1px solid #ECE6EA',
-              borderRadius: 8,
-              fontSize: 12,
-              background: '#fff',
-              fontFamily: 'inherit',
-            }}
-          >
-            {(Object.keys(BUTTON_KIND_LABEL) as QuickReplyButtonKind[]).map((k) => (
-              <option key={k} value={k}>
-                {BUTTON_KIND_LABEL[k]}
-              </option>
-            ))}
-          </select>
-          <Field
-            value={b.label}
-            onChange={(v) => setButton(i, { label: v })}
-            placeholder="Button text"
-            style={{ height: 30 }}
-          />
+        <div key={i} style={{ marginTop: 8, padding: 8, border: '1px solid #F1EBEE', borderRadius: 10 }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <select
+              value={b.kind}
+              onChange={(e) => {
+                const kind = e.target.value as QuickReplyButtonKind;
+                setButton(i, { kind, label: b.label || BUTTON_KIND_LABEL[kind] });
+              }}
+              style={{
+                height: 30,
+                border: '1px solid #ECE6EA',
+                borderRadius: 8,
+                fontSize: 12,
+                background: '#fff',
+                fontFamily: 'inherit',
+              }}
+            >
+              {(Object.keys(BUTTON_KIND_LABEL) as QuickReplyButtonKind[]).map((k) => (
+                <option key={k} value={k}>
+                  {BUTTON_KIND_LABEL[k]}
+                </option>
+              ))}
+            </select>
+            <Field
+              value={b.label}
+              onChange={(v) => setButton(i, { label: v })}
+              placeholder="Button text"
+              style={{ height: 30 }}
+            />
+            <button
+              type="button"
+              aria-label="Remove button"
+              onClick={() => setEditing({ ...editing, buttons: editing.buttons.filter((_, j) => j !== i) })}
+              style={{ border: 'none', background: 'none', cursor: 'pointer', color: MSG_MUTED }}
+            >
+              <X size={14} />
+            </button>
+          </div>
           <Field
             value={b.url}
             onChange={(v) => setButton(i, { url: v })}
             placeholder="https://yourpage.com/book"
-            style={{ height: 30 }}
+            style={{ height: 30, marginTop: 6 }}
           />
-          <button
-            type="button"
-            aria-label="Remove button"
-            onClick={() => setEditing({ ...editing, buttons: editing.buttons.filter((_, j) => j !== i) })}
-            style={{ border: 'none', background: 'none', cursor: 'pointer', color: MSG_MUTED }}
-          >
-            <X size={14} />
-          </button>
         </div>
       ))}
       {editing.buttons.length < 3 && (
@@ -262,25 +329,19 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
           Each button goes out as a tap-able link under the reply, on every network.
         </Muted>
       )}
-      <Label style={{ marginTop: 12 }}>Preview</Label>
+      <Label style={{ marginTop: 12 }}>
+        Preview{' '}
+        <span style={{ fontWeight: 400, color: MSG_MUTED }}>
+          · as {sample?.name ? sample.name.split(' ')[0] : 'a customer'} would get it
+        </span>
+      </Label>
       <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'flex-start' }}>
-        <div
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: '50%',
-            background: '#26348B',
-            color: '#fff',
-            fontSize: 9.5,
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          ZP
-        </div>
+        <PlatformBadge
+          platform={sample?.platform || 'instagram'}
+          size={26}
+          initials={initialsOf(sample?.name || 'Customer')}
+          color={avatarColor(sample?.name || 'Customer')}
+        />
         <div>
           <div
             style={{
@@ -292,7 +353,7 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
               whiteSpace: 'pre-wrap',
             }}
           >
-            {fillReply(editing.text, 'Zino') || '…'}
+            {fillReply(editing.text, (sample?.name || '').split(' ')[0]) || '…'}
           </div>
           {editing.buttons.length > 0 && (
             <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
@@ -346,7 +407,7 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
             style={{ paddingLeft: 32 }}
           />
         </div>
-        <Btn onClick={() => setEditing({ ...EMPTY, category })}>
+        <Btn onClick={startNewReply}>
           <Plus size={15} /> New reply
         </Btn>
       </div>
@@ -390,7 +451,9 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
       </div>
       {replies.length === 0 && (
         <Muted style={{ marginTop: 20, textAlign: 'center' }}>
-          {prefs.quick_replies.length ? 'No replies match.' : 'No quick replies yet — create your first one.'}
+          {prefs.quick_replies.length
+            ? 'No replies match.'
+            : 'No quick replies yet — write your first one on the right.'}
         </Muted>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: MSG_MUTED, marginTop: 14 }}>
@@ -418,9 +481,45 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
             <Label>Categories</Label>
           </div>
           <NavRow label="All replies" count={counts('')} active={!category} onClick={() => setCategory('')} />
-          {prefs.categories.map((c) => (
-            <NavRow key={c} label={c} count={counts(c)} active={category === c} onClick={() => setCategory(c)} />
-          ))}
+          {prefs.categories.map((c) =>
+            renaming?.from === c ? (
+              <div key={c} style={{ margin: '0 8px 2px', display: 'flex', gap: 4, alignItems: 'center' }}>
+                <Field
+                  value={renaming.to}
+                  onChange={(v) => setRenaming({ from: c, to: v })}
+                  onEnter={renameCategory}
+                  style={{ height: 30 }}
+                />
+                <button
+                  type="button"
+                  aria-label="Delete category"
+                  title="Delete category"
+                  onClick={() => deleteCategory(c)}
+                  style={catIcon}
+                >
+                  <Trash2 size={13} />
+                </button>
+                <button type="button" aria-label="Cancel" onClick={() => setRenaming(null)} style={catIcon}>
+                  <X size={13} />
+                </button>
+              </div>
+            ) : (
+              <div key={c} className="qr-cat" style={{ position: 'relative' }}>
+                <NavRow label={c} count={counts(c)} active={category === c} onClick={() => setCategory(c)} />
+                <button
+                  type="button"
+                  aria-label={`Rename or delete ${c}`}
+                  title="Rename or delete"
+                  className="qr-cat-edit"
+                  onClick={() => setRenaming({ from: c, to: c })}
+                  style={{ ...catIcon, position: 'absolute', right: 34, top: 7 }}
+                >
+                  <Pencil size={12} />
+                </button>
+              </div>
+            )
+          )}
+          <style>{`.qr-cat .qr-cat-edit{opacity:0}.qr-cat:hover .qr-cat-edit,.qr-cat-edit:focus{opacity:1}`}</style>
           <div style={{ margin: '14px 20px 0' }}>
             {newCategory === null ? (
               <button
@@ -443,8 +542,19 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
             )}
           </div>
         </Col>
-        <Col style={{ width: 578, flexShrink: 0, padding: '16px 18px' }}>{list}</Col>
-        <Col style={{ flex: 1, padding: '16px 18px', background: '#FFFCFD', borderRight: 'none' }}>{editor}</Col>
+        <Col style={{ flex: 1, minWidth: 0, padding: '16px 18px' }}>{list}</Col>
+        <Col
+          style={{
+            width: 360,
+            flexShrink: 0,
+            padding: '16px 18px',
+            background: flash ? '#FDEEF4' : '#FFFCFD',
+            transition: 'background .4s',
+            borderRight: 'none',
+          }}
+        >
+          {editor}
+        </Col>
       </Pane>
     </div>
   );
