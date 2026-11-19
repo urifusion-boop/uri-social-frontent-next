@@ -919,6 +919,17 @@ export default function InboxDashboard({
     return () => window.clearInterval(timer);
   }, [refreshConversations]);
 
+  // The team's internal notes on a conversation, fetched once when it is first opened.
+  const [notesLoaded, setNotesLoaded] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    if (!selectedId || notesLoaded[selectedId]) return;
+    const id = selectedId;
+    setNotesLoaded((prev) => ({ ...prev, [id]: true }));
+    InboxService.getDesk(id)
+      .then((d) => setNoteOverrides((prev) => ({ ...prev, [id]: d.notes.slice().reverse().map(deskNote) })))
+      .catch(() => setNotesLoaded((prev) => ({ ...prev, [id]: false })));
+  }, [selectedId, notesLoaded]);
+
   // Messages are fetched per thread, once, when it is first opened: the list
   // endpoint returns only an excerpt, and fetching every thread's history up
   // front would be hundreds of requests for threads nobody opens.
@@ -936,14 +947,6 @@ export default function InboxDashboard({
           setMessageOverrides((prev) => ({ ...prev, [selectedId]: rows.map(toThreadMessage) }));
         }
         setLoadedThreads((prev) => ({ ...prev, [selectedId]: true }));
-        // The team's internal notes on this conversation.
-        InboxService.getDesk(selectedId)
-          .then(
-            (d) =>
-              !cancelled &&
-              setNoteOverrides((prev) => ({ ...prev, [selectedId]: d.notes.slice().reverse().map(deskNote) }))
-          )
-          .catch(() => undefined);
       } catch {
         // Leave the thread unloaded so reopening it tries again, rather than
         // showing an empty thread as though the customer had said nothing.
@@ -1585,6 +1588,16 @@ export default function InboxDashboard({
       setNoteDraft(text);
       ToastService.showToast("Couldn't save the note. Try again.", ToastTypeEnum.Error);
     }
+  }
+
+  function deleteNote(noteId: string) {
+    const id = selectedId;
+    const before = noteOverrides[id] ?? [];
+    setNoteOverrides((prev) => ({ ...prev, [id]: before.filter((n) => n.id !== noteId) }));
+    InboxService.deleteNote(id, noteId).catch(() => {
+      setNoteOverrides((prev) => ({ ...prev, [id]: before }));
+      ToastService.showToast("Couldn't delete the note. Try again.", ToastTypeEnum.Error);
+    });
   }
 
   function openLeadModal() {
@@ -3419,8 +3432,33 @@ export default function InboxDashboard({
             }}
           >
             {n.text}
-            <div style={{ fontSize: 10.5, color: '#8A8290', marginTop: 2 }}>
-              {n.by} · {n.time}
+            <div
+              style={{
+                fontSize: 10.5,
+                color: '#8A8290',
+                marginTop: 2,
+                display: 'flex',
+                justifyContent: 'space-between',
+              }}
+            >
+              <span>
+                {n.by} · {n.time}
+              </span>
+              <button
+                type="button"
+                aria-label="Delete note"
+                onClick={() => deleteNote(n.id)}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  color: '#8A8290',
+                  display: 'flex',
+                }}
+              >
+                <X size={12} />
+              </button>
             </div>
           </div>
         ))}
