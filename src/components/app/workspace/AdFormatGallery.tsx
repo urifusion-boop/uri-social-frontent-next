@@ -409,7 +409,16 @@ export const AdFormatSuggestionCard = ({
  *  renders an honest note when the user's own pick couldn't be honored for
  *  this specific ad (its content step failed) rather than silently showing
  *  a format they didn't choose with no explanation. */
-export const UsedStyleTag = ({ format, fallbackFrom }: { format: AdFormat; fallbackFrom?: AdFormat }) => {
+export const UsedStyleTag = ({
+  format,
+  fallbackFrom,
+  onChange,
+}: {
+  format: AdFormat;
+  fallbackFrom?: AdFormat;
+  /** Where one is offered (the campaign wizard), a "Change style" link back to its Style step. */
+  onChange?: () => void;
+}) => {
   const [open, setOpen] = useState(false);
   return (
     <div style={{ marginTop: 10 }}>
@@ -432,6 +441,26 @@ export const UsedStyleTag = ({ format, fallbackFrom }: { format: AdFormat; fallb
         <span style={{ fontSize: 12, fontWeight: 700, color: '#1a1614' }}>{format.name}</span>
         <span style={{ fontSize: 11, color: PINK, fontWeight: 700 }}>{open ? 'See less' : 'See more'}</span>
       </div>
+      {onChange && (
+        <button
+          type="button"
+          onClick={onChange}
+          style={{
+            marginLeft: 10,
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            color: PINK,
+            fontSize: 12,
+            fontWeight: 700,
+            textDecoration: 'underline',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          Change style
+        </button>
+      )}
       {fallbackFrom && (
         <p style={{ margin: '6px 0 0', fontSize: 11.5, color: '#9a6a00', lineHeight: 1.4 }}>
           Couldn&apos;t build {fallbackFrom.name} for this one, so we used {format.name} instead.

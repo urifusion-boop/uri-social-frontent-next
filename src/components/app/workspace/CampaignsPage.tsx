@@ -4051,6 +4051,7 @@ export function ResultCard({
   result,
   adFormats,
   formatFallbackFrom,
+  onChangeStyle,
   onResultChange,
   onLaunched,
   onQuickReply,
@@ -4079,6 +4080,8 @@ export function ResultCard({
   // one — see runGeneration's own comment for why that can legitimately
   // happen (the chosen format's content step failed for this specific ad).
   formatFallbackFrom?: string;
+  /** The campaign wizard's way back to its Style step ("Change style" beside the style tag). */
+  onChangeStyle?: () => void;
   onResultChange: (result: LaunchFromMessageResult) => void;
   onLaunched: () => void;
   onQuickReply: (text: string) => void;
@@ -4358,10 +4361,10 @@ export function ResultCard({
       return (
         <div>
           <JaneBubble>
-            Almost there — Facebook needs you to approve URI Social&rsquo;s business account, <b>Uri Creative</b>, as a partner on{' '}
-            {result.page_name || 'your Page'} before I can run ads from it. We&rsquo;ve sent the request: open Meta
-            Business Suite, go to <b>Settings → Requests</b>, and approve Uri Creative. Then come back and continue — no
-            need to reconnect.
+            Almost there — Facebook needs you to approve URI Social&rsquo;s business account, <b>Uri Creative</b>, as a
+            partner on {result.page_name || 'your Page'} before I can run ads from it. We&rsquo;ve sent the request:
+            open Meta Business Suite, go to <b>Settings → Requests</b>, and approve Uri Creative. Then come back and
+            continue — no need to reconnect.
           </JaneBubble>
           <div className="camp-indent" style={{ marginLeft: 40, marginTop: 8 }}>
             <a
@@ -4635,7 +4638,7 @@ export function ResultCard({
               const fallbackFrom = formatFallbackFrom
                 ? adFormats.find((f) => f.format_id === formatFallbackFrom)
                 : undefined;
-              return <UsedStyleTag format={usedFormat} fallbackFrom={fallbackFrom} />;
+              return <UsedStyleTag format={usedFormat} fallbackFrom={fallbackFrom} onChange={onChangeStyle} />;
             })()}
           {plan?.explanation && withoutQuestions(plan.explanation) && (
             <div style={{ margin: '14px 0 12px' }}>
