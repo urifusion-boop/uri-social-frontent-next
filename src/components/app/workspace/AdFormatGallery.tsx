@@ -30,6 +30,11 @@ const FORMAT_VISUALS: Record<string, { icon: string; from: string; to: string }>
   'SEED-099': { icon: '🎤', from: '#F7B500', to: '#F76B1C' }, // Event Promo
   'SEED-100': { icon: '🎟️', from: '#12C98B', to: '#0B6E4F' }, // Offer Spotlight
   'SEED-101': { icon: '💬', from: '#E53935', to: '#8E1515' }, // Problems vs Solution
+  'SEED-102': { icon: '🖼️', from: '#1B7A3A', to: '#F6C343' }, // Portrait + Headline
+  'SEED-103': { icon: '💻', from: '#2F80ED', to: '#F2711C' }, // Floating Cards
+  'SEED-104': { icon: '🎓', from: '#1F8A3B', to: '#0E4D22' }, // Enrol / Sign-up
+  'SEED-105': { icon: '🪧', from: '#1E4FD8', to: '#E3262D' }, // Billboard Statement
+  'SEED-106': { icon: '🤖', from: '#3A3A3A', to: '#171717' }, // AI Answer
 };
 const DEFAULT_VISUAL = { icon: '🎯', from: '#9CA3AF', to: '#6B7280' };
 
