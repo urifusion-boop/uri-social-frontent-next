@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   InboxService,
@@ -29,6 +29,11 @@ import AutomationsPage from './messaging/AutomationsPage';
 import QuickRepliesPage, { replyWithButtons } from './messaging/QuickRepliesPage';
 import AudiencePage from './messaging/AudiencePage';
 import InsightsPage from './messaging/InsightsPage';
+import { NavRow } from './messaging/ui';
+import { PlatformBadge, PLATFORM_LABEL } from './messaging/platform';
+import { tagLook } from './messaging/SettingsPage';
+import { Check, ChevronDown, Filter, ListFilter, MoreHorizontal, Star, User, X } from 'lucide-react';
+import type { TeamMember } from '@/src/api/InboxService';
 
 /*
  * Unified Social Inbox — a tab inside WorkspaceDashboard (PAGES.messages),
@@ -418,7 +423,7 @@ function buildGroups(items: Conversation[], mode: GroupMode): ConversationGroup[
 // ─── Small shared style helpers ─────────────────────────────────────────────
 const FONT = "'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
-function pillStyle(active: boolean): React.CSSProperties {
+function pillStyle(active: boolean): CSSProperties {
   return {
     padding: '6px 14px',
     borderRadius: 7,
@@ -650,6 +655,46 @@ function connectionsSummaryOf(channelConnections: ChannelConnection[]) {
       };
 }
 
+// Small shared looks for the desk (list header, menus, the chat header buttons).
+const deskButton: CSSProperties = {
+  height: 34,
+  padding: '0 12px',
+  border: '1px solid #ECE6EA',
+  borderRadius: 9,
+  background: '#fff',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 7,
+  fontSize: 12.5,
+  fontWeight: 600,
+  color: '#2A2230',
+  cursor: 'pointer',
+  fontFamily: "'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  whiteSpace: 'nowrap',
+};
+const deskSelect: CSSProperties = { ...deskButton, appearance: 'auto', paddingRight: 6, flex: 1, minWidth: 0 };
+const deskMenuLabel: CSSProperties = {
+  fontSize: 10.5,
+  fontWeight: 700,
+  letterSpacing: '.04em',
+  textTransform: 'uppercase',
+  color: '#999',
+  margin: '10px 2px 4px',
+};
+
+// The pill on each conversation row: which queue it is in.
+const QUEUE_PILL: Record<QueueKey, { label: string; fg: string; bg: string }> = {
+  unassigned: { label: 'Open', fg: '#2563EB', bg: '#EAF2FF' },
+  sales: { label: 'Sales', fg: '#7C3AED', bg: '#F1EAFE' },
+  support: { label: 'Support', fg: '#15803D', bg: '#E7F7EE' },
+  complaints: { label: 'Complaint', fg: '#C62828', bg: '#FDECEA' },
+  ad: { label: 'Ad lead', fg: '#D0145C', bg: '#FDEEF4' },
+  resolved: { label: 'Done', fg: '#5C5460', bg: '#F3F2EF' },
+};
+
+type OwnerFilter = 'all' | 'unassigned' | 'mine' | 'team';
+
 /** Which Messaging section (and Settings section) a ?view= value or an in-page link means. */
 export function resolveView(view: string): { section: MessagingSection; settings?: SettingsSection } {
   switch (view) {
@@ -683,6 +728,18 @@ export default function InboxDashboard({
   const [mobileScreen, setMobileScreen] = useState<'list' | 'thread'>('list');
 
   const [selectedQueue, setSelectedQueue] = useState<QueueFilter>('all');
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all');
+  const [channelFilter, setChannelFilter] = useState<'all' | ChannelKey>('all');
+  const [newestFirst, setNewestFirst] = useState(true);
+  const [smartOpen, setSmartOpen] = useState(true);
+  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [tagAdding, setTagAdding] = useState(false);
+  useEffect(() => {
+    InboxService.listTeam()
+      .then(setTeam)
+      .catch(() => undefined);
+  }, []);
   const [selectedId, setSelectedId] = useState<string>('');
   const [view, setView] = useState<'list' | 'board'>('list');
   const [groupBy, setGroupBy] = useState<GroupMode>('time');
@@ -955,9 +1012,20 @@ export default function InboxDashboard({
     return c.type === 'dm' ? (last as ThreadMessage).from === 'customer' : (last as ThreadComment).from !== 'agent';
   }
 
+  const myId = team.find((m) => m.is_me)?.user_id ?? '';
+  // "Assigned to me" / "Team" count open work only: a done conversation is nobody's queue.
+  function matchesOwner(c: Conversation, owner: OwnerFilter): boolean {
+    if (owner === 'all') return true;
+    if (c.status === 'resolved') return false;
+    const a = c.assigneeId ?? '';
+    if (owner === 'unassigned') return !a;
+    if (owner === 'mine') return Boolean(myId) && a === myId;
+    return Boolean(a) && a !== myId;
+  }
+
   const filteredConversations = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return conversations.filter((c) => {
+    const list = conversations.filter((c) => {
       if (selectedQueue === 'unanswered') {
         if (!isUnanswered(c)) return false;
       } else if (selectedQueue !== 'all' && currentQueueOf(c) !== selectedQueue) {
@@ -965,11 +1033,14 @@ export default function InboxDashboard({
       }
       if (typeFilter !== 'all' && c.type !== typeFilter) return false;
       if (tagFilter !== 'all' && !(c.tags ?? []).includes(tagFilter)) return false;
+      if (channelFilter !== 'all' && c.channel !== channelFilter) return false;
+      if (!matchesOwner(c, ownerFilter)) return false;
       if (q && !(c.name.toLowerCase().includes(q) || c.excerpt.toLowerCase().includes(q))) return false;
       return true;
     });
+    return newestFirst ? list : list.slice().reverse();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations, selectedQueue, cardQueues, typeFilter, tagFilter, searchQuery]);
+  }, [conversations, selectedQueue, cardQueues, typeFilter, tagFilter, searchQuery, channelFilter, ownerFilter, newestFirst, team]);
 
   const groups = useMemo(() => buildGroups(filteredConversations, groupBy), [filteredConversations, groupBy]);
 
@@ -2863,6 +2934,26 @@ export default function InboxDashboard({
           : conversations.filter((c) => currentQueueOf(c) === q.id).length,
   }));
 
+  const ownerViews: { id: OwnerFilter; label: string; count: number }[] = [
+    { id: 'all', label: 'All conversations', count: conversations.length },
+    { id: 'unassigned', label: 'Unassigned', count: conversations.filter((c) => matchesOwner(c, 'unassigned')).length },
+    { id: 'mine', label: 'Assigned to me', count: conversations.filter((c) => matchesOwner(c, 'mine')).length },
+    { id: 'team', label: 'Team', count: conversations.filter((c) => matchesOwner(c, 'team')).length },
+  ];
+  // The design's smart views, then the queues the inbox already had, so none is lost.
+  const SMART_ORDER: QueueFilter[] = ['unassigned', 'unanswered', 'sales', 'support', 'ad', 'complaints', 'resolved'];
+  const SMART_LABEL: Partial<Record<QueueFilter, string>> = {
+    unassigned: 'Open',
+    unanswered: 'Needs reply',
+    ad: 'Ad leads',
+    complaints: 'Complaints',
+    resolved: 'Done',
+  };
+  const smartViews = SMART_ORDER.map((id) => {
+    const pill = queuePills.find((q) => q.id === id)!;
+    return { ...pill, label: SMART_LABEL[id] ?? pill.label };
+  });
+
   const allTagsInUse = Array.from(new Set(conversations.flatMap((c) => c.tags ?? []))).sort();
   const hasExtraFilters = typeFilter !== 'all' || tagFilter !== 'all';
 
@@ -2901,6 +2992,298 @@ export default function InboxDashboard({
   );
 
   const connectionsSummary = connectionsSummaryOf(channelConnections);
+
+  // ── The new desk: chat header and conversation details (desktop) ──
+  function setDeskStatus(next: 'open' | 'pending' | 'resolved') {
+    const id = selectedId;
+    const key: StatusKey = next === 'open' ? 'unassigned' : next;
+    const before = { status: statusOverrides[id], queue: cardQueues[id] };
+    setStatusOverrides((prev) => ({ ...prev, [id]: key }));
+    if (next === 'resolved' || selectedConv.status === 'resolved')
+      setCardQueues((prev) => ({ ...prev, [id]: next === 'resolved' ? 'resolved' : 'unassigned' }));
+    saveDesk(id, { status: next }, () => {
+      setStatusOverrides((prev) => ({ ...prev, [id]: before.status as StatusKey }));
+      setCardQueues((prev) => ({ ...prev, [id]: before.queue as QueueKey }));
+    });
+  }
+
+  const assignee = team.find((m) => m.user_id === selectedConv.assigneeId);
+  const assigneeLabel = (m?: TeamMember) => (m ? (m.is_me ? `${m.name} (you)` : m.name) : 'Unassigned');
+  const deskStatus: 'open' | 'pending' | 'resolved' =
+    selectedConv.status === 'resolved' ? 'resolved' : selectedConv.status === 'pending' ? 'pending' : 'open';
+  const STATUS_LOOK = {
+    open: { label: 'Open', fg: '#2563EB', bg: '#EAF2FF' },
+    pending: { label: 'Pending', fg: '#B26A00', bg: '#FFF4E5' },
+    resolved: { label: 'Done', fg: '#15803D', bg: '#E7F7EE' },
+  } as const;
+
+  const assignMenu = assignOpen && (
+    <>
+      <div onClick={() => setAssignOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+      <div
+        style={{
+          position: 'absolute',
+          top: '110%',
+          right: 0,
+          zIndex: 999,
+          background: '#fff',
+          borderRadius: 10,
+          boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+          border: '1px solid rgba(0,0,0,.06)',
+          minWidth: 200,
+          padding: 6,
+        }}
+      >
+        {[undefined, ...team].map((m) => (
+          <button
+            key={m?.user_id ?? 'none'}
+            type="button"
+            onClick={() => {
+              assignTo(m?.user_id ?? '');
+              setAssignOpen(false);
+            }}
+            style={{
+              width: '100%',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '8px 10px',
+              border: 'none',
+              background: (selectedConv.assigneeId ?? '') === (m?.user_id ?? '') ? '#FDEEF4' : 'transparent',
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#2A2230',
+              cursor: 'pointer',
+              fontFamily: FONT,
+              textAlign: 'left',
+            }}
+          >
+            {assigneeLabel(m)}
+            {(selectedConv.assigneeId ?? '') === (m?.user_id ?? '') && <Check size={14} color="#D0145C" />}
+          </button>
+        ))}
+        {team.length <= 1 && (
+          <div style={{ fontSize: 11.5, color: '#8A8290', padding: '6px 10px 4px', lineHeight: 1.45 }}>
+            Invite teammates to this brand to assign conversations to them.
+          </div>
+        )}
+      </div>
+    </>
+  );
+
+  const deskHeader = (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: '14px 18px',
+        borderBottom: '1px solid #F1EBEE',
+        flex: '0 0 auto',
+      }}
+    >
+      <PlatformBadge platform={selectedConv.channel} size={46} initials={selectedConv.initials} color={selectedConv.avatarColor} />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: -0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {selectedConv.name}
+        </div>
+        <div style={{ fontSize: 12, color: '#6D6572', marginTop: 2 }}>
+          {PLATFORM_LABEL[selectedConv.channel]}
+          {selectedConv.type === 'comment' ? ' comment' : ''} · Last active {selectedConv.time}
+        </div>
+      </div>
+      <button
+        type="button"
+        aria-label={selectedConv.starred ? 'Unstar' : 'Star'}
+        onClick={toggleStar}
+        style={{ ...deskButton, width: 36, padding: 0 }}
+      >
+        <Star size={16} fill={selectedConv.starred ? '#F5B301' : 'none'} color={selectedConv.starred ? '#F5B301' : '#2A2230'} />
+      </button>
+      <div style={{ position: 'relative' }}>
+        <button type="button" onClick={() => setAssignOpen((o) => !o)} style={deskButton}>
+          <User size={15} />
+          {assignee ? (assignee.is_me ? 'You' : assignee.name.split(' ')[0]) : 'Assign'}
+          <ChevronDown size={14} />
+        </button>
+        {assignMenu}
+      </div>
+      <button type="button" onClick={toggleResolved} style={deskButton}>
+        <Check size={15} />
+        {selectedConv.status === 'resolved' ? 'Reopen' : 'Mark as done'}
+      </button>
+      <div style={{ position: 'relative' }}>
+        <button type="button" aria-label="More" onClick={() => setMoreMenuOpen((o) => !o)} style={{ ...deskButton, border: 'none', width: 30, padding: 0 }}>
+          <MoreHorizontal size={18} />
+        </button>
+        {moreMenuOpen && (
+          <>
+            <div onClick={() => setMoreMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+            <div style={{ position: 'absolute', top: '110%', right: 0, zIndex: 999, background: '#fff', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.15)', border: '1px solid rgba(0,0,0,.06)', minWidth: 190, padding: 6 }}>
+              <button type="button" onClick={openLeadModal} style={{ ...deskButton, border: 'none', width: '100%', justifyContent: 'flex-start' }}>
+                <I n="target" s={14} c={selectedConv.lead ? '#2E7D32' : '#999'} />
+                {selectedConv.lead ? 'Edit lead' : 'Create lead'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDeskStatus(deskStatus === 'pending' ? 'open' : 'pending');
+                  setMoreMenuOpen(false);
+                }}
+                style={{ ...deskButton, border: 'none', width: '100%', justifyContent: 'flex-start' }}
+              >
+                <I n="clock" s={14} c="#999" />
+                {deskStatus === 'pending' ? 'Mark as open' : 'Mark as pending'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  const detailsLabel: CSSProperties = { fontSize: 12.5, fontWeight: 600, color: '#2A2230' };
+  const presetsLeft = tagPresets.filter((t) => !(selectedConv.tags ?? []).includes(t));
+  const detailsPanel = (
+    <div
+      style={{
+        width: 214,
+        flex: '0 0 214px',
+        borderLeft: '1px solid #F1EBEE',
+        padding: '18px 16px',
+        overflowY: 'auto',
+        boxSizing: 'border-box',
+        fontFamily: FONT,
+      }}
+    >
+      <div style={{ fontSize: 14, fontWeight: 700 }}>Conversation details</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, fontSize: 12.5, color: '#3A3240' }}>
+        <PlatformBadge platform={selectedConv.channel} size={24} plain />
+        {PLATFORM_LABEL[selectedConv.channel]}
+        {selectedConv.type === 'comment' ? ' comment' : ''}
+      </div>
+      <div style={{ height: 1, background: '#F1EBEE', margin: '14px 0' }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={detailsLabel}>Status</span>
+        <select
+          aria-label="Status"
+          value={deskStatus}
+          onChange={(e) => setDeskStatus(e.target.value as 'open' | 'pending' | 'resolved')}
+          style={{
+            border: 'none',
+            borderRadius: 14,
+            padding: '5px 10px',
+            fontSize: 12.5,
+            fontWeight: 600,
+            fontFamily: FONT,
+            background: STATUS_LOOK[deskStatus].bg,
+            color: STATUS_LOOK[deskStatus].fg,
+            cursor: 'pointer',
+          }}
+        >
+          <option value="open">Open</option>
+          <option value="pending">Pending</option>
+          <option value="resolved">Done</option>
+        </select>
+      </div>
+      <div style={{ ...detailsLabel, marginTop: 16 }}>Assignee</div>
+      <select
+        aria-label="Assignee"
+        value={selectedConv.assigneeId ?? ''}
+        onChange={(e) => assignTo(e.target.value)}
+        style={{ ...deskSelect, width: '100%', marginTop: 6, flex: 'none' }}
+      >
+        <option value="">Unassigned</option>
+        {team.map((m) => (
+          <option key={m.user_id} value={m.user_id}>
+            {assigneeLabel(m)}
+          </option>
+        ))}
+      </select>
+      <div style={{ height: 1, background: '#F1EBEE', margin: '14px 0' }} />
+      <div style={detailsLabel}>Tags</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+        {(selectedConv.tags ?? []).map((t) => {
+          const l = tagLook(t);
+          return (
+            <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 500, padding: '3px 9px', borderRadius: 7, background: l.bg, color: l.fg }}>
+              {t}
+              <button type="button" aria-label={`Remove ${t}`} onClick={() => removeTag(t)} style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', color: l.fg, display: 'flex' }}>
+                <X size={12} />
+              </button>
+            </span>
+          );
+        })}
+      </div>
+      {tagAdding ? (
+        <div style={{ marginTop: 8 }}>
+          <input
+            autoFocus
+            value={customTagDraft}
+            onChange={(e) => setCustomTagDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') addTag(customTagDraft);
+              if (e.key === 'Escape') setTagAdding(false);
+            }}
+            placeholder="New tag…"
+            style={{ width: '100%', height: 30, border: '1px solid #ECE6EA', borderRadius: 8, padding: '0 9px', fontSize: 12.5, fontFamily: FONT, boxSizing: 'border-box' }}
+          />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
+            {presetsLeft.map((t) => (
+              <button key={t} type="button" onClick={() => addTag(t)} style={{ border: '1px solid #ECE6EA', background: '#fff', borderRadius: 7, fontSize: 11.5, padding: '2px 8px', cursor: 'pointer', fontFamily: FONT }}>
+                + {t}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setTagAdding(true)} style={{ ...deskButton, height: 28, marginTop: 8 }}>
+          + Add tag
+        </button>
+      )}
+      <div style={{ height: 1, background: '#F1EBEE', margin: '14px 0' }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={detailsLabel}>Lead</span>
+        <button type="button" onClick={openLeadModal} style={{ border: 'none', background: 'none', color: '#D0145C', fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: FONT }}>
+          {selectedConv.lead ? 'Edit' : '+ Create'}
+        </button>
+      </div>
+      {selectedConv.lead && (
+        <div style={{ fontSize: 12, color: '#3A3240', marginTop: 6, lineHeight: 1.45 }}>
+          {selectedConv.lead.interest}
+          {selectedConv.lead.budget ? ` · ₦${Number(selectedConv.lead.budget).toLocaleString()}` : ''}
+        </div>
+      )}
+      <div style={{ height: 1, background: '#F1EBEE', margin: '14px 0' }} />
+      <div style={detailsLabel}>Notes</div>
+      <textarea
+        value={noteDraft}
+        onChange={(e) => setNoteDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            addNote();
+          }
+        }}
+        placeholder="Add a note…"
+        rows={3}
+        style={{ width: '100%', marginTop: 8, border: '1px solid #ECE6EA', borderRadius: 8, background: '#FAF8F9', padding: '8px 10px', fontSize: 12, fontFamily: FONT, resize: 'vertical', boxSizing: 'border-box' }}
+      />
+      <div style={{ fontSize: 10.5, color: '#8A8290', marginTop: 3 }}>Only your team sees notes. Enter to save.</div>
+      {(selectedConv.notes ?? [])
+        .slice()
+        .reverse()
+        .map((n) => (
+          <div key={n.id} style={{ marginTop: 8, fontSize: 12, background: '#fff', border: '1px solid #EFE8EC', borderRadius: 8, padding: '7px 9px', lineHeight: 1.45 }}>
+            {n.text}
+            <div style={{ fontSize: 10.5, color: '#8A8290', marginTop: 2 }}>
+              {n.by} · {n.time}
+            </div>
+          </div>
+        ))}
+    </div>
+  );
 
   const leadModal = leadModalOpen && (
     <>
@@ -4081,423 +4464,183 @@ export default function InboxDashboard({
         flexDirection: 'column',
         minWidth: 0,
         fontFamily: FONT,
-        background: '#fafafa',
+        background: MSG_BG,
         color: '#1a1a1a',
         overflow: 'hidden',
       }}
     >
-      {/* top bar */}
-      <div
-        style={{
-          height: 60,
-          flex: '0 0 60px',
-          background: '#fff',
-          borderBottom: '1px solid rgba(0,0,0,.08)',
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0 24px',
-          gap: 16,
-          boxSizing: 'border-box',
-        }}
-      >
-        <div
-          style={{ fontSize: 13, color: '#888', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
-        >
-          <span>Workspace</span>
-          <span>›</span>
-          <span style={{ color: '#1a1a1a', fontWeight: 700 }}>Customer Messages</span>
-        </div>
-
+      <MessagingHeader
+        active="inbox"
+        onSelect={(s) => setSubView(s)}
+        connections={connectionsSummary}
+        extra={notificationBell}
+      />
+      <div style={{ height: 16, flex: '0 0 16px' }} />
+      {view === 'board' && (
         <div
           style={{
-            flex: 1,
+            height: 48,
+            flex: '0 0 48px',
+            margin: '0 28px 12px',
+            background: '#fff',
+            border: '1px solid #F4E9EE',
+            borderRadius: 12,
             display: 'flex',
             alignItems: 'center',
-            background: '#f4f4f5',
-            borderRadius: 8,
-            padding: '8px 12px',
-            gap: 8,
-            maxWidth: 420,
+            padding: '0 16px',
+            gap: 20,
+            boxSizing: 'border-box',
           }}
         >
-          <I n="search" s={16} c="#999" />
-          <input
-            aria-label="Search conversations, customers, or keywords"
-            placeholder="Search conversations, customers, or keywords"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              border: 'none',
-              background: 'transparent',
-              outline: 'none',
-              fontSize: 13,
-              flex: 1,
-              fontFamily: FONT,
-              color: '#333',
-            }}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              aria-label="Clear search"
-              onClick={() => setSearchQuery('')}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: '#999',
-                cursor: 'pointer',
-                display: 'flex',
-                padding: 0,
-              }}
-            >
-              <I n="x" s={13} />
-            </button>
-          )}
-        </div>
-
-        <div style={{ flex: 1 }} />
-
-        <button
-          type="button"
-          onClick={() => setSubView('connections')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            fontSize: 12,
-            fontWeight: 600,
-            color: connectionsSummary.fg,
-            background: connectionsSummary.bg,
-            padding: '6px 10px',
-            borderRadius: 20,
-            whiteSpace: 'nowrap',
-            border: 'none',
-            cursor: 'pointer',
-            fontFamily: FONT,
-          }}
-        >
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: connectionsSummary.dot }} />
-          {connectionsSummary.label}
-        </button>
-
-        {notificationBell}
-      </div>
-
-      {/* toolbar: view switch + group by */}
-      <div
-        style={{
-          height: 48,
-          flex: '0 0 48px',
-          background: '#fff',
-          borderBottom: '1px solid rgba(0,0,0,.08)',
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0 24px',
-          gap: 20,
-          boxSizing: 'border-box',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            background: '#f4f4f5',
-            borderRadius: 9,
-            padding: 3,
-            gap: 2,
-          }}
-        >
-          {(['list', 'board'] as const).map((v) => (
-            <button key={v} type="button" onClick={() => setView(v)} style={pillStyle(view === v)}>
-              {v === 'list' ? 'List' : 'Board'}
-            </button>
-          ))}
-        </div>
-
-        {view === 'list' ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: '#999',
-                textTransform: 'uppercase',
-                letterSpacing: '.04em',
-              }}
-            >
-              Group by
-            </span>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                background: '#f4f4f5',
-                borderRadius: 9,
-                padding: 3,
-                gap: 2,
-              }}
-            >
-              {(
-                [
-                  ['time', 'Time'],
-                  ['platform', 'Platform'],
-                  ['customer', 'Customer'],
-                ] as const
-              ).map(([id, label]) => (
-                <button key={id} type="button" onClick={() => setGroupBy(id)} style={pillStyle(groupBy === id)}>
-                  {label}
-                </button>
-              ))}
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', background: '#f4f4f5', borderRadius: 9, padding: 3, gap: 2 }}>
+            {(['list', 'board'] as const).map((v) => (
+              <button key={v} type="button" onClick={() => setView(v)} style={pillStyle(view === v)}>
+                {v === 'list' ? 'List' : 'Board'}
+              </button>
+            ))}
           </div>
-        ) : (
           <div style={{ fontSize: 12, color: '#999' }}>Drag a card between columns to re-triage it</div>
-        )}
-      </div>
+        </div>
+      )}
 
       {view === 'list' ? (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0 }}>
-          {/* queue nav */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', padding: '0 28px 24px' }}>
           <div
             style={{
-              width: 220,
-              flex: '0 0 220px',
+              flex: 1,
+              minWidth: 0,
+              display: 'flex',
               background: '#fff',
-              borderRight: '1px solid rgba(0,0,0,.08)',
-              padding: '20px 12px',
-              boxSizing: 'border-box',
-              overflowY: 'auto',
+              borderRadius: 14,
+              border: '1px solid #F4E9EE',
+              boxShadow: '0 1px 3px rgba(80,20,50,.05)',
+              overflow: 'hidden',
             }}
           >
+            {/* filters */}
             <div
               style={{
-                fontSize: 11,
-                fontWeight: 800,
-                letterSpacing: '.06em',
-                textTransform: 'uppercase',
-                color: '#999',
-                padding: '0 8px 10px',
+                width: 188,
+                flex: '0 0 188px',
+                borderRight: '1px solid #F1EBEE',
+                padding: '18px 0',
+                overflowY: 'auto',
+                boxSizing: 'border-box',
               }}
             >
-              Queues
-            </div>
-            {queuePills.map((q) => (
+              {ownerViews.map((v) => (
+                <NavRow
+                  key={v.id}
+                  label={v.label}
+                  count={v.count}
+                  active={selectedQueue === 'all' && ownerFilter === v.id}
+                  onClick={() => {
+                    setOwnerFilter(v.id);
+                    setSelectedQueue('all');
+                  }}
+                />
+              ))}
+              <div style={{ height: 1, background: '#EFE9EC', margin: '12px 20px' }} />
               <button
-                key={q.id}
                 type="button"
-                onClick={() => setSelectedQueue(q.id)}
+                onClick={() => setSmartOpen((o) => !o)}
                 style={{
-                  width: '100%',
+                  width: 'calc(100% - 16px)',
+                  margin: '0 8px 4px',
                   display: 'flex',
-                  alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '9px 10px',
-                  marginBottom: 2,
+                  alignItems: 'center',
+                  padding: '6px 12px',
                   border: 'none',
-                  borderLeft: q.active ? '3px solid #E91E63' : '3px solid transparent',
-                  background: q.active ? 'rgba(194,24,91,.1)' : 'transparent',
-                  color: q.active ? '#AD1457' : '#444',
-                  fontWeight: q.active ? 700 : 500,
-                  fontSize: 13,
-                  borderRadius: '0 8px 8px 0',
+                  background: 'none',
+                  fontWeight: 600,
+                  fontSize: 13.5,
+                  color: '#2A2230',
                   cursor: 'pointer',
-                  textAlign: 'left',
                   fontFamily: FONT,
                 }}
               >
-                <span>{q.label}</span>
-                <span style={{ fontSize: 11, color: '#999', fontWeight: 700 }}>{q.count}</span>
+                Smart views
+                <ChevronDown size={15} style={{ transform: smartOpen ? undefined : 'rotate(-90deg)' }} />
               </button>
-            ))}
+              {smartOpen &&
+                smartViews.map((q) => (
+                  <NavRow
+                    key={q.id}
+                    label={
+                      q.id === 'unanswered' ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#E0155F' }} />
+                          {q.label}
+                        </span>
+                      ) : (
+                        q.label
+                      )
+                    }
+                    count={q.count}
+                    active={q.active}
+                    onClick={() => {
+                      setSelectedQueue(q.id);
+                      setOwnerFilter('all');
+                    }}
+                  />
+                ))}
+            </div>
 
-            <div style={{ height: 1, background: 'rgba(0,0,0,.08)', margin: '16px 8px' }} />
-
-            <button
-              type="button"
-              onClick={() => setSubView('connections')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 10px',
-                border: 'none',
-                background: 'transparent',
-                color: '#444',
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 8,
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontFamily: FONT,
-              }}
-            >
-              <I n="share" s={16} c="#888" />
-              Connections
-            </button>
-            <button
-              type="button"
-              onClick={() => setSubView('insights')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 10px',
-                border: 'none',
-                background: 'transparent',
-                color: '#444',
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 8,
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontFamily: FONT,
-              }}
-            >
-              <I n="chart" s={16} c="#888" />
-              Insights
-            </button>
-            <button
-              type="button"
-              onClick={() => setSubView('voice')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 10px',
-                border: 'none',
-                background: 'transparent',
-                color: '#444',
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 8,
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontFamily: FONT,
-              }}
-            >
-              <I n="sparkle" s={16} c="#888" />
-              Brand Voice
-            </button>
-            <button
-              type="button"
-              onClick={() => setSubView('usage')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 10px',
-                border: 'none',
-                background: 'transparent',
-                color: '#444',
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 8,
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontFamily: FONT,
-              }}
-            >
-              <I n="chart" s={16} c="#888" />
-              AI Usage
-            </button>
-            <button
-              type="button"
-              onClick={() => setSubView('settings')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 10px',
-                border: 'none',
-                background: 'transparent',
-                color: '#444',
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 8,
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontFamily: FONT,
-              }}
-            >
-              <I n="settings" s={16} c="#888" />
-              Inbox Settings
-            </button>
-          </div>
-
-          {/* conversation list */}
-          <div
-            style={{
-              width: 380,
-              flex: '0 0 380px',
-              background: '#fafafa',
-              borderRight: '1px solid rgba(0,0,0,.08)',
-              display: 'flex',
-              flexDirection: 'column',
-              minHeight: 0,
-            }}
-          >
+            {/* conversation list */}
             <div
               style={{
-                padding: '14px 16px 10px',
+                width: 300,
+                flex: '0 0 300px',
+                borderRight: '1px solid #F1EBEE',
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
+                flexDirection: 'column',
+                minHeight: 0,
               }}
             >
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#333' }}>
-                {filteredConversations.length} conversation{filteredConversations.length === 1 ? '' : 's'}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 14px 10px' }}>
+                <select
+                  aria-label="Platform"
+                  value={channelFilter}
+                  onChange={(e) => setChannelFilter(e.target.value as 'all' | ChannelKey)}
+                  style={deskSelect}
+                >
+                  <option value="all">All platforms</option>
+                  {(['instagram', 'facebook', 'whatsapp', 'tiktok'] as const)
+                    .filter((ch) => conversations.some((c) => c.channel === ch))
+                    .map((ch) => (
+                      <option key={ch} value={ch}>
+                        {CHANNEL_META[ch].label}
+                      </option>
+                    ))}
+                </select>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (selectMode) exitSelectMode();
-                    else setSelectMode(true);
-                  }}
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    color: selectMode ? '#AD1457' : '#888',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    fontFamily: FONT,
-                    padding: '4px 6px',
-                  }}
+                  onClick={() => setNewestFirst((n) => !n)}
+                  style={{ ...deskButton, gap: 6 }}
+                  aria-label="Sort order"
                 >
-                  {selectMode ? 'Cancel' : 'Select'}
+                  {newestFirst ? 'Newest' : 'Oldest'}
+                  <ListFilter size={15} />
                 </button>
                 <div style={{ position: 'relative' }}>
                   <button
                     type="button"
-                    aria-label="Filters"
+                    aria-label="More filters"
                     onClick={() => setTypeFilterMenuOpen((o) => !o)}
                     style={{
-                      width: 28,
-                      height: 28,
-                      border: hasExtraFilters ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
-                      background: hasExtraFilters ? 'rgba(194,24,91,.08)' : '#fff',
-                      borderRadius: 6,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: hasExtraFilters ? '#AD1457' : '#666',
-                      cursor: 'pointer',
+                      ...deskButton,
+                      width: 34,
+                      padding: 0,
+                      borderColor: hasExtraFilters || searchQuery ? '#E0156B' : '#ECE6EA',
+                      color: hasExtraFilters || searchQuery ? '#E0156B' : '#2A2230',
                     }}
                   >
-                    <I n="filter" s={14} />
+                    <Filter size={15} />
                   </button>
                   {typeFilterMenuOpen && (
                     <>
-                      <div
-                        onClick={() => setTypeFilterMenuOpen(false)}
-                        style={{ position: 'fixed', inset: 0, zIndex: 998 }}
-                      />
+                      <div onClick={() => setTypeFilterMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
                       <div
                         style={{
                           position: 'absolute',
@@ -4505,350 +4648,201 @@ export default function InboxDashboard({
                           right: 0,
                           zIndex: 999,
                           background: '#fff',
-                          borderRadius: 10,
+                          borderRadius: 12,
                           boxShadow: '0 8px 24px rgba(0,0,0,.15)',
                           border: '1px solid rgba(0,0,0,.06)',
-                          minWidth: 200,
+                          width: 240,
                           maxHeight: '70vh',
                           overflowY: 'auto',
-                          padding: 6,
+                          padding: 10,
                         }}
                       >
-                        <div
+                        <input
+                          aria-label="Search conversations"
+                          placeholder="Search names or messages"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
                           style={{
-                            fontSize: 10.5,
-                            fontWeight: 800,
-                            letterSpacing: '.04em',
-                            textTransform: 'uppercase',
-                            color: '#999',
-                            padding: '6px 8px 4px',
+                            width: '100%',
+                            height: 32,
+                            border: '1px solid #ECE6EA',
+                            borderRadius: 8,
+                            padding: '0 10px',
+                            fontSize: 12.5,
+                            fontFamily: FONT,
+                            boxSizing: 'border-box',
                           }}
-                        >
-                          Type
-                        </div>
-                        {(
-                          [
-                            ['all', 'All types'],
-                            ['dm', 'Messages only'],
-                            ['comment', 'Comments only'],
-                          ] as const
-                        ).map(([id, label]) => (
-                          <button
-                            key={id}
-                            type="button"
-                            onClick={() => setTypeFilter(id)}
-                            style={{
-                              width: '100%',
-                              textAlign: 'left',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              padding: '8px 10px',
-                              border: 'none',
-                              background: typeFilter === id ? 'rgba(194,24,91,.08)' : 'transparent',
-                              borderRadius: 6,
-                              fontSize: 13,
-                              fontWeight: 600,
-                              color: '#333',
-                              cursor: 'pointer',
-                              fontFamily: FONT,
-                            }}
-                          >
-                            {label}
-                            {typeFilter === id && <I n="check" s={13} c="#AD1457" />}
-                          </button>
-                        ))}
-
+                        />
+                        <div style={deskMenuLabel}>Type</div>
+                        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as 'all' | ConversationType)} style={{ ...deskSelect, width: '100%' }}>
+                          <option value="all">All types</option>
+                          <option value="dm">Messages only</option>
+                          <option value="comment">Comments only</option>
+                        </select>
                         {allTagsInUse.length > 0 && (
                           <>
-                            <div
-                              style={{
-                                fontSize: 10.5,
-                                fontWeight: 800,
-                                letterSpacing: '.04em',
-                                textTransform: 'uppercase',
-                                color: '#999',
-                                padding: '10px 8px 4px',
-                              }}
-                            >
-                              Tag
-                            </div>
-                            {['all', ...allTagsInUse].map((id) => (
-                              <button
-                                key={id}
-                                type="button"
-                                onClick={() => setTagFilter(id)}
-                                style={{
-                                  width: '100%',
-                                  textAlign: 'left',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  padding: '8px 10px',
-                                  border: 'none',
-                                  background: tagFilter === id ? 'rgba(194,24,91,.08)' : 'transparent',
-                                  borderRadius: 6,
-                                  fontSize: 13,
-                                  fontWeight: 600,
-                                  color: '#333',
-                                  cursor: 'pointer',
-                                  fontFamily: FONT,
-                                }}
-                              >
-                                {id === 'all' ? 'Any tag' : id}
-                                {tagFilter === id && <I n="check" s={13} c="#AD1457" />}
-                              </button>
-                            ))}
+                            <div style={deskMenuLabel}>Tag</div>
+                            <select value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} style={{ ...deskSelect, width: '100%' }}>
+                              <option value="all">All tags</option>
+                              {allTagsInUse.map((t) => (
+                                <option key={t} value={t}>
+                                  {t}
+                                </option>
+                              ))}
+                            </select>
                           </>
                         )}
-
-                        {hasExtraFilters && (
-                          <>
-                            <div style={{ height: 1, background: 'rgba(0,0,0,.06)', margin: '6px 0' }} />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setTypeFilter('all');
-                                setTagFilter('all');
-                              }}
-                              style={{
-                                width: '100%',
-                                textAlign: 'left',
-                                padding: '8px 10px',
-                                border: 'none',
-                                background: 'transparent',
-                                borderRadius: 6,
-                                fontSize: 12.5,
-                                fontWeight: 700,
-                                color: '#AD1457',
-                                cursor: 'pointer',
-                                fontFamily: FONT,
-                              }}
-                            >
-                              Clear filters
-                            </button>
-                          </>
+                        <div style={deskMenuLabel}>Group by</div>
+                        <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupMode)} style={{ ...deskSelect, width: '100%' }}>
+                          <option value="time">Time</option>
+                          <option value="platform">Platform</option>
+                          <option value="customer">Customer</option>
+                        </select>
+                        <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setView('board');
+                              setTypeFilterMenuOpen(false);
+                            }}
+                            style={{ ...deskButton, flex: 1 }}
+                          >
+                            Board view
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (selectMode) exitSelectMode();
+                              else setSelectMode(true);
+                              setTypeFilterMenuOpen(false);
+                            }}
+                            style={{ ...deskButton, flex: 1 }}
+                          >
+                            {selectMode ? 'Stop selecting' : 'Select'}
+                          </button>
+                        </div>
+                        {(hasExtraFilters || searchQuery) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTypeFilter('all');
+                              setTagFilter('all');
+                              setSearchQuery('');
+                            }}
+                            style={{ marginTop: 8, border: 'none', background: 'none', color: '#D0145C', fontWeight: 600, fontSize: 12.5, cursor: 'pointer', fontFamily: FONT }}
+                          >
+                            Clear filters
+                          </button>
                         )}
                       </div>
                     </>
                   )}
                 </div>
               </div>
-            </div>
-            {selectMode && (
-              <div
-                style={{
-                  padding: '0 16px 10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  flexWrap: 'wrap',
-                }}
-              >
-                <span style={{ fontSize: 12, color: '#666', fontWeight: 600 }}>{selectedIds.size} selected</span>
-                <button
-                  type="button"
-                  disabled={selectedIds.size === 0}
-                  onClick={bulkMarkResolved}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: 7,
-                    border: '1px solid rgba(0,0,0,.1)',
-                    background: '#fff',
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    color: selectedIds.size === 0 ? '#ccc' : '#2E7D32',
-                    cursor: selectedIds.size === 0 ? 'default' : 'pointer',
-                    fontFamily: FONT,
-                  }}
-                >
-                  Mark resolved
-                </button>
-              </div>
-            )}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 12px' }}>
-              {filteredConversations.length === 0 && listEmptyState}
-              {groups.map((grp) => (
-                <div key={grp.key}>
-                  {grp.label && (
-                    <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 8px 4px' }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: grp.dotColor }} />
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 800,
-                            color: '#666',
-                            textTransform: 'uppercase',
-                            letterSpacing: '.04em',
-                          }}
-                        >
+              {selectMode && (
+                <div style={{ padding: '0 14px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 12, color: '#666', fontWeight: 600 }}>{selectedIds.size} selected</span>
+                  <button type="button" disabled={selectedIds.size === 0} onClick={bulkMarkResolved} style={{ ...deskButton, height: 28 }}>
+                    Mark as done
+                  </button>
+                  <button type="button" onClick={exitSelectMode} style={{ ...deskButton, height: 28 }}>
+                    Cancel
+                  </button>
+                </div>
+              )}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '0 6px 12px' }}>
+                {filteredConversations.length === 0 && listEmptyState}
+                {groups.map((grp) => (
+                  <div key={grp.key}>
+                    {grp.label && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 10px 4px' }}>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: grp.dotColor }} />
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#8A8290', textTransform: 'uppercase', letterSpacing: '.04em' }}>
                           {grp.label}
                         </span>
                         <span style={{ fontSize: 10.5, color: '#aaa' }}>({grp.items.length})</span>
                       </div>
-                      {grp.caption && (
-                        <div style={{ fontSize: 10.5, color: '#AD1457', padding: '0 8px 6px' }}>{grp.caption}</div>
-                      )}
-                    </>
-                  )}
-                  {grp.items.map((item) => {
-                    const ch = CHANNEL_META[item.channel];
-                    const st = STATUS_META[item.status];
-                    const selected = selectedId === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => (selectMode ? toggleSelectId(item.id) : openConversation(item.id))}
-                        style={{
-                          width: '100%',
-                          textAlign: 'left',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 10,
-                          padding: 12,
-                          marginBottom: 6,
-                          border: 'none',
-                          borderLeft: selected ? '3px solid #E91E63' : '3px solid transparent',
-                          background: selected ? 'rgba(194,24,91,.06)' : '#fff',
-                          borderRadius: '0 10px 10px 0',
-                          cursor: 'pointer',
-                          fontFamily: FONT,
-                        }}
-                      >
-                        {selectMode && (
-                          <div
-                            style={{
-                              width: 18,
-                              height: 18,
-                              borderRadius: 5,
-                              border: selectedIds.has(item.id) ? 'none' : '1.5px solid rgba(0,0,0,.2)',
-                              background: selectedIds.has(item.id) ? '#AD1457' : 'transparent',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flex: '0 0 auto',
-                            }}
-                          >
-                            {selectedIds.has(item.id) && <I n="check" s={12} c="#fff" />}
-                          </div>
-                        )}
-                        <div style={{ position: 'relative', flex: '0 0 auto' }}>
-                          <div
-                            style={{
-                              width: 36,
-                              height: 36,
-                              borderRadius: '50%',
-                              background: item.avatarColor,
-                              color: '#fff',
-                              fontSize: 12,
-                              fontWeight: 700,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            {item.initials}
-                          </div>
-                          <div
-                            style={{
-                              position: 'absolute',
-                              bottom: -2,
-                              right: -2,
-                              width: 16,
-                              height: 16,
-                              borderRadius: '50%',
-                              background: ch.color,
-                              border: '2px solid #fafafa',
-                              color: '#fff',
-                              fontSize: 8,
-                              fontWeight: 800,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            {ch.letter}
-                          </div>
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}
-                          >
+                    )}
+                    {grp.items.map((item) => {
+                      const selected = selectedId === item.id;
+                      const pill = QUEUE_PILL[currentQueueOf(item)];
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => (selectMode ? toggleSelectId(item.id) : openConversation(item.id))}
+                          style={{
+                            width: '100%',
+                            textAlign: 'left',
+                            display: 'flex',
+                            gap: 12,
+                            padding: '12px 10px 12px 9px',
+                            border: 'none',
+                            borderLeft: selected ? '3px solid #D81B60' : '3px solid transparent',
+                            borderBottom: selected ? 'none' : '1px solid #F3EEF1',
+                            background: selected ? '#FDEEF4' : '#fff',
+                            borderRadius: selected ? 8 : 0,
+                            cursor: 'pointer',
+                            fontFamily: FONT,
+                            position: 'relative',
+                          }}
+                        >
+                          {selectMode && (
                             <span
                               style={{
-                                fontSize: 13,
-                                fontWeight: 700,
-                                color: '#1a1a1a',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
+                                width: 18,
+                                height: 18,
+                                borderRadius: 5,
+                                border: selectedIds.has(item.id) ? 'none' : '1.5px solid rgba(0,0,0,.2)',
+                                background: selectedIds.has(item.id) ? '#AD1457' : 'transparent',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                alignSelf: 'center',
+                                flex: '0 0 auto',
                               }}
                             >
-                              {item.name}
+                              {selectedIds.has(item.id) && <I n="check" s={12} c="#fff" />}
                             </span>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 5, flex: '0 0 auto' }}>
-                              {!openedIds.has(item.id) && (
-                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#E91E63' }} />
-                              )}
-                              <span style={{ fontSize: 11, color: '#999' }}>{item.time}</span>
+                          )}
+                          <PlatformBadge platform={item.channel} size={45} initials={item.initials} color={item.avatarColor} />
+                          <span style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                              <span style={{ fontSize: 13.5, fontWeight: 700, color: '#1B1520', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {item.starred && <Star size={11} fill="#F5B301" color="#F5B301" style={{ marginRight: 4, verticalAlign: -1 }} />}
+                                {item.name}
+                              </span>
+                              <span style={{ fontSize: 11, color: '#8A8290', flex: '0 0 auto' }}>{item.time}</span>
                             </span>
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: openedIds.has(item.id) ? '#999' : '#444',
-                              fontWeight: openedIds.has(item.id) ? 400 : 600,
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              marginTop: 2,
-                            }}
-                          >
-                            {item.excerpt}
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                padding: '2px 7px',
-                                borderRadius: 10,
-                                background: st.bg,
-                                color: st.fg,
-                              }}
-                            >
-                              {st.label}
+                            <span style={{ display: 'block', fontSize: 11.5, color: openedIds.has(item.id) ? '#8A8290' : '#4B4350', fontWeight: openedIds.has(item.id) ? 400 : 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 3 }}>
+                              {item.excerpt}
                             </span>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
+                            <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 5, marginTop: 6, background: pill.bg, color: pill.fg }}>
+                              {pill.label}
+                            </span>
+                          </span>
+                          {!openedIds.has(item.id) && (
+                            <span style={{ position: 'absolute', right: 12, bottom: 16, width: 7, height: 7, borderRadius: '50%', background: '#E0155F' }} />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* thread pane */}
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              minHeight: 0,
-              minWidth: 0,
-              background: '#fff',
-            }}
-          >
-            {threadHeader(false)}
-            {tagsRow}
-            {threadTabs}
-            {threadTab === 'thread' && sourceStrip}
-            {threadTab === 'thread' && agentStrip}
-            {threadBody}
-            {threadTab === 'thread' ? threadComposer : noteComposer}
+            {/* chat */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
+              {deskHeader}
+              {sourceStrip}
+              {agentStrip}
+              {messagesView}
+              {threadComposer}
+            </div>
+
+            {/* conversation details */}
+            {detailsPanel}
           </div>
         </div>
       ) : (
