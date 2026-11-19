@@ -83,10 +83,25 @@ export default function InsightsPage({ isMobile }: { isMobile: boolean }) {
       if (slot >= 0) heat[day][slot] += 1;
     }
     const maxHeat = Math.max(1, ...heat.flat());
-    return { total, resolved, waiting, leads, fromAds, top, channels: [...channels.entries()].sort((a, b) => b[1] - a[1]), heat, maxHeat };
+    return {
+      total,
+      resolved,
+      waiting,
+      leads,
+      fromAds,
+      top,
+      channels: [...channels.entries()].sort((a, b) => b[1] - a[1]),
+      heat,
+      maxHeat,
+    };
   }, [all, range, loadedAt]);
 
-  if (!all) return <div style={{ padding: 28 }}><Muted>{error || 'Loading…'}</Muted></div>;
+  if (!all)
+    return (
+      <div style={{ padding: 28 }}>
+        <Muted>{error || 'Loading…'}</Muted>
+      </div>
+    );
 
   const pct = (n: number) => (data.total ? Math.round((n / data.total) * 100) : 0);
   const stats = [
@@ -102,7 +117,15 @@ export default function InsightsPage({ isMobile }: { isMobile: boolean }) {
   return (
     <div style={{ padding: isMobile ? 14 : '0 28px 28px' }}>
       <Pane style={{ display: 'block', padding: '18px 20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: 10,
+            flexWrap: 'wrap',
+          }}
+        >
           <Title sub="What your customers keep asking about.">Insights</Title>
           <div style={{ display: 'flex', background: '#F6F2F4', borderRadius: 8, padding: 3, gap: 2 }}>
             {([7, 30, 90] as Range[]).map((r) => (
@@ -110,14 +133,32 @@ export default function InsightsPage({ isMobile }: { isMobile: boolean }) {
                 key={r}
                 type="button"
                 onClick={() => setRange(r)}
-                style={{ border: 'none', fontSize: 11.5, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', background: range === r ? '#fff' : 'transparent', color: range === r ? '#D0145C' : '#5C5460', fontWeight: range === r ? 600 : 500, boxShadow: range === r ? '0 1px 2px rgba(0,0,0,.06)' : undefined }}
+                style={{
+                  border: 'none',
+                  fontSize: 11.5,
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  background: range === r ? '#fff' : 'transparent',
+                  color: range === r ? '#D0145C' : '#5C5460',
+                  fontWeight: range === r ? 600 : 500,
+                  boxShadow: range === r ? '0 1px 2px rgba(0,0,0,.06)' : undefined,
+                }}
               >
                 {r} days
               </button>
             ))}
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5, 1fr)', gap: 12, marginTop: 14 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5, 1fr)',
+            gap: 12,
+            marginTop: 14,
+          }}
+        >
           {stats.map((s) => (
             <Box key={s.label} style={{ padding: '12px 14px' }}>
               <div style={{ fontSize: 11, color: MSG_MUTED }}>{s.label}</div>
@@ -125,7 +166,9 @@ export default function InsightsPage({ isMobile }: { isMobile: boolean }) {
             </Box>
           ))}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.2fr 1fr 1.1fr', gap: 12, marginTop: 14 }}>
+        <div
+          style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.2fr 1fr 1.1fr', gap: 12, marginTop: 14 }}
+        >
           <Box style={{ padding: '14px 16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 12.5, fontWeight: 600 }}>Top questions</span>
@@ -161,10 +204,20 @@ export default function InsightsPage({ isMobile }: { isMobile: boolean }) {
               </div>
             ))}
             {topTheme && (
-              <div style={{ marginTop: 16, padding: '10px 12px', background: '#FDF1F6', border: '1px solid #F6C9DB', borderRadius: 10, fontSize: 12, lineHeight: 1.5 }}>
+              <div
+                style={{
+                  marginTop: 16,
+                  padding: '10px 12px',
+                  background: '#FDF1F6',
+                  border: '1px solid #F6C9DB',
+                  borderRadius: 10,
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                }}
+              >
                 <Lightbulb size={14} color="#D0145C" style={{ verticalAlign: -2, marginRight: 4 }} />
-                <b>{pct(topTheme[1])}%</b> of chats are about {topTheme[0].toLowerCase()}. A quick reply or an FAQ answer could
-                answer them instantly.
+                <b>{pct(topTheme[1])}%</b> of chats are about {topTheme[0].toLowerCase()}. A quick reply or an FAQ
+                answer could answer them instantly.
               </div>
             )}
           </Box>
@@ -178,7 +231,12 @@ export default function InsightsPage({ isMobile }: { isMobile: boolean }) {
                     <span
                       key={h}
                       title={`${data.heat[di][hi]} conversation${data.heat[di][hi] === 1 ? '' : 's'}`}
-                      style={{ flex: 1, height: 18, borderRadius: 4, background: `rgba(224,21,107,${0.06 + (data.heat[di][hi] / data.maxHeat) * 0.84})` }}
+                      style={{
+                        flex: 1,
+                        height: 18,
+                        borderRadius: 4,
+                        background: `rgba(224,21,107,${0.06 + (data.heat[di][hi] / data.maxHeat) * 0.84})`,
+                      }}
                     />
                   ))}
                 </div>

@@ -134,7 +134,10 @@ export default function MessagingHeader({
         </button>
       </div>
 
-      <div role="tablist" style={{ display: 'flex', gap: compact ? 4 : 14, marginTop: compact ? 10 : 16, overflowX: 'auto' }}>
+      <div
+        role="tablist"
+        style={{ display: 'flex', gap: compact ? 4 : 14, marginTop: compact ? 10 : 16, overflowX: 'auto' }}
+      >
         {MESSAGING_TABS.map(({ id, label, icon: Icon }) => {
           const on = active === id;
           return (

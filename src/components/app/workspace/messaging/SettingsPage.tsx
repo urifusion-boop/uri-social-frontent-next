@@ -311,7 +311,13 @@ export default function SettingsPage({
             <Label>Settings</Label>
           </div>
           {nav.map((n) => (
-            <NavRow key={n.id} label={n.label} icon={n.icon} active={section === n.id} onClick={() => onSection(n.id)} />
+            <NavRow
+              key={n.id}
+              label={n.label}
+              icon={n.icon}
+              active={section === n.id}
+              onClick={() => onSection(n.id)}
+            />
           ))}
         </Col>
         <Col style={{ flex: 1, padding: '18px 20px', minWidth: 0 }}>{main}</Col>

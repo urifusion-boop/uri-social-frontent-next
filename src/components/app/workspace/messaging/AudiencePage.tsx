@@ -112,10 +112,7 @@ export default function AudiencePage({
       .catch(() => setNotes([]));
   }, [latestConversation]);
 
-  const people = useMemo(
-    () => (data?.people ?? []).filter((p) => !tag || p.tags.includes(tag)),
-    [data, tag]
-  );
+  const people = useMemo(() => (data?.people ?? []).filter((p) => !tag || p.tags.includes(tag)), [data, tag]);
   const allTags = useMemo(() => Array.from(new Set((data?.people ?? []).flatMap((p) => p.tags))).sort(), [data]);
 
   const addNote = async () => {
@@ -132,7 +129,12 @@ export default function AudiencePage({
   const profile = selected && (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <PlatformBadge platform={selected.platform} size={48} initials={initialsOf(selected.name)} color={avatarColor(selected.contact_id)} />
+        <PlatformBadge
+          platform={selected.platform}
+          size={48}
+          initials={initialsOf(selected.name)}
+          color={avatarColor(selected.contact_id)}
+        />
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{selected.name || 'Unknown contact'}</div>
           <div style={{ fontSize: 11, color: MSG_MUTED }}>
@@ -181,11 +183,21 @@ export default function AudiencePage({
             key={id}
             type="button"
             onClick={() => onOpenConversation(id)}
-            style={{ all: 'unset', cursor: 'pointer', display: 'flex', gap: 10, marginTop: 8, alignItems: 'center', fontSize: 12.5 }}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              display: 'flex',
+              gap: 10,
+              marginTop: 8,
+              alignItems: 'center',
+              fontSize: 12.5,
+            }}
           >
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: i === 0 ? '#E0156B' : '#C9C2C7' }} />
             {i === 0 ? 'Latest conversation' : `Earlier conversation ${i}`}
-            {i === 0 && selected.last_activity_at ? <span style={{ color: MSG_MUTED }}> · {ago(selected.last_activity_at)} ago</span> : null}
+            {i === 0 && selected.last_activity_at ? (
+              <span style={{ color: MSG_MUTED }}> · {ago(selected.last_activity_at)} ago</span>
+            ) : null}
           </button>
         ))}
       </div>
@@ -197,7 +209,17 @@ export default function AudiencePage({
         </Btn>
       </div>
       {(notes ?? []).map((n) => (
-        <div key={n.id} style={{ marginTop: 8, fontSize: 12, background: '#FAF8F9', border: '1px solid #EFE8EC', borderRadius: 8, padding: '7px 10px' }}>
+        <div
+          key={n.id}
+          style={{
+            marginTop: 8,
+            fontSize: 12,
+            background: '#FAF8F9',
+            border: '1px solid #EFE8EC',
+            borderRadius: 8,
+            padding: '7px 10px',
+          }}
+        >
           {n.text}
           <div style={{ fontSize: 10.5, color: MSG_MUTED, marginTop: 3 }}>
             {n.author_name || 'Team'} · {ago(n.at)}
@@ -219,7 +241,15 @@ export default function AudiencePage({
             value={tag}
             onChange={(e) => setTag(e.target.value)}
             aria-label="Filter by tag"
-            style={{ height: 34, border: '1px solid #ECE6EA', borderRadius: 9, padding: '0 8px', fontSize: 12.5, fontFamily: 'inherit', background: '#fff' }}
+            style={{
+              height: 34,
+              border: '1px solid #ECE6EA',
+              borderRadius: 9,
+              padding: '0 8px',
+              fontSize: 12.5,
+              fontFamily: 'inherit',
+              background: '#fff',
+            }}
           >
             <option value="">All tags</option>
             {allTags.map((t) => (
@@ -237,7 +267,19 @@ export default function AudiencePage({
         <thead>
           <tr>
             {['Contact', 'Stage', 'Tags', 'Came from', 'Last', 'Chats'].map((h) => (
-              <th key={h} style={{ fontSize: 11, fontWeight: 600, color: '#8A8290', textAlign: 'left', padding: '9px 10px', borderBottom: '1px solid #F1EBEE', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+              <th
+                key={h}
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: '#8A8290',
+                  textAlign: 'left',
+                  padding: '9px 10px',
+                  borderBottom: '1px solid #F1EBEE',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.3,
+                }}
+              >
                 {h}
               </th>
             ))}
@@ -248,25 +290,50 @@ export default function AudiencePage({
             const st = STAGE_LOOK[p.stage];
             const sel = selected?.contact_id === p.contact_id;
             return (
-              <tr key={p.contact_id} onClick={() => setSelected(p)} style={{ cursor: 'pointer', background: sel ? '#FDF3F7' : undefined }}>
+              <tr
+                key={p.contact_id}
+                onClick={() => setSelected(p)}
+                style={{ cursor: 'pointer', background: sel ? '#FDF3F7' : undefined }}
+              >
                 <td style={{ padding: '8px 10px', borderBottom: '1px solid #F6F1F3' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <PlatformBadge platform={p.platform} size={32} initials={initialsOf(p.name)} color={avatarColor(p.contact_id)} />
+                    <PlatformBadge
+                      platform={p.platform}
+                      size={32}
+                      initials={initialsOf(p.name)}
+                      color={avatarColor(p.contact_id)}
+                    />
                     <span style={{ fontWeight: 600, fontSize: 12.5 }}>{p.name || 'Unknown contact'}</span>
                   </div>
                 </td>
                 <td style={{ padding: '8px 10px', borderBottom: '1px solid #F6F1F3' }}>
-                  <Pill fg={st.fg} bg={st.bg}>{st.label}</Pill>
+                  <Pill fg={st.fg} bg={st.bg}>
+                    {st.label}
+                  </Pill>
                 </td>
                 <td style={{ padding: '8px 10px', borderBottom: '1px solid #F6F1F3' }}>
                   {p.tags.slice(0, 2).map((t) => {
                     const l = tagLook(t);
-                    return <Pill key={t} fg={l.fg} bg={l.bg} style={{ marginRight: 4 }}>{t}</Pill>;
+                    return (
+                      <Pill key={t} fg={l.fg} bg={l.bg} style={{ marginRight: 4 }}>
+                        {t}
+                      </Pill>
+                    );
                   })}
                 </td>
-                <td style={{ padding: '8px 10px', borderBottom: '1px solid #F6F1F3', fontSize: 12.5, color: MSG_MUTED }}>{sourceLabel(p)}</td>
-                <td style={{ padding: '8px 10px', borderBottom: '1px solid #F6F1F3', fontSize: 12.5, color: MSG_MUTED }}>{ago(p.last_activity_at)}</td>
-                <td style={{ padding: '8px 10px', borderBottom: '1px solid #F6F1F3', fontSize: 12.5 }}>{p.conversations}</td>
+                <td
+                  style={{ padding: '8px 10px', borderBottom: '1px solid #F6F1F3', fontSize: 12.5, color: MSG_MUTED }}
+                >
+                  {sourceLabel(p)}
+                </td>
+                <td
+                  style={{ padding: '8px 10px', borderBottom: '1px solid #F6F1F3', fontSize: 12.5, color: MSG_MUTED }}
+                >
+                  {ago(p.last_activity_at)}
+                </td>
+                <td style={{ padding: '8px 10px', borderBottom: '1px solid #F6F1F3', fontSize: 12.5 }}>
+                  {p.conversations}
+                </td>
               </tr>
             );
           })}
@@ -274,21 +341,33 @@ export default function AudiencePage({
       </table>
       {data && people.length === 0 && (
         <Muted style={{ textAlign: 'center', marginTop: 24 }}>
-          {data.counts.all ? 'No one matches these filters.' : 'People appear here as customers message your connected accounts.'}
+          {data.counts.all
+            ? 'No one matches these filters.'
+            : 'People appear here as customers message your connected accounts.'}
         </Muted>
       )}
       {error && <Muted style={{ color: '#C62828', marginTop: 10 }}>{error}</Muted>}
     </>
   );
 
-  if (!data) return <div style={{ padding: 28 }}><Muted>{error || 'Loading…'}</Muted></div>;
+  if (!data)
+    return (
+      <div style={{ padding: 28 }}>
+        <Muted>{error || 'Loading…'}</Muted>
+      </div>
+    );
 
   if (isMobile) {
     return (
       <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>
           {SEGMENTS.map((s) => (
-            <Btn key={s.id} kind={segment === s.id ? 'primary' : 'outline'} onClick={() => setSegment(s.id)} style={{ borderRadius: 999 }}>
+            <Btn
+              key={s.id}
+              kind={segment === s.id ? 'primary' : 'outline'}
+              onClick={() => setSegment(s.id)}
+              style={{ borderRadius: 999 }}
+            >
               {s.label} {data.counts[s.id]}
             </Btn>
           ))}
@@ -307,7 +386,13 @@ export default function AudiencePage({
             <Label>Segments</Label>
           </div>
           {SEGMENTS.map((s) => (
-            <NavRow key={s.id} label={s.label} count={data.counts[s.id]} active={segment === s.id} onClick={() => setSegment(s.id)} />
+            <NavRow
+              key={s.id}
+              label={s.label}
+              count={data.counts[s.id]}
+              active={segment === s.id}
+              onClick={() => setSegment(s.id)}
+            />
           ))}
           <div style={{ height: 1, background: '#EFE9EC', margin: '12px 20px' }} />
           <div style={{ padding: '0 20px 8px' }}>
