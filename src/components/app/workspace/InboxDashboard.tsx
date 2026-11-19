@@ -28,7 +28,7 @@ import InsightsPage from './messaging/InsightsPage';
 import { NavRow } from './messaging/ui';
 import { PlatformBadge, PLATFORM_LABEL } from './messaging/platform';
 import { tagLook } from './messaging/SettingsPage';
-import { Check, ChevronDown, Filter, ListFilter, MoreHorizontal, Star, User, X } from 'lucide-react';
+import { Check, ChevronDown, Filter, ListFilter, MoreHorizontal, PanelRight, Star, User, X } from 'lucide-react';
 import type { TeamMember } from '@/src/api/InboxService';
 
 /*
@@ -653,7 +653,7 @@ function connectionsSummaryOf(channelConnections: ChannelConnection[]) {
 
 // Small shared looks for the desk (list header, menus, the chat header buttons).
 const deskButton: CSSProperties = {
-  height: 34,
+  height: 32,
   padding: '0 12px',
   border: '1px solid #ECE6EA',
   borderRadius: 9,
@@ -731,6 +731,20 @@ export default function InboxDashboard({
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [assignOpen, setAssignOpen] = useState(false);
   const [tagAdding, setTagAdding] = useState(false);
+  const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
+  // How wide the desk is decides what fits beside the chat: the filters column becomes a
+  // "View" menu and the details panel a slide-over on narrower screens, so the chat itself
+  // always keeps room to read and write.
+  const deskRef = useRef<HTMLDivElement | null>(null);
+  const [deskWidth, setDeskWidth] = useState(1200);
+  const [detailsOverlayOpen, setDetailsOverlayOpen] = useState(false);
+  useEffect(() => {
+    const el = deskRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((entries) => setDeskWidth(entries[0].contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
   useEffect(() => {
     InboxService.listTeam()
       .then(setTeam)
@@ -2270,7 +2284,7 @@ export default function InboxDashboard({
         </div>
         <textarea
           aria-label="Reply message"
-          placeholder="Write a reply… (type / for a quick reply)"
+          placeholder={isMobile ? 'Write a reply…' : 'Write a reply… (type / for a quick reply)'}
           rows={1}
           value={draft}
           onChange={(e) => onComposerChange(e.target.value)}
@@ -3097,27 +3111,32 @@ export default function InboxDashboard({
     </>
   );
 
+  const showFilters = deskWidth >= 1000;
+  const showDetails = deskWidth >= 1150;
+  // Up to the 1440 laptop width the panel stays 214px; past it the panel takes a share of
+  // the extra room so the chat doesn't stretch into very long lines.
+  const detailsWidth = Math.round(Math.min(340, Math.max(214, 214 + (deskWidth - 1230) * 0.3)));
   const deskHeader = (
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: 12,
-        padding: '14px 18px',
+        padding: '12px 16px',
         borderBottom: '1px solid #F1EBEE',
         flex: '0 0 auto',
       }}
     >
       <PlatformBadge
         platform={selectedConv.channel}
-        size={46}
+        size={40}
         initials={selectedConv.initials}
         color={selectedConv.avatarColor}
       />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
           style={{
-            fontSize: 20,
+            fontSize: 17,
             fontWeight: 700,
             letterSpacing: -0.2,
             whiteSpace: 'nowrap',
@@ -3161,6 +3180,23 @@ export default function InboxDashboard({
         </button>
         {assignMenu}
       </div>
+      {!showDetails && (
+        <button
+          type="button"
+          aria-label="Conversation details"
+          title="Conversation details"
+          onClick={() => setDetailsOverlayOpen((o) => !o)}
+          style={{
+            ...deskButton,
+            width: 32,
+            padding: 0,
+            borderColor: detailsOverlayOpen ? '#E0156B' : '#ECE6EA',
+            color: detailsOverlayOpen ? '#E0156B' : '#2A2230',
+          }}
+        >
+          <PanelRight size={15} />
+        </button>
+      )}
       <button type="button" onClick={toggleResolved} style={deskButton}>
         <Check size={15} />
         {selectedConv.status === 'resolved' ? 'Reopen' : 'Mark as done'}
@@ -3217,20 +3253,96 @@ export default function InboxDashboard({
     </div>
   );
 
-  const detailsLabel: CSSProperties = { fontSize: 12.5, fontWeight: 600, color: '#2A2230' };
-  const presetsLeft = tagPresets.filter((t) => !(selectedConv.tags ?? []).includes(t));
-  const detailsPanel = (
+  // Phones: back, who it is, star, mark as done, and the details sheet.
+  const iconButton: CSSProperties = { ...deskButton, width: 36, height: 36, padding: 0, flex: '0 0 auto' };
+  const mobileDeskHeader = (
     <div
       style={{
-        width: 214,
-        flex: '0 0 214px',
-        borderLeft: '1px solid #F1EBEE',
-        padding: '16px 16px',
-        overflowY: 'auto',
-        boxSizing: 'border-box',
-        fontFamily: FONT,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '10px 12px',
+        background: '#fff',
+        borderBottom: '1px solid #F1EBEE',
+        flex: '0 0 auto',
       }}
     >
+      <button
+        type="button"
+        aria-label="Back to conversations"
+        onClick={() => setMobileScreen('list')}
+        style={{ ...iconButton, border: 'none' }}
+      >
+        <I n="chevronLeft" s={20} />
+      </button>
+      <PlatformBadge
+        platform={selectedConv.channel}
+        size={38}
+        initials={selectedConv.initials}
+        color={selectedConv.avatarColor}
+      />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div
+          style={{
+            fontSize: 15.5,
+            fontWeight: 700,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {selectedConv.name}
+        </div>
+        <div
+          style={{
+            fontSize: 11.5,
+            color: '#6D6572',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {PLATFORM_LABEL[selectedConv.channel]} · {selectedConv.time}
+        </div>
+      </div>
+      <button
+        type="button"
+        aria-label={selectedConv.starred ? 'Unstar' : 'Star'}
+        onClick={toggleStar}
+        style={iconButton}
+      >
+        <Star
+          size={16}
+          fill={selectedConv.starred ? '#F5B301' : 'none'}
+          color={selectedConv.starred ? '#F5B301' : '#2A2230'}
+        />
+      </button>
+      <button
+        type="button"
+        aria-label={selectedConv.status === 'resolved' ? 'Reopen' : 'Mark as done'}
+        onClick={toggleResolved}
+        style={{ ...iconButton, background: selectedConv.status === 'resolved' ? '#E7F7EE' : '#fff' }}
+      >
+        <Check size={16} color={selectedConv.status === 'resolved' ? '#15803D' : '#2A2230'} />
+      </button>
+      <button
+        type="button"
+        aria-label="Conversation details"
+        onClick={() => setDetailsSheetOpen(true)}
+        style={{ ...iconButton, width: 'auto', padding: '0 10px' }}
+      >
+        <User size={15} />
+        Details
+      </button>
+    </div>
+  );
+
+  const detailsLabel: CSSProperties = { fontSize: 12.5, fontWeight: 600, color: '#2A2230' };
+  const presetsLeft = tagPresets.filter((t) => !(selectedConv.tags ?? []).includes(t));
+  // The details (status, assignee, tags, lead, notes): a side panel on desktop, a bottom
+  // sheet on phones.
+  const detailsContent = (
+    <>
       <div style={{ fontSize: 14, fontWeight: 700 }}>Conversation details</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, fontSize: 12.5, color: '#3A3240' }}>
         <PlatformBadge platform={selectedConv.channel} size={24} plain />
@@ -3462,6 +3574,21 @@ export default function InboxDashboard({
             </div>
           </div>
         ))}
+    </>
+  );
+  const detailsPanel = (
+    <div
+      style={{
+        width: detailsWidth,
+        flex: `0 0 ${detailsWidth}px`,
+        borderLeft: '1px solid #F1EBEE',
+        padding: '16px 16px',
+        overflowY: 'auto',
+        boxSizing: 'border-box',
+        fontFamily: FONT,
+      }}
+    >
+      {detailsContent}
     </div>
   );
 
@@ -3636,7 +3763,7 @@ export default function InboxDashboard({
           display: 'flex',
           flexDirection: 'column',
           fontFamily: FONT,
-          background: '#fafafa',
+          background: MSG_BG,
           color: '#1a1a1a',
           overflow: 'hidden',
           position: 'relative',
@@ -3644,21 +3771,62 @@ export default function InboxDashboard({
       >
         {mobileScreen === 'list' ? (
           <>
-            <div
-              style={{
-                flex: '0 0 56px',
-                height: 56,
-                background: '#fff',
-                borderBottom: '1px solid rgba(0,0,0,.08)',
-                display: 'flex',
-                alignItems: 'center',
-                padding: '0 12px',
-                gap: 8,
-                boxSizing: 'border-box',
-              }}
-            >
-              <div style={{ flex: 1, fontSize: 17, fontWeight: 800 }}>Customer Messages</div>
-              {notificationBell}
+            <MessagingHeader
+              active="inbox"
+              onSelect={(sec) => setSubView(sec)}
+              connections={connectionsSummary}
+              extra={notificationBell}
+              compact
+            />
+            {/* Quick filters: the design's views, scrolling sideways; everything else is in
+                the filter drawer below. */}
+            <div style={{ flex: '0 0 auto', display: 'flex', gap: 6, overflowX: 'auto', padding: '12px 12px 0' }}>
+              {[
+                ...ownerViews.map((v) => ({
+                  key: `o-${v.id}`,
+                  label: v.id === 'mine' ? 'Mine' : v.id === 'all' ? 'All' : v.label,
+                  count: v.count,
+                  active: selectedQueue === 'all' && ownerFilter === v.id,
+                  pick: () => {
+                    setOwnerFilter(v.id);
+                    setSelectedQueue('all');
+                  },
+                })),
+                ...smartViews
+                  .filter((q) => q.id !== 'complaints' && q.id !== 'resolved')
+                  .map((q) => ({
+                    key: `q-${q.id}`,
+                    label: q.label,
+                    count: q.count,
+                    active: q.active,
+                    pick: () => {
+                      setSelectedQueue(q.id);
+                      setOwnerFilter('all');
+                    },
+                  })),
+              ].map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={c.pick}
+                  style={{
+                    flex: '0 0 auto',
+                    height: 32,
+                    padding: '0 12px',
+                    borderRadius: 999,
+                    border: c.active ? 'none' : '1px solid #ECE6EA',
+                    background: c.active ? '#E0156B' : '#fff',
+                    color: c.active ? '#fff' : '#2A2230',
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    fontFamily: FONT,
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {c.label} {c.count}
+                </button>
+              ))}
             </div>
 
             {/* View toggle + filter summary — no horizontal scroll: queues/grouping live in the
@@ -3787,8 +3955,8 @@ export default function InboxDashboard({
                       </>
                     )}
                     {grp.items.map((item) => {
-                      const ch = CHANNEL_META[item.channel];
-                      const st = STATUS_META[item.status];
+                      const selected = selectedIds.has(item.id);
+                      const pill = QUEUE_PILL[currentQueueOf(item)];
                       return (
                         <button
                           key={item.id}
@@ -3798,102 +3966,70 @@ export default function InboxDashboard({
                             width: '100%',
                             textAlign: 'left',
                             display: 'flex',
-                            alignItems: 'center',
                             gap: 12,
-                            padding: 14,
-                            minHeight: 76,
-                            boxSizing: 'border-box',
-                            border: 'none',
+                            padding: '12px',
+                            marginBottom: 8,
+                            border: '1px solid #F3EAEE',
                             background: '#fff',
-                            borderRadius: 14,
-                            boxShadow: '0 1px 2px rgba(0,0,0,.04)',
+                            borderRadius: 12,
                             cursor: 'pointer',
                             fontFamily: FONT,
-                            marginBottom: 8,
+                            position: 'relative',
                           }}
                         >
                           {selectMode && (
-                            <div
+                            <span
                               style={{
-                                width: 20,
-                                height: 20,
-                                borderRadius: 6,
-                                border: selectedIds.has(item.id) ? 'none' : '1.5px solid rgba(0,0,0,.2)',
-                                background: selectedIds.has(item.id) ? '#AD1457' : 'transparent',
+                                width: 18,
+                                height: 18,
+                                borderRadius: 5,
+                                border: selected ? 'none' : '1.5px solid rgba(0,0,0,.2)',
+                                background: selected ? '#AD1457' : 'transparent',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
+                                alignSelf: 'center',
                                 flex: '0 0 auto',
                               }}
                             >
-                              {selectedIds.has(item.id) && <I n="check" s={13} c="#fff" />}
-                            </div>
+                              {selected && <I n="check" s={12} c="#fff" />}
+                            </span>
                           )}
-                          <div style={{ position: 'relative', flex: '0 0 auto' }}>
-                            <div
-                              style={{
-                                width: 44,
-                                height: 44,
-                                borderRadius: '50%',
-                                background: item.avatarColor,
-                                color: '#fff',
-                                fontSize: 14,
-                                fontWeight: 700,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}
-                            >
-                              {item.initials}
-                            </div>
-                            <div
-                              style={{
-                                position: 'absolute',
-                                bottom: -2,
-                                right: -2,
-                                width: 18,
-                                height: 18,
-                                borderRadius: '50%',
-                                background: ch.color,
-                                border: '2px solid #fff',
-                                color: '#fff',
-                                fontSize: 9,
-                                fontWeight: 800,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}
-                            >
-                              {ch.letter}
-                            </div>
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div
-                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}
-                            >
+                          <PlatformBadge
+                            platform={item.channel}
+                            size={42}
+                            initials={item.initials}
+                            color={item.avatarColor}
+                          />
+                          <span style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
                               <span
                                 style={{
-                                  fontSize: 14,
+                                  fontSize: 13.5,
                                   fontWeight: 700,
-                                  color: '#1a1a1a',
+                                  color: '#1B1520',
                                   whiteSpace: 'nowrap',
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
                                 }}
                               >
+                                {item.starred && (
+                                  <Star
+                                    size={11}
+                                    fill="#F5B301"
+                                    color="#F5B301"
+                                    style={{ marginRight: 4, verticalAlign: -1 }}
+                                  />
+                                )}
                                 {item.name}
                               </span>
-                              <span style={{ display: 'flex', alignItems: 'center', gap: 5, flex: '0 0 auto' }}>
-                                {!openedIds.has(item.id) && (
-                                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#E91E63' }} />
-                                )}
-                                <span style={{ fontSize: 11, color: '#999' }}>{item.time}</span>
-                              </span>
-                            </div>
-                            <div
+                              <span style={{ fontSize: 11, color: '#8A8290', flex: '0 0 auto' }}>{item.time}</span>
+                            </span>
+                            <span
                               style={{
-                                fontSize: 12.5,
-                                color: openedIds.has(item.id) ? '#999' : '#444',
+                                display: 'block',
+                                fontSize: 12,
+                                color: openedIds.has(item.id) ? '#8A8290' : '#4B4350',
                                 fontWeight: openedIds.has(item.id) ? 400 : 600,
                                 whiteSpace: 'nowrap',
                                 overflow: 'hidden',
@@ -3902,22 +4038,35 @@ export default function InboxDashboard({
                               }}
                             >
                               {item.excerpt}
-                            </div>
-                            <div style={{ marginTop: 7 }}>
-                              <span
-                                style={{
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  padding: '3px 8px',
-                                  borderRadius: 10,
-                                  background: st.bg,
-                                  color: st.fg,
-                                }}
-                              >
-                                {st.label}
-                              </span>
-                            </div>
-                          </div>
+                            </span>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                fontSize: 11,
+                                fontWeight: 600,
+                                padding: '2px 9px',
+                                borderRadius: 5,
+                                marginTop: 6,
+                                background: pill.bg,
+                                color: pill.fg,
+                              }}
+                            >
+                              {pill.label}
+                            </span>
+                          </span>
+                          {!openedIds.has(item.id) && (
+                            <span
+                              style={{
+                                position: 'absolute',
+                                right: 12,
+                                bottom: 16,
+                                width: 7,
+                                height: 7,
+                                borderRadius: '50%',
+                                background: '#E0155F',
+                              }}
+                            />
+                          )}
                         </button>
                       );
                     })}
@@ -4098,13 +4247,41 @@ export default function InboxDashboard({
           </>
         ) : (
           <>
-            {threadHeader(true)}
-            {tagsRow}
-            {threadTabs}
-            {threadTab === 'thread' && sourceStrip}
-            {threadTab === 'thread' && agentStrip}
-            {threadBody}
-            {threadTab === 'thread' ? threadComposer : noteComposer}
+            {mobileDeskHeader}
+            {sourceStrip}
+            {agentStrip}
+            {messagesView}
+            {threadComposer}
+            {detailsSheetOpen && (
+              <>
+                <div
+                  onClick={() => setDetailsSheetOpen(false)}
+                  style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1000 }}
+                />
+                <div
+                  role="dialog"
+                  aria-label="Conversation details"
+                  style={{
+                    position: 'fixed',
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    maxHeight: '82vh',
+                    overflowY: 'auto',
+                    background: '#fff',
+                    borderRadius: '18px 18px 0 0',
+                    padding: '10px 18px 28px',
+                    zIndex: 1001,
+                    fontFamily: FONT,
+                  }}
+                >
+                  <div
+                    style={{ width: 40, height: 4, borderRadius: 2, background: '#E3DDE1', margin: '0 auto 12px' }}
+                  />
+                  {detailsContent}
+                </div>
+              </>
+            )}
           </>
         )}
 
@@ -4646,7 +4823,8 @@ export default function InboxDashboard({
         fontFamily: FONT,
         background: MSG_BG,
         color: '#1a1a1a',
-        overflow: 'hidden',
+        overflowX: 'hidden',
+        overflowY: 'auto',
       }}
     >
       <MessagingHeader
@@ -4655,7 +4833,7 @@ export default function InboxDashboard({
         connections={connectionsSummary}
         extra={notificationBell}
       />
-      <div style={{ height: 16, flex: '0 0 16px' }} />
+      <div style={{ height: 14, flex: '0 0 14px' }} />
       {view === 'board' && (
         <div
           style={{
@@ -4693,7 +4871,10 @@ export default function InboxDashboard({
       )}
 
       {view === 'list' ? (
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', padding: '0 28px 24px' }}>
+        <div
+          ref={deskRef}
+          style={{ flex: '1 0 auto', height: 0, minHeight: 440, display: 'flex', padding: '0 24px 16px' }}
+        >
           <div
             style={{
               flex: 1,
@@ -4707,87 +4888,119 @@ export default function InboxDashboard({
             }}
           >
             {/* filters */}
-            <div
-              style={{
-                width: 188,
-                flex: '0 0 188px',
-                borderRight: '1px solid #F1EBEE',
-                padding: '18px 0',
-                overflowY: 'auto',
-                boxSizing: 'border-box',
-              }}
-            >
-              {ownerViews.map((v) => (
-                <NavRow
-                  key={v.id}
-                  label={v.label}
-                  count={v.count}
-                  active={selectedQueue === 'all' && ownerFilter === v.id}
-                  onClick={() => {
-                    setOwnerFilter(v.id);
-                    setSelectedQueue('all');
-                  }}
-                />
-              ))}
-              <div style={{ height: 1, background: '#EFE9EC', margin: '12px 20px' }} />
-              <button
-                type="button"
-                onClick={() => setSmartOpen((o) => !o)}
+            {showFilters && (
+              <div
                 style={{
-                  width: 'calc(100% - 16px)',
-                  margin: '0 8px 4px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '6px 12px',
-                  border: 'none',
-                  background: 'none',
-                  fontWeight: 600,
-                  fontSize: 13.5,
-                  color: '#2A2230',
-                  cursor: 'pointer',
-                  fontFamily: FONT,
+                  width: 188,
+                  flex: '0 0 188px',
+                  borderRight: '1px solid #F1EBEE',
+                  padding: '18px 0',
+                  overflowY: 'auto',
+                  boxSizing: 'border-box',
                 }}
               >
-                Smart views
-                <ChevronDown size={15} style={{ transform: smartOpen ? undefined : 'rotate(-90deg)' }} />
-              </button>
-              {smartOpen &&
-                smartViews.map((q) => (
+                {ownerViews.map((v) => (
                   <NavRow
-                    key={q.id}
-                    label={
-                      q.id === 'unanswered' ? (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#E0155F' }} />
-                          {q.label}
-                        </span>
-                      ) : (
-                        q.label
-                      )
-                    }
-                    count={q.count}
-                    active={q.active}
+                    key={v.id}
+                    label={v.label}
+                    count={v.count}
+                    active={selectedQueue === 'all' && ownerFilter === v.id}
                     onClick={() => {
-                      setSelectedQueue(q.id);
-                      setOwnerFilter('all');
+                      setOwnerFilter(v.id);
+                      setSelectedQueue('all');
                     }}
                   />
                 ))}
-            </div>
+                <div style={{ height: 1, background: '#EFE9EC', margin: '12px 20px' }} />
+                <button
+                  type="button"
+                  onClick={() => setSmartOpen((o) => !o)}
+                  style={{
+                    width: 'calc(100% - 16px)',
+                    margin: '0 8px 4px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '6px 12px',
+                    border: 'none',
+                    background: 'none',
+                    fontWeight: 600,
+                    fontSize: 13.5,
+                    color: '#2A2230',
+                    cursor: 'pointer',
+                    fontFamily: FONT,
+                  }}
+                >
+                  Smart views
+                  <ChevronDown size={15} style={{ transform: smartOpen ? undefined : 'rotate(-90deg)' }} />
+                </button>
+                {smartOpen &&
+                  smartViews.map((q) => (
+                    <NavRow
+                      key={q.id}
+                      label={
+                        q.id === 'unanswered' ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#E0155F' }} />
+                            {q.label}
+                          </span>
+                        ) : (
+                          q.label
+                        )
+                      }
+                      count={q.count}
+                      active={q.active}
+                      onClick={() => {
+                        setSelectedQueue(q.id);
+                        setOwnerFilter('all');
+                      }}
+                    />
+                  ))}
+              </div>
+            )}
 
             {/* conversation list */}
             <div
               style={{
-                width: 300,
-                flex: '0 0 300px',
+                width: 290,
+                flex: '0 0 290px',
                 borderRight: '1px solid #F1EBEE',
                 display: 'flex',
                 flexDirection: 'column',
                 minHeight: 0,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 14px 10px' }}>
+              {!showFilters && (
+                <div style={{ padding: '12px 12px 0' }}>
+                  <select
+                    aria-label="View"
+                    value={selectedQueue === 'all' ? `o:${ownerFilter}` : `q:${selectedQueue}`}
+                    onChange={(e) => {
+                      const [kind, id] = e.target.value.split(':');
+                      if (kind === 'o') {
+                        setOwnerFilter(id as OwnerFilter);
+                        setSelectedQueue('all');
+                      } else {
+                        setSelectedQueue(id as QueueFilter);
+                        setOwnerFilter('all');
+                      }
+                    }}
+                    style={{ ...deskSelect, width: '100%' }}
+                  >
+                    {ownerViews.map((v) => (
+                      <option key={v.id} value={`o:${v.id}`}>
+                        {v.label} ({v.count})
+                      </option>
+                    ))}
+                    {smartViews.map((q) => (
+                      <option key={q.id} value={`q:${q.id}`}>
+                        {q.label} ({q.count})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 12px 10px' }}>
                 <select
                   aria-label="Platform"
                   value={channelFilter}
@@ -5002,7 +5215,7 @@ export default function InboxDashboard({
                             textAlign: 'left',
                             display: 'flex',
                             gap: 12,
-                            padding: '12px 10px 12px 9px',
+                            padding: '10px 10px 10px 9px',
                             border: 'none',
                             borderLeft: selected ? '3px solid #D81B60' : '3px solid transparent',
                             borderBottom: selected ? 'none' : '1px solid #F3EEF1',
@@ -5033,7 +5246,7 @@ export default function InboxDashboard({
                           )}
                           <PlatformBadge
                             platform={item.channel}
-                            size={45}
+                            size={40}
                             initials={item.initials}
                             color={item.avatarColor}
                           />
@@ -5114,14 +5327,40 @@ export default function InboxDashboard({
             {/* chat + details: the header runs across both, as in the design */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
               {deskHeader}
-              <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+              <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative' }}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
                   {sourceStrip}
                   {agentStrip}
                   {messagesView}
                   {threadComposer}
                 </div>
-                {detailsPanel}
+                {showDetails && detailsPanel}
+                {!showDetails && detailsOverlayOpen && (
+                  <>
+                    <div
+                      onClick={() => setDetailsOverlayOpen(false)}
+                      style={{ position: 'absolute', inset: 0, background: 'rgba(20,10,15,.18)', zIndex: 20 }}
+                    />
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        right: 0,
+                        bottom: 0,
+                        width: 260,
+                        background: '#fff',
+                        boxShadow: '-8px 0 24px rgba(20,10,15,.12)',
+                        padding: '16px',
+                        overflowY: 'auto',
+                        zIndex: 21,
+                        fontFamily: FONT,
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      {detailsContent}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
