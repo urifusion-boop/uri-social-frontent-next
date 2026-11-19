@@ -605,203 +605,210 @@ export default function InboxConnectionsPage({
 
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : `repeat(${columns}, minmax(0, 1fr))`,
+          display: 'flex',
           gap: 16,
-          // Each card keeps its own height: opening one card's help mustn't stretch its neighbour.
-          alignItems: 'start',
+          // Independent columns, not grid rows: opening one card's help must not push down the card in the
+          // next column (a grid row is as tall as its tallest card).
+          alignItems: 'flex-start',
         }}
       >
-        {connections.map((c) => {
-          const health = HEALTH_META[c.tokenHealth];
-          const brand = CHANNEL_LOOK[c.id] ?? { icon: <span>{c.label[0]}</span>, bg: c.color, sub: '' };
-          // The status pill says Connected / Not connected; the line under the name says what kind of
-          // account it is, or the extra detail when there is one (which account, reconnect needed).
-          const subtitle = c.statusNote === 'Not connected' ? brand.sub : c.statusNote;
-          return (
-            <div
-              key={c.id}
-              style={{ ...card, padding: isMobile ? 16 : 18, display: 'flex', flexDirection: 'column', gap: 12 }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span
-                  aria-hidden
-                  style={{
-                    width: 46,
-                    height: 46,
-                    borderRadius: 14,
-                    background: brand.bg,
-                    color: '#fff',
-                    display: 'grid',
-                    placeItems: 'center',
-                    fontSize: 22,
-                    flex: 'none',
-                    boxShadow: '0 10px 20px -12px rgba(0,0,0,.35)',
-                  }}
+        {(isMobile
+          ? [connections]
+          : Array.from({ length: columns }, (_, col) => connections.filter((_, i) => i % columns === col))
+        ).map((stack, col) => (
+          <div key={col} style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {stack.map((c) => {
+              const health = HEALTH_META[c.tokenHealth];
+              const brand = CHANNEL_LOOK[c.id] ?? { icon: <span>{c.label[0]}</span>, bg: c.color, sub: '' };
+              // The status pill says Connected / Not connected; the line under the name says what kind of
+              // account it is, or the extra detail when there is one (which account, reconnect needed).
+              const subtitle = c.statusNote === 'Not connected' ? brand.sub : c.statusNote;
+              return (
+                <div
+                  key={c.id}
+                  style={{ ...card, padding: isMobile ? 16 : 18, display: 'flex', flexDirection: 'column', gap: 12 }}
                 >
-                  {brand.icon}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: INK }}>{c.label}</div>
-                  <div
-                    style={{
-                      fontSize: 12.5,
-                      color: c.connected ? '#1E7A45' : c.warning ? '#B26A00' : MUTED,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {subtitle}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {c.capabilities.map((cap) => (
-                  <span
-                    key={cap.key}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      fontSize: 11.5,
-                      fontWeight: 700,
-                      borderRadius: 999,
-                      padding: '4px 10px',
-                      background: cap.ok ? '#EEF8F2' : '#F7F2F4',
-                      color: cap.ok ? '#1E7A45' : '#9A8F94',
-                    }}
-                  >
-                    {cap.ok && <I n="check" s={11} c="#1E7A45" />}
-                    {cap.label}
-                  </span>
-                ))}
-              </div>
-
-              {c.scopes.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                  {c.scopes.map((s) => (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span
-                      key={s}
+                      aria-hidden
                       style={{
-                        fontSize: 10.5,
-                        fontWeight: 600,
-                        color: MUTED,
-                        background: '#FAF6F8',
-                        border: '1px solid #F1E4EA',
-                        borderRadius: 999,
-                        padding: '2px 8px',
+                        width: 46,
+                        height: 46,
+                        borderRadius: 14,
+                        background: brand.bg,
+                        color: '#fff',
+                        display: 'grid',
+                        placeItems: 'center',
+                        fontSize: 22,
+                        flex: 'none',
+                        boxShadow: '0 10px 20px -12px rgba(0,0,0,.35)',
                       }}
                     >
-                      {s}
+                      {brand.icon}
                     </span>
-                  ))}
-                </div>
-              )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: INK }}>{c.label}</div>
+                      <div
+                        style={{
+                          fontSize: 12.5,
+                          color: c.connected ? '#1E7A45' : c.warning ? '#B26A00' : MUTED,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {subtitle}
+                      </div>
+                    </div>
+                  </div>
 
-              {c.warning && (
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 10,
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    background: '#FFF7EC',
-                    border: '1px solid #F6DFB8',
-                    borderRadius: 14,
-                    padding: '9px 12px',
-                    fontSize: 12.5,
-                    color: '#7A4B00',
-                  }}
-                >
-                  <span style={{ flex: 1, minWidth: 180 }}>
-                    <strong>Reconnect needed.</strong> {c.warning}
-                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {c.capabilities.map((cap) => (
+                      <span
+                        key={cap.key}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          borderRadius: 999,
+                          padding: '4px 10px',
+                          background: cap.ok ? '#EEF8F2' : '#F7F2F4',
+                          color: cap.ok ? '#1E7A45' : '#9A8F94',
+                        }}
+                      >
+                        {cap.ok && <I n="check" s={11} c="#1E7A45" />}
+                        {cap.label}
+                      </span>
+                    ))}
+                  </div>
+
+                  {c.scopes.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                      {c.scopes.map((s) => (
+                        <span
+                          key={s}
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: 600,
+                            color: MUTED,
+                            background: '#FAF6F8',
+                            border: '1px solid #F1E4EA',
+                            borderRadius: 999,
+                            padding: '2px 8px',
+                          }}
+                        >
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {c.warning && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 10,
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        background: '#FFF7EC',
+                        border: '1px solid #F6DFB8',
+                        borderRadius: 14,
+                        padding: '9px 12px',
+                        fontSize: 12.5,
+                        color: '#7A4B00',
+                      }}
+                    >
+                      <span style={{ flex: 1, minWidth: 180 }}>
+                        <strong>Reconnect needed.</strong> {c.warning}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => connectDirect(c.id)}
+                        style={{
+                          background: '#B26A00',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 999,
+                          padding: '6px 13px',
+                          fontWeight: 800,
+                          fontSize: 12,
+                          cursor: 'pointer',
+                          fontFamily: FONT,
+                        }}
+                      >
+                        Reconnect
+                      </button>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontSize: 11.5,
+                        fontWeight: 800,
+                        padding: '4px 10px',
+                        borderRadius: 999,
+                        background: c.connected ? '#E7F6EE' : '#F4EEF0',
+                        color: c.connected ? '#1E7A45' : '#8A7F84',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      ● {c.connected ? 'Connected' : 'Not connected'}
+                    </span>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        color: health.fg,
+                      }}
+                    >
+                      <I n={health.icon} s={11} c={health.fg} />
+                      {health.label}
+                    </span>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        color: '#9A9090',
+                      }}
+                    >
+                      <I n="clock" s={11} c="#B0A6AA" />
+                      Last event: {c.lastEvent}
+                    </span>
+                  </div>
+
                   <button
                     type="button"
-                    onClick={() => connectDirect(c.id)}
+                    onClick={() =>
+                      c.id === 'whatsapp' ? setWhatsAppOpen(true) : c.connected ? setReplaceFor(c) : connectDirect(c.id)
+                    }
                     style={{
-                      background: '#B26A00',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 999,
-                      padding: '6px 13px',
+                      ...(c.connected || c.id === 'whatsapp' ? ghostPill : primaryPill),
+                      width: '100%',
+                      padding: '10px 16px',
+                      fontSize: 13,
                       fontWeight: 800,
-                      fontSize: 12,
                       cursor: 'pointer',
                       fontFamily: FONT,
                     }}
                   >
-                    Reconnect
+                    {c.connected ? `Reconnect ${c.label}` : `Connect ${c.label}`}
                   </button>
+
+                  {c.connected && <TroubleshootPanel channelId={c.id} defaultOpen={c.lastEvent === 'No events yet'} />}
                 </div>
-              )}
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span
-                  style={{
-                    fontSize: 11.5,
-                    fontWeight: 800,
-                    padding: '4px 10px',
-                    borderRadius: 999,
-                    background: c.connected ? '#E7F6EE' : '#F4EEF0',
-                    color: c.connected ? '#1E7A45' : '#8A7F84',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  ● {c.connected ? 'Connected' : 'Not connected'}
-                </span>
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    color: health.fg,
-                  }}
-                >
-                  <I n={health.icon} s={11} c={health.fg} />
-                  {health.label}
-                </span>
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    color: '#9A9090',
-                  }}
-                >
-                  <I n="clock" s={11} c="#B0A6AA" />
-                  Last event: {c.lastEvent}
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  c.id === 'whatsapp' ? setWhatsAppOpen(true) : c.connected ? setReplaceFor(c) : connectDirect(c.id)
-                }
-                style={{
-                  ...(c.connected || c.id === 'whatsapp' ? ghostPill : primaryPill),
-                  width: '100%',
-                  padding: '10px 16px',
-                  fontSize: 13,
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  fontFamily: FONT,
-                }}
-              >
-                {c.connected ? `Reconnect ${c.label}` : `Connect ${c.label}`}
-              </button>
-
-              {c.connected && <TroubleshootPanel channelId={c.id} defaultOpen={c.lastEvent === 'No events yet'} />}
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       <div style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.5 }}>
