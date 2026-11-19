@@ -11348,6 +11348,8 @@ const MOBILE_TABS = [
 // Every NAV id that the bottom bar has no room for lives here, so mobile can
 // still reach all of them — MOBILE_TABS only holds the five primary destinations.
 const MORE_NAV: { id: string; icon: string; label: string; href?: string; target?: string; anchor?: string }[] = [
+  // Messaging had no way in on phones except the Home card.
+  { id: 'messages', icon: 'inbox', label: 'Messaging' },
   { id: 'performance', icon: 'chart', label: 'Analytics' },
   { id: 'blog', icon: 'book', label: 'Blog' },
   { id: 'market-intelligence', icon: 'eye', label: 'Market Intelligence' },
@@ -13445,14 +13447,13 @@ export default function WorkspaceDashboard() {
               to discover that the page title opens a menu. */}
           {isMobile && activeSection && (SECTION_META[activeSection]?.subNav.length ?? 0) > 1 && (
             <div
-              className="tab-scroll"
+              // Every section on view at once: the pills wrap onto a second line instead of
+              // sliding sideways with the last one cut in half.
               style={{
                 display: 'flex',
-                gap: 8,
-                overflowX: 'auto',
-                WebkitOverflowScrolling: 'touch',
-                scrollbarWidth: 'none',
-                padding: '8px 14px',
+                flexWrap: 'wrap',
+                gap: 6,
+                padding: '8px 12px',
                 background: '#fff',
                 borderBottom: '1px solid #f0eeea',
                 flexShrink: 0,
@@ -13466,12 +13467,12 @@ export default function WorkspaceDashboard() {
                   onClick={n.onClick}
                   style={{
                     flexShrink: 0,
-                    padding: '7px 14px',
+                    padding: '6px 11px',
                     borderRadius: 999,
                     border: n.active ? 'none' : '1px solid #E5E7EB',
                     background: n.active ? '#C2185B' : '#fff',
                     color: n.active ? '#fff' : '#4B5563',
-                    fontSize: 12.5,
+                    fontSize: 12,
                     fontWeight: n.active ? 700 : 600,
                     fontFamily: 'var(--wf)',
                     whiteSpace: 'nowrap',

@@ -3850,7 +3850,7 @@ export default function InboxDashboard({
             />
             {/* Quick filters: the design's views, scrolling sideways; everything else is in
                 the filter drawer below. */}
-            <div style={{ flex: '0 0 auto', display: 'flex', gap: 6, overflowX: 'auto', padding: '12px 12px 0' }}>
+            <div style={{ flex: '0 0 auto', display: 'flex', flexWrap: 'wrap', gap: 6, padding: '10px 12px 0' }}>
               {[
                 ...ownerViews.map((v) => ({
                   key: `o-${v.id}`,
@@ -3881,13 +3881,13 @@ export default function InboxDashboard({
                   onClick={c.pick}
                   style={{
                     flex: '0 0 auto',
-                    height: 32,
-                    padding: '0 12px',
+                    height: 28,
+                    padding: '0 10px',
                     borderRadius: 999,
                     border: c.active ? 'none' : '1px solid #ECE6EA',
                     background: c.active ? '#E0156B' : '#fff',
                     color: c.active ? '#fff' : '#2A2230',
-                    fontSize: 12.5,
+                    fontSize: 12,
                     fontWeight: 600,
                     fontFamily: FONT,
                     whiteSpace: 'nowrap',
