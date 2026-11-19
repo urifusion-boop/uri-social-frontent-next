@@ -3183,23 +3183,21 @@ export default function InboxDashboard({
       {!showDetails && (
         <button
           type="button"
-          aria-label="Conversation details"
-          title="Conversation details"
           onClick={() => setDetailsOverlayOpen((o) => !o)}
           style={{
             ...deskButton,
-            width: 32,
-            padding: 0,
             borderColor: detailsOverlayOpen ? '#E0156B' : '#ECE6EA',
+            background: detailsOverlayOpen ? '#FDF1F6' : '#fff',
             color: detailsOverlayOpen ? '#E0156B' : '#2A2230',
           }}
         >
           <PanelRight size={15} />
+          {detailsOverlayOpen ? 'Hide details' : 'Details'}
         </button>
       )}
       <button type="button" onClick={toggleResolved} style={deskButton}>
         <Check size={15} />
-        {selectedConv.status === 'resolved' ? 'Reopen' : 'Mark as done'}
+        {selectedConv.status === 'resolved' ? 'Reopen' : showDetails ? 'Mark as done' : 'Done'}
       </button>
       <div style={{ position: 'relative' }}>
         <button
