@@ -608,7 +608,8 @@ export default function InboxConnectionsPage({
           display: 'grid',
           gridTemplateColumns: isMobile ? '1fr' : `repeat(${columns}, minmax(0, 1fr))`,
           gap: 16,
-          alignItems: 'stretch',
+          // Each card keeps its own height: opening one card's help mustn't stretch its neighbour.
+          alignItems: 'start',
         }}
       >
         {connections.map((c) => {

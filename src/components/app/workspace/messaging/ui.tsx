@@ -184,6 +184,9 @@ export function Field({
   mono,
   onEnter,
   id,
+  onEscape,
+  onBlur,
+  autoFocus,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -193,6 +196,9 @@ export function Field({
   mono?: boolean;
   onEnter?: () => void;
   id?: string;
+  onEscape?: () => void;
+  onBlur?: () => void;
+  autoFocus?: boolean;
 }) {
   const base: CSSProperties = {
     width: '100%',
@@ -219,7 +225,12 @@ export function Field({
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      onKeyDown={(e) => e.key === 'Enter' && onEnter?.()}
+      autoFocus={autoFocus}
+      onBlur={onBlur}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') onEnter?.();
+        if (e.key === 'Escape') onEscape?.();
+      }}
       style={base}
     />
   );
