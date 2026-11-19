@@ -85,12 +85,18 @@ function creativePayload(creative: WizardCreativeChoice): Partial<PlanFromMessag
         ? { extra_image_urls: creative.carouselExtraUrls }
         : {}),
       ...(creative.asset_attestation ? { asset_attestation: creative.asset_attestation } : {}),
+      ...(creative.vsg01_format_id ? { vsg01_format_id: creative.vsg01_format_id } : {}),
     };
   }
   if (creative.creative_source === 'draft') {
     return { creative_source: 'draft', draft_id: creative.draft_id };
   }
-  return { creative_source: 'generate', ...(creative.concepts ? { concepts: creative.concepts } : {}) };
+  return {
+    creative_source: 'generate',
+    ...(creative.concepts ? { concepts: creative.concepts } : {}),
+    // The Style step's pick; empty means Jane chooses.
+    ...(creative.vsg01_format_id ? { vsg01_format_id: creative.vsg01_format_id } : {}),
+  };
 }
 
 /** A stage bucketed into what it means for a status dot / tab ordering — not a new
@@ -131,12 +137,15 @@ function RecapStrip({
   audience,
   budget,
   creative,
+  styleText,
 }: {
   objective: WizardObjectiveValue;
   platform: WizardPlatformValue;
   audience: WizardAudienceValue;
   budget: WizardBudgetValue;
   creative: WizardCreativeChoice;
+  /** "Style: Event Promo" (or "Style: Jane chooses") once the Style step has been answered. */
+  styleText?: string | null;
 }) {
   const platformText =
     platform.mode === 'multi'
@@ -164,6 +173,7 @@ function RecapStrip({
       ? `₦${budget.amountNgn.toLocaleString()} over ${budget.days}d`
       : null,
     creativeText,
+    styleText || null,
   ].filter((x): x is string => Boolean(x));
 
   return (
@@ -238,6 +248,7 @@ export default function WizardReviewStep({
   initialResults,
   onResultsChange,
   onAnyLaunched,
+  onChangeStyle,
 }: {
   objective: WizardObjectiveValue;
   audience: WizardAudienceValue;
@@ -271,10 +282,25 @@ export default function WizardReviewStep({
    *  platform in a multi-platform run) — the parent's cue to stop offering this
    *  draft as "resume", since there's nothing unfinished left to resume. */
   onAnyLaunched?: () => void;
+  /** Back to the Style step ("Change style" beside the style the ad was made in). */
+  onChangeStyle?: () => void;
 }) {
   const isMulti = platform.mode === 'multi' && platform.multi.length >= 2;
   const platforms: MultiWizardPlatform[] = isMulti ? platform.multi : [];
+  // The style picked on the Style step, when this ad came out in a different one (that style's
+  // content couldn't be built for this ad), so the card says so instead of silently differing.
+  const chosenStyle = creative.creative_source === 'draft' ? '' : creative.vsg01_format_id || '';
+  const styleFallbackFrom = (r: LaunchFromMessageResult | null | undefined) => {
+    const used = r?.creative?.vsg01_format_id;
+    return chosenStyle && used && used !== chosenStyle ? chosenStyle : undefined;
+  };
   const [adFormats, setAdFormats] = useState<AdFormat[]>([]);
+  const styleText =
+    creative.creative_source === 'draft' || creative.vsg01_format_id === undefined
+      ? null
+      : creative.vsg01_format_id === ''
+        ? 'Style: Jane chooses'
+        : `Style: ${adFormats.find((f) => f.format_id === creative.vsg01_format_id)?.name ?? 'your pick'}`;
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Which button opened the (shared) hidden file input — "Upload my own" vs "Use my
   // product photo" on the mid-flow choose_creative_source card — so the file picked
@@ -647,7 +673,14 @@ export default function WizardReviewStep({
 
     return (
       <div>
-        <RecapStrip objective={objective} platform={platform} audience={audience} budget={budget} creative={creative} />
+        <RecapStrip
+          objective={objective}
+          platform={platform}
+          audience={audience}
+          budget={budget}
+          creative={creative}
+          styleText={styleText}
+        />
         {slot.working && workingBanner('Updating your plan…')}
         {slot.error && slot.result && errorBanner(slot.error, () => void submitSingle())}
         <div
@@ -690,6 +723,8 @@ export default function WizardReviewStep({
           <ResultCard
             result={result}
             adFormats={adFormats}
+            formatFallbackFrom={styleFallbackFrom(result)}
+            onChangeStyle={onChangeStyle}
             onResultChange={(r) => setSlot((s) => ({ ...s, result: r }))}
             onLaunched={() => {
               // The autosaved draft is done once something real has launched from
@@ -784,7 +819,14 @@ export default function WizardReviewStep({
 
   return (
     <div>
-      <RecapStrip objective={objective} platform={platform} audience={audience} budget={budget} creative={creative} />
+      <RecapStrip
+        objective={objective}
+        platform={platform}
+        audience={audience}
+        budget={budget}
+        creative={creative}
+        styleText={styleText}
+      />
       <div
         style={{
           display: 'flex',
@@ -928,6 +970,8 @@ export default function WizardReviewStep({
             <ResultCard
               result={activeSlot.result}
               adFormats={adFormats}
+              formatFallbackFrom={styleFallbackFrom(activeSlot.result)}
+              onChangeStyle={onChangeStyle}
               onResultChange={(r) => setSlots((s) => ({ ...s, [active]: { ...s[active]!, result: r } }))}
               onLaunched={() => {
                 // Only once EVERY selected platform has launched — clearing on the

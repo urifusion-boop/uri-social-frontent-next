@@ -19,12 +19,13 @@ import WizardAudienceStep, { WizardAudienceValue } from './WizardAudienceStep';
 import WizardBudgetStep, { WizardBudgetValue } from './WizardBudgetStep';
 import { useFeatures } from '@/src/hooks/useFeatures';
 import WizardCreativeStep, { WizardCreativeChoice } from './WizardCreativeStep';
+import WizardStyleStep, { styleApplies } from './WizardStyleStep';
 import WizardReviewStep from './WizardReviewStep';
 import { deleteWizardDraft, saveWizardDraft, WizardDraft, WizardReviewSnapshot } from './wizardDraft';
 
 const PINK = '#C2185B';
 
-type StepKey = 'objective' | 'platform' | 'googlePlacement' | 'audience' | 'budget' | 'creative' | 'review';
+type StepKey = 'objective' | 'platform' | 'googlePlacement' | 'audience' | 'budget' | 'creative' | 'style' | 'review';
 
 const usesGoogle = (platform: WizardPlatformValue) =>
   platform.mode === 'single' ? platform.single === 'google' : platform.multi.includes('google');
@@ -34,7 +35,11 @@ const usesGoogle = (platform: WizardPlatformValue) =>
  *  shows its own placement picker once Google is the preferred platform. Steps are
  *  tracked by key rather than index everywhere below, precisely so this list can
  *  grow/shrink as platform changes without corrupting where "current" points. */
-function buildSteps(platform: WizardPlatformValue): { key: StepKey; label: string }[] {
+function buildSteps(
+  platform: WizardPlatformValue,
+  creative: WizardCreativeChoice | null = null,
+  googlePlacement: GooglePlacement = 'search'
+): { key: StepKey; label: string }[] {
   const steps: { key: StepKey; label: string }[] = [
     { key: 'objective', label: 'Goal' },
     { key: 'platform', label: 'Platform' },
@@ -43,7 +48,13 @@ function buildSteps(platform: WizardPlatformValue): { key: StepKey; label: strin
   steps.push(
     { key: 'audience', label: 'Audience' },
     { key: 'budget', label: 'Budget' },
-    { key: 'creative', label: 'Creative' },
+    { key: 'creative', label: 'Creative' }
+  );
+  // Style — how the ad looks — once there's a picture to style (Jane makes it, or one photo she
+  // builds on). Not for a past draft, a video, a several-ads test, or Google Search text ads.
+  const googleSearchOnly = platform.mode === 'single' && platform.single === 'google' && googlePlacement === 'search';
+  if (styleApplies(creative) && !googleSearchOnly) steps.push({ key: 'style', label: 'Style' });
+  steps.push(
     // Label flips from "Finalize" to "Review" once there's nothing left to decide —
     // see reviewReady below. Review is meant to be the stage where you look things
     // over and launch, not where follow-up questions (destination, audience variant,
@@ -110,7 +121,7 @@ export default function CampaignWizard({
     setReachedKeys((prev) => (prev.has(stepKey) ? prev : new Set(prev).add(stepKey)));
   }, [stepKey]);
 
-  const steps = buildSteps(platform);
+  const steps = buildSteps(platform, creative, googlePlacement);
   // Live-reported bug: changing platform on the way back through (say Meta ->
   // Google) inserts a new, never-visited "Google placement" step ahead of
   // Audience/Budget/Creative/Review — steps that WERE already visited under the
@@ -196,7 +207,11 @@ export default function CampaignWizard({
     const hadReachedReview =
       pendingResume.results?.single || Object.keys(pendingResume.results?.multi ?? {}).length > 0;
     if (hadReachedReview) {
-      setReachedKeys(new Set(buildSteps(pendingResume.platform).map((s) => s.key)));
+      setReachedKeys(
+        new Set(
+          buildSteps(pendingResume.platform, pendingResume.creative, pendingResume.googlePlacement).map((s) => s.key)
+        )
+      );
       setStepKey('review');
     }
     setResumed(true);
@@ -474,11 +489,22 @@ export default function CampaignWizard({
                 typeof budget.amountNgn === 'number' && budget.amountNgn > 0
                   ? {
                       // Multi-platform splits the budget evenly (WizardReviewStep), so Meta gets its share.
-                      amountNgn: platform.mode === 'multi' ? budget.amountNgn / Math.max(1, platform.multi.length) : budget.amountNgn,
+                      amountNgn:
+                        platform.mode === 'multi'
+                          ? budget.amountNgn / Math.max(1, platform.multi.length)
+                          : budget.amountNgn,
                       days: budget.days,
                     }
                   : null
               }
+            />
+          )}
+          {step === 'style' && creative && (
+            <WizardStyleStep
+              creative={creative}
+              description={audience.description}
+              onChange={setCreative}
+              onGoToCreative={() => setStepKey('creative')}
             />
           )}
           {step === 'review' && objective && creative && (
@@ -503,6 +529,7 @@ export default function CampaignWizard({
               initialResults={results}
               onResultsChange={setResults}
               onAnyLaunched={() => deleteWizardDraft(draftId)}
+              onChangeStyle={steps.some((s) => s.key === 'style') ? () => setStepKey('style') : undefined}
             />
           )}
         </div>

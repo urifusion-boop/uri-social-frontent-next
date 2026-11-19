@@ -27,6 +27,8 @@ export type WizardCreativeChoice =
       // Backend (_concepts_allowed, router.py) clamps to 1 for any other platform
       // regardless of what's sent, so there's no client-side validation to duplicate.
       concepts?: number;
+      /** The Style step's pick (an ad format id); '' = "Let Jane choose for me". */
+      vsg01_format_id?: string;
     }
   | ({
       creative_source: 'upload';
@@ -41,6 +43,8 @@ export type WizardCreativeChoice =
       // after upload, same as the chat flow; undefined for "Skip" or for a video
       // (attestation is a photo-only question there too).
       asset_attestation?: AssetAttestation;
+      /** The Style step's pick (an ad format id); '' = "Let Jane choose for me". */
+      vsg01_format_id?: string;
     } & Partial<CreativeProvenanceInput>) // "who's in this video" — video uploads only
   | { creative_source: 'draft'; draft_id: string; previewUrl: string };
 
@@ -387,7 +391,10 @@ export default function WizardCreativeStep({
                 Different styles, Meta finds the best — 1 credit each.
               </span>
               {recommended && (
-                <span data-testid="wizard-recommended-ads" style={{ fontSize: 12, color: '#1E8E4E', fontWeight: 700, lineHeight: 1.45 }}>
+                <span
+                  data-testid="wizard-recommended-ads"
+                  style={{ fontSize: 12, color: '#1E8E4E', fontWeight: 700, lineHeight: 1.45 }}
+                >
                   For your budget: {recommended.ads} ads
                   {recommended.ad_sets > 1 ? ` across ${recommended.ad_sets} ad sets` : ' in one ad set'}.
                 </span>
@@ -419,7 +426,9 @@ export default function WizardCreativeStep({
                     >
                       {n}
                       {recommended?.ads === n && (
-                        <span style={{ display: 'block', fontSize: 9.5, fontWeight: 700, color: '#1E8E4E' }}>Best fit</span>
+                        <span style={{ display: 'block', fontSize: 9.5, fontWeight: 700, color: '#1E8E4E' }}>
+                          Best fit
+                        </span>
                       )}
                     </button>
                   );
