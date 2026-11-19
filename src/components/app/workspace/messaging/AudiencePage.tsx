@@ -24,7 +24,7 @@ const SEGMENTS: { id: AudienceSegment; label: string }[] = [
 ];
 
 const STAGE_LOOK: Record<AudiencePerson['stage'], { label: string; bg: string; fg: string }> = {
-  contact: { label: 'New', bg: '#EAF2FF', fg: '#2563EB' },
+  contact: { label: 'Contact', bg: '#F3F2EF', fg: '#5C5460' },
   lead: { label: 'Lead', bg: '#FFF4E5', fg: '#B26A00' },
   customer: { label: 'Customer', bg: '#E7F7EE', fg: '#15803D' },
 };
