@@ -28,7 +28,20 @@ import InsightsPage from './messaging/InsightsPage';
 import { NavRow } from './messaging/ui';
 import { PlatformBadge, PLATFORM_LABEL } from './messaging/platform';
 import { tagLook } from './messaging/SettingsPage';
-import { Check, ChevronDown, Filter, ListFilter, MoreHorizontal, PanelRight, Star, User, X } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  Filter,
+  List,
+  ListFilter,
+  Maximize2,
+  Minimize2,
+  MoreHorizontal,
+  PanelRight,
+  Star,
+  User,
+  X,
+} from 'lucide-react';
 import type { TeamMember } from '@/src/api/InboxService';
 
 /*
@@ -738,6 +751,31 @@ export default function InboxDashboard({
   const deskRef = useRef<HTMLDivElement | null>(null);
   const [deskWidth, setDeskWidth] = useState(1200);
   const [detailsOverlayOpen, setDetailsOverlayOpen] = useState(false);
+  // Full-size chat: the filters and the conversation list fold away and the chat fills the
+  // Inbox card. Remembered on this browser. The list can still be opened as a slide-over.
+  const [chatExpanded, setChatExpanded] = useState(false);
+  const [listOverlayOpen, setListOverlayOpen] = useState(false);
+  useEffect(() => {
+    setChatExpanded(window.localStorage.getItem('uri.inbox.chatExpanded') === '1');
+  }, []);
+  function toggleChatExpanded() {
+    setChatExpanded((v) => {
+      window.localStorage.setItem('uri.inbox.chatExpanded', v ? '0' : '1');
+      return !v;
+    });
+    setListOverlayOpen(false);
+  }
+  useEffect(() => {
+    if (!chatExpanded) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (listOverlayOpen) setListOverlayOpen(false);
+      else toggleChatExpanded();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatExpanded, listOverlayOpen]);
   useEffect(() => {
     const el = deskRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
@@ -1389,6 +1427,7 @@ export default function InboxDashboard({
   }
 
   function openConversation(id: string) {
+    setListOverlayOpen(false);
     setSelectedId(id);
     setView('list');
     setThreadTab('thread');
@@ -3111,32 +3150,34 @@ export default function InboxDashboard({
     </>
   );
 
-  const showFilters = deskWidth >= 1000;
+  const showFilters = deskWidth >= 1000 && !chatExpanded;
   const showDetails = deskWidth >= 1150;
   // Up to the 1440 laptop width the panel stays 214px; past it the panel takes a share of
   // the extra room so the chat doesn't stretch into very long lines.
   const detailsWidth = Math.round(Math.min(340, Math.max(214, 214 + (deskWidth - 1230) * 0.3)));
+  // Header buttons: a little tighter than the list's, so all six fit beside the name.
+  const hdrButton: CSSProperties = { ...deskButton, padding: '0 10px', gap: 6 };
   const deskHeader = (
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 12,
-        padding: '12px 16px',
+        gap: 10,
+        padding: '10px 14px',
         borderBottom: '1px solid #F1EBEE',
         flex: '0 0 auto',
       }}
     >
       <PlatformBadge
         platform={selectedConv.channel}
-        size={40}
+        size={32}
         initials={selectedConv.initials}
         color={selectedConv.avatarColor}
       />
-      <div style={{ minWidth: 0, flex: 1 }}>
+      <div style={{ minWidth: 110, flex: '1 1 auto' }}>
         <div
           style={{
-            fontSize: 17,
+            fontSize: 15,
             fontWeight: 700,
             letterSpacing: -0.2,
             whiteSpace: 'nowrap',
@@ -3148,7 +3189,7 @@ export default function InboxDashboard({
         </div>
         <div
           style={{
-            fontSize: 12,
+            fontSize: 11.5,
             color: '#6D6572',
             marginTop: 2,
             whiteSpace: 'nowrap',
@@ -3160,95 +3201,122 @@ export default function InboxDashboard({
           {selectedConv.type === 'comment' ? ' comment' : ''} · Last active {selectedConv.time}
         </div>
       </div>
-      <button
-        type="button"
-        aria-label={selectedConv.starred ? 'Unstar' : 'Star'}
-        onClick={toggleStar}
-        style={{ ...deskButton, width: 36, padding: 0 }}
-      >
-        <Star
-          size={16}
-          fill={selectedConv.starred ? '#F5B301' : 'none'}
-          color={selectedConv.starred ? '#F5B301' : '#2A2230'}
-        />
-      </button>
-      <div style={{ position: 'relative' }}>
-        <button type="button" onClick={() => setAssignOpen((o) => !o)} style={deskButton}>
-          <User size={15} />
-          {assignee ? (assignee.is_me ? 'You' : assignee.name.split(' ')[0]) : 'Assign'}
-          <ChevronDown size={14} />
-        </button>
-        {assignMenu}
-      </div>
-      {!showDetails && (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', flexShrink: 0 }}>
+        {chatExpanded && (
+          <button
+            type="button"
+            onClick={() => setListOverlayOpen((o) => !o)}
+            style={{
+              ...hdrButton,
+              borderColor: listOverlayOpen ? '#E0156B' : '#ECE6EA',
+              color: listOverlayOpen ? '#E0156B' : '#2A2230',
+            }}
+          >
+            <List size={15} />
+            Chats
+          </button>
+        )}
         <button
           type="button"
-          aria-label="Conversation details"
-          title="Conversation details"
-          onClick={() => setDetailsOverlayOpen((o) => !o)}
+          onClick={toggleChatExpanded}
+          title={chatExpanded ? 'Back to the normal view (Esc)' : 'Give the chat the whole screen'}
           style={{
-            ...deskButton,
-            width: 32,
-            padding: 0,
-            borderColor: detailsOverlayOpen ? '#E0156B' : '#ECE6EA',
-            color: detailsOverlayOpen ? '#E0156B' : '#2A2230',
+            ...hdrButton,
+            borderColor: chatExpanded ? '#E0156B' : '#ECE6EA',
+            color: chatExpanded ? '#E0156B' : '#2A2230',
           }}
         >
-          <PanelRight size={15} />
+          {chatExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+          {chatExpanded ? 'Exit full size' : 'Expand'}
         </button>
-      )}
-      <button type="button" onClick={toggleResolved} style={deskButton}>
-        <Check size={15} />
-        {selectedConv.status === 'resolved' ? 'Reopen' : 'Mark as done'}
-      </button>
-      <div style={{ position: 'relative' }}>
         <button
           type="button"
-          aria-label="More"
-          onClick={() => setMoreMenuOpen((o) => !o)}
-          style={{ ...deskButton, border: 'none', width: 30, padding: 0 }}
+          aria-label={selectedConv.starred ? 'Unstar' : 'Star'}
+          onClick={toggleStar}
+          style={{ ...hdrButton, width: 36, padding: 0 }}
         >
-          <MoreHorizontal size={18} />
+          <Star
+            size={16}
+            fill={selectedConv.starred ? '#F5B301' : 'none'}
+            color={selectedConv.starred ? '#F5B301' : '#2A2230'}
+          />
         </button>
-        {moreMenuOpen && (
-          <>
-            <div onClick={() => setMoreMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-            <div
-              style={{
-                position: 'absolute',
-                top: '110%',
-                right: 0,
-                zIndex: 999,
-                background: '#fff',
-                borderRadius: 10,
-                boxShadow: '0 8px 24px rgba(0,0,0,.15)',
-                border: '1px solid rgba(0,0,0,.06)',
-                minWidth: 190,
-                padding: 6,
-              }}
-            >
-              <button
-                type="button"
-                onClick={openLeadModal}
-                style={{ ...deskButton, border: 'none', width: '100%', justifyContent: 'flex-start' }}
-              >
-                <I n="target" s={14} c={selectedConv.lead ? '#2E7D32' : '#999'} />
-                {selectedConv.lead ? 'Edit lead' : 'Create lead'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setDeskStatus(deskStatus === 'pending' ? 'open' : 'pending');
-                  setMoreMenuOpen(false);
-                }}
-                style={{ ...deskButton, border: 'none', width: '100%', justifyContent: 'flex-start' }}
-              >
-                <I n="clock" s={14} c="#999" />
-                {deskStatus === 'pending' ? 'Mark as open' : 'Mark as pending'}
-              </button>
-            </div>
-          </>
+        <div style={{ position: 'relative' }}>
+          <button type="button" onClick={() => setAssignOpen((o) => !o)} style={hdrButton}>
+            <User size={15} />
+            {assignee ? (assignee.is_me ? 'You' : assignee.name.split(' ')[0]) : 'Assign'}
+            <ChevronDown size={14} />
+          </button>
+          {assignMenu}
+        </div>
+        {!showDetails && (
+          <button
+            type="button"
+            onClick={() => setDetailsOverlayOpen((o) => !o)}
+            style={{
+              ...hdrButton,
+              borderColor: detailsOverlayOpen ? '#E0156B' : '#ECE6EA',
+              background: detailsOverlayOpen ? '#FDF1F6' : '#fff',
+              color: detailsOverlayOpen ? '#E0156B' : '#2A2230',
+            }}
+          >
+            <PanelRight size={15} />
+            {detailsOverlayOpen ? 'Hide details' : 'Details'}
+          </button>
         )}
+        <button type="button" onClick={toggleResolved} style={hdrButton}>
+          <Check size={15} />
+          {selectedConv.status === 'resolved' ? 'Reopen' : showDetails ? 'Mark as done' : 'Done'}
+        </button>
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            aria-label="More"
+            onClick={() => setMoreMenuOpen((o) => !o)}
+            style={{ ...hdrButton, border: 'none', width: 30, padding: 0 }}
+          >
+            <MoreHorizontal size={18} />
+          </button>
+          {moreMenuOpen && (
+            <>
+              <div onClick={() => setMoreMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '110%',
+                  right: 0,
+                  zIndex: 999,
+                  background: '#fff',
+                  borderRadius: 10,
+                  boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                  border: '1px solid rgba(0,0,0,.06)',
+                  minWidth: 190,
+                  padding: 6,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={openLeadModal}
+                  style={{ ...hdrButton, border: 'none', width: '100%', justifyContent: 'flex-start' }}
+                >
+                  <I n="target" s={14} c={selectedConv.lead ? '#2E7D32' : '#999'} />
+                  {selectedConv.lead ? 'Edit lead' : 'Create lead'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeskStatus(deskStatus === 'pending' ? 'open' : 'pending');
+                    setMoreMenuOpen(false);
+                  }}
+                  style={{ ...hdrButton, border: 'none', width: '100%', justifyContent: 'flex-start' }}
+                >
+                  <I n="clock" s={14} c="#999" />
+                  {deskStatus === 'pending' ? 'Mark as open' : 'Mark as pending'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -4880,6 +4948,7 @@ export default function InboxDashboard({
               flex: 1,
               minWidth: 0,
               display: 'flex',
+              position: 'relative',
               background: '#fff',
               borderRadius: 14,
               border: '1px solid #F4E9EE',
@@ -4960,14 +5029,31 @@ export default function InboxDashboard({
             )}
 
             {/* conversation list */}
+            {chatExpanded && listOverlayOpen && (
+              <div
+                onClick={() => setListOverlayOpen(false)}
+                style={{ position: 'absolute', inset: 0, background: 'rgba(20,10,15,.18)', zIndex: 29 }}
+              />
+            )}
             <div
               style={{
                 width: 290,
                 flex: '0 0 290px',
                 borderRight: '1px solid #F1EBEE',
-                display: 'flex',
+                display: chatExpanded && !listOverlayOpen ? 'none' : 'flex',
                 flexDirection: 'column',
                 minHeight: 0,
+                ...(chatExpanded
+                  ? {
+                      position: 'absolute',
+                      top: 0,
+                      bottom: 0,
+                      left: 0,
+                      zIndex: 30,
+                      background: '#fff',
+                      boxShadow: '8px 0 24px rgba(20,10,15,.12)',
+                    }
+                  : {}),
               }}
             >
               {!showFilters && (
