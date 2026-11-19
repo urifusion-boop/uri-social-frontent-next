@@ -3156,7 +3156,7 @@ export default function InboxDashboard({
   // the extra room so the chat doesn't stretch into very long lines.
   const detailsWidth = Math.round(Math.min(340, Math.max(214, 214 + (deskWidth - 1230) * 0.3)));
   // Header buttons: a little tighter than the list's, so all six fit beside the name.
-  const hdrButton: CSSProperties = { ...deskButton, padding: '0 10px', gap: 6 };
+  const hdrButton: CSSProperties = { ...deskButton, padding: '0 9px', gap: 5 };
   const deskHeader = (
     <div
       style={{
@@ -3170,14 +3170,14 @@ export default function InboxDashboard({
     >
       <PlatformBadge
         platform={selectedConv.channel}
-        size={32}
+        size={28}
         initials={selectedConv.initials}
         color={selectedConv.avatarColor}
       />
-      <div style={{ minWidth: 110, flex: '1 1 auto' }}>
+      <div style={{ minWidth: 0, flex: '1 1 auto' }}>
         <div
           style={{
-            fontSize: 15,
+            fontSize: 14,
             fontWeight: 700,
             letterSpacing: -0.2,
             whiteSpace: 'nowrap',
@@ -3189,7 +3189,7 @@ export default function InboxDashboard({
         </div>
         <div
           style={{
-            fontSize: 11.5,
+            fontSize: 11,
             color: '#6D6572',
             marginTop: 2,
             whiteSpace: 'nowrap',
@@ -3201,7 +3201,7 @@ export default function InboxDashboard({
           {selectedConv.type === 'comment' ? ' comment' : ''} · Last active {selectedConv.time}
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginLeft: 'auto', flexShrink: 0 }}>
         {chatExpanded && (
           <button
             type="button"
@@ -3219,21 +3219,23 @@ export default function InboxDashboard({
         <button
           type="button"
           onClick={toggleChatExpanded}
-          title={chatExpanded ? 'Back to the normal view (Esc)' : 'Give the chat the whole screen'}
+          aria-label={chatExpanded ? 'Exit full size' : 'Expand chat'}
+          title={chatExpanded ? 'Exit full size (Esc)' : 'Expand chat'}
           style={{
             ...hdrButton,
+            width: 32,
+            padding: 0,
             borderColor: chatExpanded ? '#E0156B' : '#ECE6EA',
             color: chatExpanded ? '#E0156B' : '#2A2230',
           }}
         >
           {chatExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-          {chatExpanded ? 'Exit full size' : 'Expand'}
         </button>
         <button
           type="button"
           aria-label={selectedConv.starred ? 'Unstar' : 'Star'}
           onClick={toggleStar}
-          style={{ ...hdrButton, width: 36, padding: 0 }}
+          style={{ ...hdrButton, width: 32, padding: 0 }}
         >
           <Star
             size={16}
