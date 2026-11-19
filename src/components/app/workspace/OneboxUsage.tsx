@@ -18,7 +18,7 @@ function day(iso: string): string {
 
 const FONT = "'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
-export function OneboxUsagePanel({ isMobile }: { isMobile: boolean }) {
+export function OneboxUsagePanel({ isMobile, embedded = false }: { isMobile: boolean; embedded?: boolean }) {
   const [data, setData] = useState<{ usage: OneboxUsage; plans: OneboxPlan[]; can_manage: boolean } | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
@@ -57,7 +57,7 @@ export function OneboxUsagePanel({ isMobile }: { isMobile: boolean }) {
   return (
     <div
       style={{
-        padding: isMobile ? 14 : '22px 28px 32px',
+        padding: embedded ? 0 : isMobile ? 14 : '22px 28px 32px',
         display: 'flex',
         flexDirection: 'column',
         gap: 14,
