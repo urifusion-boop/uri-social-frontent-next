@@ -23,7 +23,6 @@ import {
   DEFAULT_OUTCOME,
   toSelectableOutcome,
   AvatarVoicePicker,
-  MODEL_LABELS,
   Section,
   Spinner,
   StoryboardResult,
@@ -1435,45 +1434,6 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
                 )}
               </div>
             )}
-
-            {videoJob?.status === 'complete' &&
-              !videoJob.billing &&
-              (() => {
-                const costed = videoJob.clips.filter((c) => c.cost_usd != null);
-                if (costed.length === 0) return null;
-                const total = costed.reduce((sum, c) => sum + (c.cost_usd ?? 0), 0);
-                const outcomeLabel =
-                  VIDEO_OUTCOMES.find((o) => o.value === videoJob.outcome)?.label ?? videoJob.outcome;
-                const routedModels = Array.from(
-                  new Set(videoJob.clips.map((c) => c.routed_model).filter((m): m is string => !!m))
-                );
-                const anyFallback = videoJob.clips.some((c) => c.fallback_used);
-                return (
-                  <div
-                    style={{
-                      background: LIGHT,
-                      border: `1px solid ${BORDER}`,
-                      borderRadius: 10,
-                      padding: '10px 14px',
-                      marginBottom: 16,
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12.5, color: GREY }}>
-                        {outcomeLabel} · {costed.length}/{videoJob.clips.length} clip
-                        {videoJob.clips.length === 1 ? '' : 's'} costed
-                      </span>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: DARK }}>~${total.toFixed(3)}</span>
-                    </div>
-                    {routedModels.length > 0 && (
-                      <p style={{ fontSize: 10.5, color: '#9CA3AF', margin: '4px 0 0' }}>
-                        Routed to: {routedModels.map((m) => MODEL_LABELS[m] ?? m).join(', ')}
-                        {anyFallback ? ' (fallback used on at least one clip)' : ''}
-                      </p>
-                    )}
-                  </div>
-                );
-              })()}
 
             {videoJob && videoJob.status !== 'complete' && videoJob.status !== 'failed' && (
               <div
