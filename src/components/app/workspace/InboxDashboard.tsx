@@ -2,23 +2,33 @@
 
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { InboxService, InboxAgentView, InboxConversationDTO, InboxMessageDTO } from '@/src/api/InboxService';
-import InboxConnectionsPage, {
+import {
+  InboxService,
+  InboxAgentView,
+  InboxConversationDTO,
+  InboxMessageDTO,
+  type DeskChange,
+  type DeskNote,
+} from '@/src/api/InboxService';
+import {
   INITIAL_CHANNEL_CONNECTIONS,
   channelsFromApi,
   type ChannelConnection,
 } from './InboxConnectionsPage';
-import InboxInsightsPage, { type InsightsConversation } from './InboxInsightsPage';
-import InboxSettingsPage from './InboxSettingsPage';
 import { InboxPersonalityPage } from './personality/InboxPersonalityPage';
 import { useNotifications } from '@/src/providers/NotificationProvider';
+import { ToastService } from '@/src/utils/toast.util';
+import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { GrowthService } from '@/src/api/GrowthService';
 import { WhatsAppTemplatePicker } from './WhatsAppTemplates';
-import { OneboxUsagePanel } from './OneboxUsage';
 import type { Notification } from '@/src/api/NotificationService';
 import EmptyState from '@/src/components/app/atoms/EmptyState';
-import PageHeader from '@/src/components/app/atoms/PageHeader';
-import { pageBackground as msgPageBackground } from '@/src/components/app/workspace/messaging/look';
+import MessagingHeader, { MSG_BG, type MessagingSection } from './messaging/MessagingHeader';
+import SettingsPage, { type SettingsSection } from './messaging/SettingsPage';
+import AutomationsPage from './messaging/AutomationsPage';
+import QuickRepliesPage, { replyWithButtons } from './messaging/QuickRepliesPage';
+import AudiencePage from './messaging/AudiencePage';
+import InsightsPage from './messaging/InsightsPage';
 
 /*
  * Unified Social Inbox — a tab inside WorkspaceDashboard (PAGES.messages),
@@ -294,6 +304,9 @@ interface Conversation {
   tags?: string[];
   notes?: InternalNote[];
   lead?: Lead | null;
+  starred?: boolean;
+  assigneeId?: string;
+  notesCount?: number;
   agent?: AgentInfo;
   lastDirection?: string;
   lastActivityAt?: string | null;
@@ -341,6 +354,9 @@ const BOARD_COLUMNS: { id: QueueKey; label: string }[] = [
 export interface SavedReply {
   label: string;
   text: string;
+  /** set when it comes from the brand's saved quick replies */
+  id?: string;
+  shortcut?: string;
 }
 
 const DEFAULT_TAG_PRESETS = ['VIP', 'Repeat customer', 'Refund', 'Spam review', 'Urgent'];
@@ -569,11 +585,28 @@ function toConversation(dto: InboxConversationDTO): Conversation {
     messages: dto.kind === 'dm' ? [] : undefined,
     comments: dto.kind === 'comment' ? [] : undefined,
     notes: [],
-    lead: null,
+    // A lead is saved on the conversation (lead_stage, lead_interest, lead_value).
+    lead:
+      dto.lead_stage && dto.lead_stage !== 'lost'
+        ? {
+            interest: dto.lead_interest || '',
+            budget: dto.lead_value != null ? String(dto.lead_value) : '',
+            notes: '',
+            createdBy: '',
+            createdAt: '',
+          }
+        : null,
+    starred: Boolean(dto.starred),
+    assigneeId: dto.assignee_id || '',
+    notesCount: dto.notes_count ?? 0,
     lastDirection: dto.last_direction || '',
     lastActivityAt: dto.last_activity_at,
     ...agentPart,
   };
+}
+
+function deskNote(n: DeskNote): InternalNote {
+  return { id: n.id, text: n.text, by: n.author_name || 'Team', time: relativeTime(n.at) };
 }
 
 function toThreadMessage(m: InboxMessageDTO): ThreadMessage {
@@ -596,7 +629,57 @@ function toThreadComment(m: InboxMessageDTO): ThreadComment {
   };
 }
 
-export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
+// Drives the header pill — never claims "all connected" while a real channel is
+// disconnected or its token is expiring, and never counts an unapproved platform
+// (TikTok) against the total.
+function connectionsSummaryOf(channelConnections: ChannelConnection[]) {
+  const approvedConnections = channelConnections.filter((c) => c.approved);
+  const connectionIssues = approvedConnections.filter(
+    (c) => !c.connected || c.tokenHealth === 'expiring' || Boolean(c.warning)
+  );
+  const reconnect = approvedConnections.filter((c) => c.warning).map((c) => c.label);
+  return connectionIssues.length === 0
+    ? { label: 'All channels connected', fg: '#2E7D32', bg: '#EAF8EF', dot: '#16A34A' }
+    : {
+        label: reconnect.length
+          ? `Reconnect needed — ${reconnect.join(', ')}`
+          : `${approvedConnections.length - connectionIssues.length}/${approvedConnections.length} connected — action needed`,
+        fg: '#B26A00',
+        bg: '#FFF4E5',
+        dot: '#B26A00',
+      };
+}
+
+/** Which Messaging section (and Settings section) a ?view= value or an in-page link means. */
+export function resolveView(view: string): { section: MessagingSection; settings?: SettingsSection } {
+  switch (view) {
+    case 'connections':
+      return { section: 'settings', settings: 'channels' };
+    case 'usage':
+      return { section: 'settings', settings: 'usage' };
+    case 'settings':
+      return { section: 'settings' };
+    case 'inbox-settings':
+      return { section: 'automations' };
+    case 'automations':
+    case 'quick':
+    case 'audience':
+    case 'voice':
+    case 'insights':
+      return { section: view };
+    default:
+      return { section: 'inbox' };
+  }
+}
+
+export default function InboxDashboard({
+  isMobile,
+  onSectionChange,
+}: {
+  isMobile: boolean;
+  /** Keeps the sidebar's Messaging submenu highlight in step with the tabs. */
+  onSectionChange?: (section: MessagingSection) => void;
+}) {
   const [mobileScreen, setMobileScreen] = useState<'list' | 'thread'>('list');
 
   const [selectedQueue, setSelectedQueue] = useState<QueueFilter>('all');
@@ -636,6 +719,8 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [noteDraft, setNoteDraft] = useState('');
   const [savedRepliesOpen, setSavedRepliesOpen] = useState(false);
   const [leadOverrides, setLeadOverrides] = useState<Record<string, Lead>>({});
+  const [starOverrides, setStarOverrides] = useState<Record<string, boolean>>({});
+  const [assigneeOverrides, setAssigneeOverrides] = useState<Record<string, string>>({});
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [leadFormInterest, setLeadFormInterest] = useState('');
   const [leadFormBudget, setLeadFormBudget] = useState('');
@@ -647,21 +732,33 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   // Voice/AI Usage/Inbox Settings) links here the same way, so every sub-view
   // — not just connections — needs to be reachable from this same param.
   const searchParams = useSearchParams();
-  const VALID_SUBVIEWS = ['inbox', 'connections', 'insights', 'settings', 'voice', 'usage'] as const;
-  const [subView, setSubView] = useState<(typeof VALID_SUBVIEWS)[number]>(() => {
-    const v = searchParams?.get('view');
-    return (VALID_SUBVIEWS as readonly string[]).includes(v ?? '') ? (v as (typeof VALID_SUBVIEWS)[number]) : 'inbox';
-  });
+  // The sections of the new Messaging design, plus the older names the app and saved
+  // links still use: "connections" and "usage" open Settings at that section, and the
+  // old "Inbox Settings" ("settings" before the gear page existed) opens Automations.
+  const [subView, setSection] = useState<MessagingSection>(() => resolveView(searchParams?.get('view') ?? '').section);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>(
+    () => resolveView(searchParams?.get('view') ?? '').settings ?? 'channels'
+  );
+  const setSubView = useCallback(
+    (view: string) => {
+      const r = resolveView(view);
+      setSection(r.section);
+      if (r.settings) setSettingsSection(r.settings);
+      onSectionChange?.(r.section);
+    },
+    [onSectionChange]
+  );
   // The lazy useState above only runs on first mount — it doesn't help when
   // the sidebar dropdown is clicked while this page is already open (the
   // common case: Automated Messaging is already the active tab, so the
-  // param changes but this component never remounts). Re-derive subView
-  // whenever the param itself actually changes, without fighting the
-  // in-page rail buttons, which set subView directly and never touch the URL.
+  // param changes but this component never remounts). Re-derive the section
+  // whenever the param itself actually changes.
   useEffect(() => {
     const v = searchParams?.get('view');
-    if (v && (VALID_SUBVIEWS as readonly string[]).includes(v)) {
-      setSubView(v as (typeof VALID_SUBVIEWS)[number]);
+    if (v) {
+      const r = resolveView(v);
+      setSection(r.section);
+      if (r.settings) setSettingsSection(r.settings);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams?.get('view')]);
@@ -674,6 +771,24 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [openedIds, setOpenedIds] = useState<Set<string>>(() => new Set());
   const [tagPresets, setTagPresets] = useState<string[]>(DEFAULT_TAG_PRESETS);
   const [savedReplies, setSavedReplies] = useState<SavedReply[]>([]);
+  // Quick replies and tag presets are saved to the brand (Messaging › Quick Replies and
+  // Settings › Tags); re-read whenever the inbox comes back into view so edits show up.
+  useEffect(() => {
+    if (subView !== 'inbox') return;
+    InboxService.getDeskPrefs()
+      .then((p) => {
+        setTagPresets(p.tag_presets);
+        setSavedReplies(
+          p.quick_replies.map((r) => ({
+            label: r.title,
+            text: replyWithButtons(r.text, r.buttons),
+            id: r.id,
+            shortcut: r.shortcut,
+          }))
+        );
+      })
+      .catch(() => undefined);
+  }, [subView]);
 
   // Escape closes whatever overlay is currently open — drawers, sheets,
   // menus and modals alike — since none of them trap focus, a keyboard or
@@ -768,6 +883,10 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           setMessageOverrides((prev) => ({ ...prev, [selectedId]: rows.map(toThreadMessage) }));
         }
         setLoadedThreads((prev) => ({ ...prev, [selectedId]: true }));
+        // The team's internal notes on this conversation.
+        InboxService.getDesk(selectedId)
+          .then((d) => !cancelled && setNoteOverrides((prev) => ({ ...prev, [selectedId]: d.notes.slice().reverse().map(deskNote) })))
+          .catch(() => undefined);
       } catch {
         // Leave the thread unloaded so reopening it tries again, rather than
         // showing an empty thread as though the customer had said nothing.
@@ -805,6 +924,8 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           tags: tagOverrides[c.id] ?? c.tags ?? [],
           notes: noteOverrides[c.id] ?? c.notes ?? [],
           lead: c.id in leadOverrides ? leadOverrides[c.id] : (c.lead ?? null),
+          starred: starOverrides[c.id] ?? c.starred,
+          assigneeId: assigneeOverrides[c.id] ?? c.assigneeId,
         };
       }),
     [
@@ -816,6 +937,8 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
       tagOverrides,
       noteOverrides,
       leadOverrides,
+      starOverrides,
+      assigneeOverrides,
     ]
   );
 
@@ -1007,70 +1130,50 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           display: 'flex',
           flexDirection: 'column',
           fontFamily: FONT,
-          background: msgPageBackground,
+          background: MSG_BG,
           color: '#1a1a1a',
           overflow: 'hidden',
         }}
       >
-        <div
-          style={{
-            flex: '0 0 auto',
-            background: 'transparent',
-            padding: isMobile ? '12px 14px' : '16px 24px 14px',
-            boxSizing: 'border-box',
-          }}
-        >
-          <PageHeader
-            section="Messaging"
-            onBack={() => setSubView('inbox')}
-            compact={isMobile}
-            title={
-              subView === 'connections'
-                ? 'Channel Connections'
-                : subView === 'insights'
-                  ? 'Insights'
-                  : subView === 'voice'
-                    ? 'Brand Voice'
-                    : subView === 'usage'
-                      ? 'AI Usage'
-                      : 'Inbox Settings'
-            }
-            description={
-              subView === 'connections'
-                ? 'Connect the accounts whose messages and comments come into your inbox.'
-                : subView === 'insights'
-                  ? 'What your customers keep asking about.'
-                  : subView === 'voice'
-                    ? 'How Jane sounds when she replies to your customers.'
-                    : subView === 'usage'
-                      ? 'Your AI conversations this period, and your plan.'
-                      : 'Business hours, automatic replies and who gets alerted.'
-            }
-            actions={notificationBell}
-          />
-        </div>
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-          {subView === 'connections' ? (
-            <InboxConnectionsPage
+          <MessagingHeader
+            active={subView}
+            onSelect={(s) => setSubView(s)}
+            connections={connectionsSummaryOf(channelConnections)}
+            extra={notificationBell}
+            compact={isMobile}
+          />
+          <div style={{ height: 18 }} />
+          {subView === 'settings' ? (
+            <SettingsPage
               isMobile={isMobile}
+              section={settingsSection}
+              onSection={setSettingsSection}
               connections={channelConnections}
               onConnected={handleChannelConnected}
               onChannelsChanged={loadChannels}
             />
-          ) : subView === 'insights' ? (
-            <InboxInsightsPage isMobile={isMobile} conversations={conversations} />
-          ) : subView === 'voice' ? (
-            <InboxPersonalityPage isMobile={isMobile} />
-          ) : subView === 'usage' ? (
-            <OneboxUsagePanel isMobile={isMobile} />
-          ) : (
-            <InboxSettingsPage
+          ) : subView === 'automations' ? (
+            <AutomationsPage isMobile={isMobile} />
+          ) : subView === 'quick' ? (
+            <QuickRepliesPage isMobile={isMobile} />
+          ) : subView === 'audience' ? (
+            <AudiencePage
               isMobile={isMobile}
-              savedReplies={savedReplies}
-              onSavedRepliesChange={setSavedReplies}
-              tagPresets={tagPresets}
-              onTagPresetsChange={setTagPresets}
+              onOpenConversation={(id) => {
+                setSelectedId(id);
+                setSubView('inbox');
+                if (isMobile) setMobileScreen('thread');
+              }}
             />
+          ) : subView === 'insights' ? (
+            <InsightsPage isMobile={isMobile} />
+          ) : (
+            <div style={{ padding: isMobile ? '0 14px 14px' : '0 28px 28px' }}>
+              <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #F4E9EE', overflow: 'hidden' }}>
+                <InboxPersonalityPage isMobile={isMobile} />
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -1321,20 +1424,52 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     }
   }
 
-  function insertSavedReply(text: string) {
-    setComposerDrafts((prev) => ({ ...prev, [selectedId]: text }));
+  function insertSavedReply(reply: SavedReply) {
+    const first = (selectedConv?.name || '').trim().split(/\s+/)[0] || 'there';
+    setComposerDrafts((prev) => ({ ...prev, [selectedId]: reply.text.replace(/\{first_name\}/g, first) }));
     setSavedRepliesOpen(false);
+    if (reply.id) InboxService.quickReplyUsed(reply.id).catch(() => undefined);
+  }
+
+  // Typing a quick reply's shortcut ("/hi") followed by a space puts the reply in.
+  function onComposerChange(value: string) {
+    const m = /^(\/[a-z0-9_-]+) $/i.exec(value);
+    const hit = m && savedReplies.find((r) => r.shortcut && r.shortcut.toLowerCase() === m[1].toLowerCase());
+    if (hit) {
+      insertSavedReply(hit);
+      return;
+    }
+    setComposerDrafts((prev) => ({ ...prev, [selectedId]: value }));
+  }
+
+  // Every desk change shows at once and is saved to the brand; a failed save puts the
+  // screen back and says so, so what you see is always what's stored.
+  function saveDesk(id: string, change: DeskChange, undo: () => void) {
+    InboxService.updateDesk(id, change).catch(() => {
+      undo();
+      ToastService.showToast("Couldn't save that change. Try again.", ToastTypeEnum.Error);
+    });
   }
 
   function toggleResolved() {
-    if (selectedConv.status === 'resolved') {
-      setStatusOverrides((prev) => ({ ...prev, [selectedId]: 'unassigned' }));
-      setCardQueues((prev) => ({ ...prev, [selectedId]: 'unassigned' }));
-    } else {
-      setStatusOverrides((prev) => ({ ...prev, [selectedId]: 'resolved' }));
-      setCardQueues((prev) => ({ ...prev, [selectedId]: 'resolved' }));
-    }
+    const id = selectedId;
+    const wasResolved = selectedConv.status === 'resolved';
+    const before = { status: statusOverrides[id], queue: cardQueues[id] };
+    const next: StatusKey = wasResolved ? 'unassigned' : 'resolved';
+    setStatusOverrides((prev) => ({ ...prev, [id]: next }));
+    setCardQueues((prev) => ({ ...prev, [id]: next }));
     setMoreMenuOpen(false);
+    saveDesk(id, { status: wasResolved ? 'open' : 'resolved' }, () => {
+      setStatusOverrides((prev) => ({ ...prev, [id]: before.status as StatusKey }));
+      setCardQueues((prev) => ({ ...prev, [id]: before.queue as QueueKey }));
+    });
+  }
+
+  function setTags(next: string[]) {
+    const id = selectedId;
+    const before = selectedConv.tags ?? [];
+    setTagOverrides((prev) => ({ ...prev, [id]: next }));
+    saveDesk(id, { tags: next }, () => setTagOverrides((prev) => ({ ...prev, [id]: before })));
   }
 
   function addTag(tag: string) {
@@ -1342,24 +1477,40 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     if (!trimmed) return;
     const current = selectedConv.tags ?? [];
     if (current.includes(trimmed)) return;
-    setTagOverrides((prev) => ({ ...prev, [selectedId]: [...current, trimmed] }));
+    setTags([...current, trimmed]);
     setCustomTagDraft('');
   }
 
   function removeTag(tag: string) {
-    const current = selectedConv.tags ?? [];
-    setTagOverrides((prev) => ({ ...prev, [selectedId]: current.filter((t) => t !== tag) }));
+    setTags((selectedConv.tags ?? []).filter((t) => t !== tag));
   }
 
-  function addNote() {
+  function toggleStar() {
+    const id = selectedId;
+    const next = !selectedConv.starred;
+    setStarOverrides((prev) => ({ ...prev, [id]: next }));
+    saveDesk(id, { starred: next }, () => setStarOverrides((prev) => ({ ...prev, [id]: !next })));
+  }
+
+  function assignTo(userId: string) {
+    const id = selectedId;
+    const before = selectedConv.assigneeId ?? '';
+    setAssigneeOverrides((prev) => ({ ...prev, [id]: userId }));
+    saveDesk(id, { assignee_id: userId }, () => setAssigneeOverrides((prev) => ({ ...prev, [id]: before })));
+  }
+
+  async function addNote() {
     const text = noteDraft.trim();
     if (!text) return;
-    const current = selectedConv.notes ?? [];
-    setNoteOverrides((prev) => ({
-      ...prev,
-      [selectedId]: [...current, { id: `note-${Date.now()}`, text, by: 'You', time: 'Just now' }],
-    }));
+    const id = selectedId;
     setNoteDraft('');
+    try {
+      const n = await InboxService.addNote(id, text);
+      setNoteOverrides((prev) => ({ ...prev, [id]: [...(prev[id] ?? []), deskNote(n)] }));
+    } catch {
+      setNoteDraft(text);
+      ToastService.showToast("Couldn't save the note. Try again.", ToastTypeEnum.Error);
+    }
   }
 
   function openLeadModal() {
@@ -1373,17 +1524,36 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
 
   function submitLead() {
     if (!leadFormInterest.trim()) return;
+    const id = selectedId;
+    const before = id in leadOverrides ? leadOverrides[id] : undefined;
+    const budget = leadFormBudget.trim();
+    const value = Number(budget.replace(/[^\d.]/g, ''));
     setLeadOverrides((prev) => ({
       ...prev,
-      [selectedId]: {
-        interest: leadFormInterest.trim(),
-        budget: leadFormBudget.trim(),
-        notes: leadFormNotes.trim(),
-        createdBy: 'You',
-        createdAt: 'Just now',
-      },
+      [id]: { interest: leadFormInterest.trim(), budget, notes: leadFormNotes.trim(), createdBy: 'You', createdAt: 'Just now' },
     }));
     setLeadModalOpen(false);
+    saveDesk(
+      id,
+      {
+        lead_stage: (selectedConv.leadStage as DeskChange['lead_stage']) || 'new',
+        lead_interest: leadFormInterest.trim(),
+        lead_value: budget && Number.isFinite(value) && value > 0 ? value : null,
+      },
+      () =>
+        setLeadOverrides((prev) => {
+          const next = { ...prev };
+          if (before === undefined) delete next[id];
+          else next[id] = before;
+          return next;
+        })
+    );
+    // The lead form's notes are kept as an internal note on the conversation.
+    if (leadFormNotes.trim()) {
+      InboxService.addNote(id, `Lead: ${leadFormNotes.trim()}`)
+        .then((n) => setNoteOverrides((prev) => ({ ...prev, [id]: [...(prev[id] ?? []), deskNote(n)] })))
+        .catch(() => undefined);
+    }
   }
 
   function toggleSelectId(id: string) {
@@ -1413,6 +1583,11 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
       return next;
     });
     exitSelectMode();
+    Promise.allSettled(ids.map((id) => InboxService.updateDesk(id, { status: 'resolved' }))).then((r) => {
+      const failed = r.filter((x) => x.status === 'rejected').length;
+      if (failed)
+        ToastService.showToast(`${failed} conversation${failed === 1 ? '' : 's'} couldn't be marked done.`, ToastTypeEnum.Error);
+    });
   }
 
   function handleChannelConnected(channelId: string, accountLabel: string) {
@@ -1959,14 +2134,14 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 </div>
                 {savedReplies.length === 0 && (
                   <div style={{ padding: '6px 8px 8px', fontSize: 12.5, color: '#888', lineHeight: 1.5 }}>
-                    None yet. Add them under Settings.
+                    None yet. Add them under Quick Replies.
                   </div>
                 )}
                 {savedReplies.map((r) => (
                   <button
                     key={r.label}
                     type="button"
-                    onClick={() => insertSavedReply(r.text)}
+                    onClick={() => insertSavedReply(r)}
                     style={{
                       width: '100%',
                       textAlign: 'left',
@@ -1999,10 +2174,10 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         </div>
         <textarea
           aria-label="Reply message"
-          placeholder="Write a reply..."
+          placeholder="Write a reply… (type / for a quick reply)"
           rows={1}
           value={draft}
-          onChange={(e) => setComposerDrafts((prev) => ({ ...prev, [selectedId]: e.target.value }))}
+          onChange={(e) => onComposerChange(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
@@ -2725,25 +2900,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     </div>
   );
 
-  // Drives the top bar pill — never claims "all connected" while a real
-  // channel is disconnected or its token is expiring, and never counts an
-  // unapproved platform (TikTok) against the total.
-  const approvedConnections = channelConnections.filter((c) => c.approved);
-  const connectionIssues = approvedConnections.filter(
-    (c) => !c.connected || c.tokenHealth === 'expiring' || Boolean(c.warning)
-  );
-  const reconnect = approvedConnections.filter((c) => c.warning).map((c) => c.label);
-  const connectionsSummary =
-    connectionIssues.length === 0
-      ? { label: 'All channels connected', fg: '#2E7D32', bg: 'rgba(46,125,50,.08)', dot: '#2E7D32' }
-      : {
-          label: reconnect.length
-            ? `Reconnect needed — ${reconnect.join(', ')}`
-            : `${approvedConnections.length - connectionIssues.length}/${approvedConnections.length} connected — action needed`,
-          fg: '#B26A00',
-          bg: 'rgba(237,108,2,.08)',
-          dot: '#B26A00',
-        };
+  const connectionsSummary = connectionsSummaryOf(channelConnections);
 
   const leadModal = leadModalOpen && (
     <>

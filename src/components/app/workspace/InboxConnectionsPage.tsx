@@ -321,11 +321,17 @@ export default function InboxConnectionsPage({
   connections,
   onConnected,
   onChannelsChanged,
+  embedded = false,
+  columns = 3,
 }: {
   isMobile: boolean;
   connections: ChannelConnection[];
   onConnected: (channelId: string, accountLabel: string) => void;
   onChannelsChanged: () => void;
+  /** Shown inside Messaging › Settings: no page padding of its own. */
+  embedded?: boolean;
+  /** Cards per row on desktop. */
+  columns?: number;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -424,7 +430,7 @@ export default function InboxConnectionsPage({
   return (
     <div
       style={{
-        padding: isMobile ? 14 : '22px 28px 32px',
+        padding: embedded ? 0 : isMobile ? 14 : '22px 28px 32px',
         display: 'flex',
         flexDirection: 'column',
         gap: 16,
@@ -600,7 +606,7 @@ export default function InboxConnectionsPage({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))',
+          gridTemplateColumns: isMobile ? '1fr' : `repeat(${columns}, minmax(0, 1fr))`,
           gap: 16,
           alignItems: 'stretch',
         }}
