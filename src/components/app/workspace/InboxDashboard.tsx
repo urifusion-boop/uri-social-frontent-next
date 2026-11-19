@@ -1126,15 +1126,25 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           </>
         ) : (
           <>
-            <EmptyState
-              emoji="💬"
-              notes={['📸 Instagram DMs', '💬 Facebook']}
-              title="Your customers will"
-              highlight="land here"
-              body="Messages and comments from your connected Instagram and Facebook accounts arrive here as they come in. Jane can draft the replies."
-              action={{ label: 'Connect an account', onClick: () => setSubView('connections') }}
-              secondary={{ label: "Set up Jane's brand voice first", onClick: () => setSubView('voice') }}
-            />
+            {channelConnections.some((c) => c.connected) ? (
+              <EmptyState
+                emoji="💬"
+                notes={['📸 Instagram DMs', '💬 Facebook']}
+                title="No messages"
+                highlight="yet"
+                body="Your accounts are connected. New messages and comments will show up here as they arrive."
+              />
+            ) : (
+              <EmptyState
+                emoji="💬"
+                notes={['📸 Instagram DMs', '💬 Facebook']}
+                title="Your customers will"
+                highlight="land here"
+                body="Messages and comments from your connected Instagram and Facebook accounts arrive here as they come in. Jane can draft the replies."
+                action={{ label: 'Connect an account', onClick: () => setSubView('connections') }}
+                secondary={{ label: "Set up Jane's brand voice first", onClick: () => setSubView('voice') }}
+              />
+            )}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginTop: 10 }}>
               {(
                 [
