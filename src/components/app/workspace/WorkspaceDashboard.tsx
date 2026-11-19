@@ -123,6 +123,20 @@ import { keepInBrowser } from '@/src/utils/keepInBrowser.util';
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
   const p: Record<string, ReactNode> = {
+    users: (
+      <>
+        <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+      </>
+    ),
+    sliders: <path d="M10 5H3M12 19H3M14 3v4M16 17v4M21 12h-9M21 19h-5M21 5h-7M8 10v4M8 12H3" />,
+    replies: (
+      <>
+        <path d="M14 9a2 2 0 01-2 2H6l-4 4V4a2 2 0 012-2h8a2 2 0 012 2z" />
+        <path d="M18 9h2a2 2 0 012 2v11l-4-4h-6a2 2 0 01-2-2v-1" />
+      </>
+    ),
     home: <path d="M3 12l9-8 9 8M5 11v8a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-8" />,
     inbox: (
       <>
@@ -11896,50 +11910,28 @@ export default function WorkspaceDashboard() {
   };
   const messagesView = nav === 'messages' ? messagesViewState : null;
 
-  const messagesSubNav = [
-    {
-      id: 'messages-inbox',
-      icon: 'inbox',
-      label: 'Inbox',
-      active: messagesView === 'inbox',
-      onClick: () => goToMessagesView('inbox'),
-    },
-    {
-      id: 'messages-connections',
-      icon: 'share',
-      label: 'Connections',
-      active: messagesView === 'connections',
-      onClick: () => goToMessagesView('connections'),
-    },
-    {
-      id: 'messages-insights',
-      icon: 'chart',
-      label: 'Insights',
-      active: messagesView === 'insights',
-      onClick: () => goToMessagesView('insights'),
-    },
-    {
-      id: 'messages-voice',
-      icon: 'mic',
-      label: 'Brand Voice',
-      active: messagesView === 'voice',
-      onClick: () => goToMessagesView('voice'),
-    },
-    {
-      id: 'messages-usage',
-      icon: 'trending',
-      label: 'AI Usage',
-      active: messagesView === 'usage',
-      onClick: () => goToMessagesView('usage'),
-    },
-    {
-      id: 'messages-settings',
-      icon: 'settings',
-      label: 'Inbox Settings',
-      active: messagesView === 'settings',
-      onClick: () => goToMessagesView('settings'),
-    },
-  ];
+  // The Messaging sections, in the order the page's own tabs show them, then Settings
+  // (the gear on the page). The older names still work: InboxDashboard maps
+  // "connections" and "usage" to Settings.
+  const messagesSubNav = (
+    [
+      ['inbox', 'inbox', 'Inbox'],
+      ['automations', 'sliders', 'Automations'],
+      ['quick', 'replies', 'Quick Replies'],
+      ['audience', 'users', 'Audience'],
+      ['voice', 'mic', 'Brand Voice'],
+      ['insights', 'chart', 'Insights'],
+      ['settings', 'settings', 'Settings'],
+    ] as const
+  ).map(([view, icon, label]) => ({
+    id: `messages-${view}`,
+    icon,
+    label,
+    active:
+      messagesView === view ||
+      (view === 'settings' && (messagesView === 'connections' || messagesView === 'usage')),
+    onClick: () => goToMessagesView(view),
+  }));
 
   // Which contextual sidebar (if any) the current nav value belongs to.
   // A nav id not claimed by any zone falls through to the flat PRIMARY_NAV
@@ -12495,7 +12487,17 @@ export default function WorkspaceDashboard() {
   const PAGES: Record<string, ReactNode> = {
     home: <HomePage onNavigate={goTo} />,
     help: <HelpSupportPage />,
-    messages: <InboxDashboard isMobile={isMobile} />,
+    messages: (
+      <InboxDashboard
+        isMobile={isMobile}
+        onSectionChange={(section) => {
+          setMessagesViewState(section);
+          router.replace(`/workspace/?tab=messages&view=${section}`, {
+            scroll: false,
+          } as Parameters<typeof router.replace>[1]);
+        }}
+      />
+    ),
     schedule: (
       <ContentManagerPage
         onJane={goWorkspace}
