@@ -38,8 +38,14 @@ function withChannel(s: InboxAgentSettings, channel: 'dm' | 'comment', on: boole
 
 function fmtTime(t: string): string {
   const [h, m] = t.split(':').map(Number);
-  const ap = h >= 12 ? 'PM' : 'AM';
-  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${ap}`;
+  const ap = h >= 12 ? 'pm' : 'am';
+  return `${((h + 11) % 12) + 1}${m ? `:${String(m).padStart(2, '0')}` : ''}${ap}`;
+}
+
+function hoursText(open: string, close: string): string {
+  return open === '00:00' && (close === '23:59' || close === '00:00')
+    ? 'all day'
+    : `${fmtTime(open)}–${fmtTime(close)}`;
 }
 
 const TONE = {
@@ -107,7 +113,7 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
   const hoursLine =
     openDays.length === 0
       ? 'Always closed'
-      : `${openDays[0]}–${openDays[openDays.length - 1]} ${fmtTime(hours.open)}–${fmtTime(hours.close)}`;
+      : `${openDays.length === 7 ? 'Every day' : `${openDays[0]}–${openDays[openDays.length - 1]}`}, ${hoursText(hours.open, hours.close)}`;
 
   const cards: {
     id: AutomationId;
@@ -139,7 +145,7 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
       desc: 'Jane drafts replies to public comments for you to approve, or sends them herself.',
       on: settings.auto_reply_enabled && settings.auto_reply_channels.comment,
       state: settings.auto_reply_enabled && settings.auto_reply_channels.comment ? 'Auto-send' : 'Draft only',
-      meta: 'Seen by everyone on the post',
+      meta: 'Public replies',
       toggle: (v) => save(withChannel(settings, 'comment', v)),
     },
     {
@@ -321,7 +327,7 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
                       onChange={(v) => setDraftHours({ days: { ...draft.business_hours.days, [d]: v } })}
                       label={DAY_NAMES[d]}
                     />
-                    <span style={{ width: 80 }}>{DAY_NAMES[d]}</span>
+                    <span style={{ width: 78 }}>{DAY_NAMES[d]}</span>
                   </div>
                   {on ? (
                     <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -333,7 +339,8 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
                           border: '1px solid #ECE6EA',
                           borderRadius: 7,
                           fontSize: 12,
-                          padding: '3px 5px',
+                          padding: '3px 4px',
+                          width: 78,
                           fontFamily: 'inherit',
                         }}
                       />
@@ -346,7 +353,8 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
                           border: '1px solid #ECE6EA',
                           borderRadius: 7,
                           fontSize: 12,
-                          padding: '3px 5px',
+                          padding: '3px 4px',
+                          width: 78,
                           fontFamily: 'inherit',
                         }}
                       />
@@ -570,9 +578,12 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
             tabIndex={0}
             onClick={() => setSelected(c.id)}
             onKeyDown={(e) => e.key === 'Enter' && setSelected(c.id)}
-            style={{ cursor: 'pointer' }}
+            style={{ cursor: 'pointer', display: 'flex' }}
           >
-            <Box selected={selected === c.id} style={{ padding: '13px 14px' }}>
+            <Box
+              selected={selected === c.id}
+              style={{ padding: '13px 14px', flex: 1, display: 'flex', flexDirection: 'column' }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <div
                   style={{
@@ -595,14 +606,33 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
                 )}
               </div>
               <div style={{ fontWeight: 700, fontSize: 13.5, marginTop: 10 }}>{c.title}</div>
-              <div style={{ color: MSG_MUTED, fontSize: 11.8, lineHeight: 1.45, marginTop: 3, minHeight: 34 }}>
-                {c.desc}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 9, gap: 6 }}>
+              <div style={{ color: MSG_MUTED, fontSize: 11.8, lineHeight: 1.45, marginTop: 3 }}>{c.desc}</div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: 'auto',
+                  paddingTop: 9,
+                  gap: 6,
+                }}
+              >
                 <Pill fg={TONE[c.tone].fg} bg={TONE[c.tone].bg}>
                   {c.state}
                 </Pill>
-                <span style={{ fontSize: 11, color: MSG_MUTED, textAlign: 'right' }}>{c.meta}</span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: MSG_MUTED,
+                    textAlign: 'right',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    minWidth: 0,
+                  }}
+                >
+                  {c.meta}
+                </span>
               </div>
             </Box>
           </div>
@@ -622,8 +652,10 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
   return (
     <div style={{ padding: '0 28px 28px' }}>
       <Pane style={{ minHeight: 560 }}>
-        <Col style={{ width: 760, flexShrink: 0, padding: '18px 20px' }}>{grid}</Col>
-        <Col style={{ flex: 1, padding: '18px 20px', background: '#FFFCFD', borderRight: 'none' }}>{detail}</Col>
+        <Col style={{ flex: 1, minWidth: 0, padding: '18px 20px' }}>{grid}</Col>
+        <Col style={{ width: 340, flexShrink: 0, padding: '18px 18px', background: '#FFFCFD', borderRight: 'none' }}>
+          {detail}
+        </Col>
       </Pane>
     </div>
   );
