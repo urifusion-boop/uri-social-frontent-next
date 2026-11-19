@@ -12326,6 +12326,8 @@ export default function WorkspaceDashboard() {
         .ws-nav-scroll{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.12) transparent}
         .ws-nav-scroll::-webkit-scrollbar{width:4px}
         .ws-nav-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px}
+        .workspace-root{--ws-h:100vh}
+        @supports (height: 100dvh){.workspace-root{--ws-h:100dvh}}
         @keyframes tourFadeIn{from{opacity:0}to{opacity:1}}
         @keyframes tourRingPulse{0%,100%{box-shadow:0 0 0 3px #C2185B,0 0 0 7px rgba(194,24,91,.2),0 0 28px rgba(194,24,91,.45)}50%{box-shadow:0 0 0 3px #C2185B,0 0 0 12px rgba(194,24,91,.1),0 0 40px rgba(194,24,91,.25)}}
       `}</style>
@@ -12335,7 +12337,10 @@ export default function WorkspaceDashboard() {
         style={{
           display: 'flex',
           flexDirection: isMobile ? 'column' : 'row',
-          height: '100vh',
+          // The visible screen height (see .workspace-root below): on phones 100vh is
+          // taller or shorter than what the browser actually shows, so the bottom bar
+          // floated above a blank strip.
+          height: 'var(--ws-h)',
           overflow: 'hidden',
           fontFamily: 'var(--wf)',
           background: '#f5f4f0',

@@ -131,12 +131,22 @@ export default function AudiencePage({
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <PlatformBadge
           platform={selected.platform}
-          size={48}
+          size={40}
           initials={initialsOf(selected.name)}
           color={avatarColor(selected.contact_id)}
         />
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 16 }}>{selected.name || 'Unknown contact'}</div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div
+            style={{
+              fontWeight: 700,
+              fontSize: 15,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {selected.name || 'Unknown contact'}
+          </div>
           <div style={{ fontSize: 11, color: MSG_MUTED }}>
             {PLATFORM_LABEL[selected.platform] ?? selected.platform} · {selected.conversations} conversation
             {selected.conversations === 1 ? '' : 's'}
@@ -409,8 +419,8 @@ export default function AudiencePage({
             />
           ))}
         </Col>
-        <Col style={{ width: 640, flexShrink: 0, padding: 16 }}>{table}</Col>
-        <Col style={{ flex: 1, padding: '16px 18px', background: '#FFFCFD', borderRight: 'none' }}>
+        <Col style={{ flex: 1, minWidth: 0, padding: 16, overflowX: 'auto' }}>{table}</Col>
+        <Col style={{ width: 300, flexShrink: 0, padding: '16px 18px', background: '#FFFCFD', borderRight: 'none' }}>
           {profile ?? <Muted>Select a person to see their details.</Muted>}
         </Col>
       </Pane>
