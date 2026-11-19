@@ -538,7 +538,26 @@ export default function QuickRepliesPage({ isMobile }: { isMobile: boolean }) {
                 + New category
               </button>
             ) : (
-              <Field value={newCategory} onChange={setNewCategory} placeholder="Category name" onEnter={addCategory} />
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                <Field
+                  autoFocus
+                  value={newCategory}
+                  onChange={setNewCategory}
+                  placeholder="Category name"
+                  onEnter={addCategory}
+                  onEscape={() => setNewCategory(null)}
+                  onBlur={() => !newCategory.trim() && setNewCategory(null)}
+                  style={{ height: 30 }}
+                />
+                <button
+                  type="button"
+                  aria-label="Cancel new category"
+                  onClick={() => setNewCategory(null)}
+                  style={catIcon}
+                >
+                  <X size={14} />
+                </button>
+              </div>
             )}
           </div>
         </Col>
