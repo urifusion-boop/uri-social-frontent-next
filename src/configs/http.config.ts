@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosInstance, AxiosResponse } from 'axios';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { STORE_KEYS } from './store.config';
+import { getActiveBrandIdForUser, wipeUserData } from '@/src/utils/userStorage.util';
 
 // Any call that connects, finalizes or disconnects a social account goes to a /connect/ or
 // /connections/ path (Facebook, Instagram, TikTok, LinkedIn, X, Outstand). When one succeeds,
@@ -120,11 +121,7 @@ class UriHttpClient {
   static readonly ACTIVE_BRAND_KEY = '@URI@ACTIVE_BRAND_ID';
 
   private static getActiveBrandId(): string | null {
-    try {
-      return localStorage.getItem(this.ACTIVE_BRAND_KEY);
-    } catch {
-      return null;
-    }
+    return getActiveBrandIdForUser();
   }
 
   private static async handleErrorResponse(error: AxiosError) {
@@ -196,6 +193,9 @@ class UriHttpClient {
   }
 
   private static clearUserData() {
+    // A forced sign-out leaves nothing of this user behind either, same as the
+    // sign-out button (AuthProvider.logoutUser).
+    wipeUserData();
     localStorage.removeItem(STORE_KEYS.USER_DETAILS);
     localStorage.removeItem(STORE_KEYS.USER_TOKENS);
   }

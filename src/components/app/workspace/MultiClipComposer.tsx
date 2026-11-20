@@ -2,6 +2,7 @@
 
 import { SocialMediaAgentService, MultiClipJob, MultiClipClip } from '@/src/api/SocialMediaAgentService';
 import { useEffect, useRef, useState } from 'react';
+import { userStorage } from '@/src/utils/userStorage.util';
 
 const PRIMARY = '#CD1B78';
 const DARK = '#0d0e0f';
@@ -387,7 +388,7 @@ export default function MultiClipComposer({
 
   const saveSession = (j: MultiClipJob) => {
     try {
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ job: j }));
+      userStorage.setItem(SESSION_KEY, JSON.stringify({ job: j }));
     } catch {
       /* quota */
     }
@@ -395,7 +396,7 @@ export default function MultiClipComposer({
 
   const clearSession = () => {
     try {
-      localStorage.removeItem(SESSION_KEY);
+      userStorage.removeItem(SESSION_KEY);
     } catch {
       /* ignore */
     }
@@ -404,7 +405,7 @@ export default function MultiClipComposer({
   // Restore on mount
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(SESSION_KEY);
+      const raw = userStorage.getItem(SESSION_KEY);
       if (!raw) return;
       const { job: saved } = JSON.parse(raw) as { job: MultiClipJob };
       if (!saved?.job_id || saved.status === 'ready' || saved.status === 'failed') {

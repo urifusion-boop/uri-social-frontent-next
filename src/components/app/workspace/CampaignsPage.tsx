@@ -49,6 +49,7 @@ import { ToastService } from '@/src/utils/toast.util';
 import { keepInBrowser } from '@/src/utils/keepInBrowser.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import EmptyState from '@/src/components/app/atoms/EmptyState';
+import { userStorage } from '@/src/utils/userStorage.util';
 
 /** Where a Page's owner approves Uri Creative (URI Social's Business Manager) as a partner (Meta Business Suite → Settings → Requests). */
 const META_REQUESTS_URL = 'https://business.facebook.com/latest/settings/requests';
@@ -72,7 +73,7 @@ type PendingTopup = { reference: string; amountNgn: number; startedAt: number };
 function writePendingTopup(reference: string, amountNgn: number): void {
   try {
     const val: PendingTopup = { reference, amountNgn, startedAt: Date.now() };
-    window.localStorage.setItem(PENDING_TOPUP_KEY, JSON.stringify(val));
+    userStorage.setItem(PENDING_TOPUP_KEY, JSON.stringify(val));
   } catch {
     // Private mode / blocked storage: the ?reference= callback still covers the
     // normal path, so this is a lost safety net rather than a broken flow.
@@ -81,11 +82,11 @@ function writePendingTopup(reference: string, amountNgn: number): void {
 
 function readPendingTopup(): PendingTopup | null {
   try {
-    const raw = window.localStorage.getItem(PENDING_TOPUP_KEY);
+    const raw = userStorage.getItem(PENDING_TOPUP_KEY);
     if (!raw) return null;
     const val = JSON.parse(raw) as PendingTopup;
     if (!val?.reference || Date.now() - val.startedAt > PENDING_TOPUP_TTL_MS) {
-      window.localStorage.removeItem(PENDING_TOPUP_KEY);
+      userStorage.removeItem(PENDING_TOPUP_KEY);
       return null;
     }
     return val;
@@ -96,7 +97,7 @@ function readPendingTopup(): PendingTopup | null {
 
 function clearPendingTopup(): void {
   try {
-    window.localStorage.removeItem(PENDING_TOPUP_KEY);
+    userStorage.removeItem(PENDING_TOPUP_KEY);
   } catch {
     /* nothing to clear */
   }

@@ -1,5 +1,6 @@
 /**
- * Autosave for every in-progress wizard run. localStorage is the fast path —
+ * Autosave for every in-progress wizard run. The browser copy (userStorage:
+ * filed under the signed-in user, wiped on sign-out) is the fast path —
  * synchronous, free, written on every change — and covers the common case
  * (closed tab, "All campaigns" mid-build, back tomorrow on the same browser).
  * It does not survive a cleared browser, a different device, or a different
@@ -17,7 +18,7 @@
  * regenerating a possibly-different ad from the same inputs.
  */
 import { CampaignService, LaunchFromMessageResult, PlanVariant } from '@/src/api/CampaignService';
-import { UriHttpClient } from '@/src/configs/http.config';
+import { currentUserId, getActiveBrandIdForUser, userStorage } from '@/src/utils/userStorage.util';
 import type { GooglePlacement } from '../GooglePlacementPreview';
 import type { WizardAudienceValue } from './WizardAudienceStep';
 import type { WizardBudgetValue } from './WizardBudgetStep';
@@ -58,9 +59,17 @@ export interface WizardDraft {
   creative: WizardCreativeChoice | null;
   results?: WizardReviewSnapshot;
   savedAt: number;
+  /** Who this browser copy belongs to. A copy without it, or with someone
+   *  else's id, is never shown and is removed (see readAll). */
+  ownerUserId?: string;
 }
 
-const KEY_PREFIX = '@URI@WIZARD_DRAFTS@';
+// Filed under the signed-in user (userStorage) AND the brand, so another
+// account on this browser reads a different key. Live-reported 2026-11: these
+// used to be filed under the brand only (or 'default'), sign-out left them in
+// place, and the next account on the browser saw them as its own, and saved
+// them into its own account when it opened one.
+const KEY_PREFIX = 'wizard_drafts@';
 // Stale enough that it's almost certainly irrelevant (prices, offers, the brand's
 // own plans have likely moved on) — drop it rather than resurface it forever.
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -69,34 +78,30 @@ const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_DRAFTS = 12;
 
 function storageKey(): string {
-  let brandId = 'default';
-  try {
-    brandId = localStorage.getItem(UriHttpClient.ACTIVE_BRAND_KEY) || 'default';
-  } catch {
-    // Private-mode/storage-disabled — fall through to the shared default key for
-    // this tab's lifetime; every call below has its own try/catch regardless.
-  }
-  return `${KEY_PREFIX}${brandId}`;
+  return `${KEY_PREFIX}${getActiveBrandIdForUser() || 'personal'}`;
 }
 
 function readAll(): WizardDraft[] {
   try {
-    const raw = localStorage.getItem(storageKey());
-    if (!raw) return [];
+    const me = currentUserId();
+    const raw = userStorage.getItem(storageKey());
+    if (!me || !raw) return [];
     const list = JSON.parse(raw) as WizardDraft[];
-    return Array.isArray(list) ? list.filter((d) => d.savedAt && Date.now() - d.savedAt <= MAX_AGE_MS) : [];
+    if (!Array.isArray(list)) return [];
+    const mine = list.filter((d) => d.ownerUserId === me);
+    // Anything not stamped with this user can't be trusted to be theirs: drop it
+    // from the browser for good, not just from this read.
+    if (mine.length !== list.length) userStorage.setItem(storageKey(), JSON.stringify(mine));
+    return mine.filter((d) => d.savedAt && Date.now() - d.savedAt <= MAX_AGE_MS);
   } catch {
     return [];
   }
 }
 
 function writeAll(drafts: WizardDraft[]): void {
-  try {
-    localStorage.setItem(storageKey(), JSON.stringify(drafts.slice(0, MAX_DRAFTS)));
-  } catch {
-    // Quota exceeded or storage unavailable — resuming is a convenience on top
-    // of the wizard, never a requirement for it, so this fails silently.
-  }
+  // userStorage is already best-effort (quota exceeded / storage unavailable):
+  // resuming is a convenience on top of the wizard, never a requirement for it.
+  userStorage.setItem(storageKey(), JSON.stringify(drafts.slice(0, MAX_DRAFTS)));
 }
 
 // Debounced per draft id, not instant — the audience textarea fires onChange
@@ -108,13 +113,19 @@ const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const remoteSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function saveWizardDraft(id: string, draft: Omit<WizardDraft, 'id' | 'savedAt'>): void {
+  // Both saves below run a moment later. Pinned to the user who made the change,
+  // so a sign-out and a different sign-in inside that moment can't file this
+  // user's ad under the next account.
+  const owner = currentUserId();
+  if (!owner) return;
   const existing = saveTimers.get(id);
   if (existing) clearTimeout(existing);
   saveTimers.set(
     id,
     setTimeout(() => {
+      if (currentUserId() !== owner) return;
       const rest = readAll().filter((d) => d.id !== id);
-      writeAll([{ ...draft, id, savedAt: Date.now() }, ...rest].sort((a, b) => b.savedAt - a.savedAt));
+      writeAll([{ ...draft, id, savedAt: Date.now(), ownerUserId: owner }, ...rest].sort((a, b) => b.savedAt - a.savedAt));
     }, 400)
   );
 
@@ -123,6 +134,7 @@ export function saveWizardDraft(id: string, draft: Omit<WizardDraft, 'id' | 'sav
   remoteSaveTimers.set(
     id,
     setTimeout(() => {
+      if (currentUserId() !== owner) return;
       CampaignService.saveWizardDraft(id, draft as unknown as Record<string, unknown>).catch(() => {
         // Offline, or the request failed outright — the next edit schedules another
         // attempt, and the local copy already has this version regardless.

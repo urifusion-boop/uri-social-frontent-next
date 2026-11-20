@@ -11,6 +11,7 @@ import VideoCostPreview from '@/src/components/app/workspace/VideoCostPreview';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { BrandTooltip } from '@/src/components/app/workspace/BrandTooltip';
 import { BrandProfileService } from '@/src/api/BrandProfileService';
+import { userStorage } from '@/src/utils/userStorage.util';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -2221,7 +2222,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
 
   const clearSession = () => {
     try {
-      localStorage.removeItem(SESSION_KEY);
+      userStorage.removeItem(SESSION_KEY);
     } catch {
       /* ignore */
     }
@@ -2230,7 +2231,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
   useEffect(() => {
     if (stage === 'upload') return; // nothing submitted yet — nothing worth saving
     try {
-      localStorage.setItem(
+      userStorage.setItem(
         SESSION_KEY,
         JSON.stringify({
           stage,
@@ -2282,7 +2283,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
   // isn't already a dead end.
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(SESSION_KEY);
+      const raw = userStorage.getItem(SESSION_KEY);
       if (!raw) return;
       const saved = JSON.parse(raw) as {
         stage: Stage;

@@ -9,6 +9,7 @@ import { AdminService } from '@/src/api/AdminService';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
+import { claimBrowserForToken, wipeUserData } from '@/src/utils/userStorage.util';
 
 interface IAuthContext {
   userDetails: UserDto | null;
@@ -132,6 +133,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     if (storedUserTokens) {
       const tokens: ITokenDetails = JSON.parse(storedUserTokens);
+      // Covers a session that began before sign-out wiped the browser, or a
+      // sign-out that never ran: anything another user left behind goes now.
+      claimBrowserForToken(tokens?.accessToken);
       setTokenDetails(tokens);
       setIsAuthenticated(tokens?.accessToken?.length > 0);
     } else {
@@ -218,6 +222,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const saveUserTokens = (tokens: ITokenDetails) => {
+    // Before the new session is stored: if this browser last belonged to someone
+    // else, their unfinished ads, active brand and video sessions are wiped first.
+    claimBrowserForToken(tokens.accessToken);
     localStorage.setItem(STORE_KEYS.USER_TOKENS, JSON.stringify(tokens));
     setTokenDetails(tokens);
     setIsAuthenticated(tokens.accessToken?.length > 0);
@@ -229,9 +236,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logoutUser = useCallback(() => {
     localStorage.removeItem(STORE_KEYS.USER_DETAILS);
     localStorage.removeItem(STORE_KEYS.USER_TOKENS);
-    // Clear active brand so a different user logging in on the same browser
-    // doesn't inherit the previous user's brand context (causes 403 → false redirects).
-    localStorage.removeItem('@URI@ACTIVE_BRAND_ID');
+    // Nothing of this user stays in the browser for whoever signs in next:
+    // unfinished ads, active brand, video sessions, WhatsApp link.
+    wipeUserData();
     setUserDetails(null);
     setTokenDetails(null);
     setIsAuthenticated(false);
