@@ -24,6 +24,7 @@ import {
   parseVoiceManifest,
 } from '@/src/components/app/workspace/voiceManifest';
 import { useConnectedAccounts } from '@/src/hooks/useConnectedAccounts';
+import { userStorage } from '@/src/utils/userStorage.util';
 
 // Exported — reused as-is by DescribeVideoGenerator.tsx so the two entry
 // points (upload-first vs. describe-it) share one "turn a storyboard into
@@ -460,9 +461,9 @@ export default function VideoStoryboardGenerator({
   // hand (e.g. the frame-poll tick doesn't know the video job).
   const saveSession = (patch: Partial<VSGSession>) => {
     try {
-      const raw = localStorage.getItem(SESSION_KEY);
+      const raw = userStorage.getItem(SESSION_KEY);
       const existing = raw ? JSON.parse(raw) : {};
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ ...existing, ...patch }));
+      userStorage.setItem(SESSION_KEY, JSON.stringify({ ...existing, ...patch }));
     } catch {
       /* quota exceeded — ignore */
     }
@@ -470,7 +471,7 @@ export default function VideoStoryboardGenerator({
 
   const clearSession = () => {
     try {
-      localStorage.removeItem(SESSION_KEY);
+      userStorage.removeItem(SESSION_KEY);
     } catch {
       /* ignore */
     }
@@ -484,7 +485,7 @@ export default function VideoStoryboardGenerator({
     // alone instead of silently resuming polls that nobody can see.
     if (draftsOnly) return;
     try {
-      const raw = localStorage.getItem(SESSION_KEY);
+      const raw = userStorage.getItem(SESSION_KEY);
       if (!raw) return;
       const saved = JSON.parse(raw) as Partial<VSGSession>;
       if (!saved.storyboard && !saved.storyboardJobId) {
