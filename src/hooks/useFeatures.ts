@@ -3,6 +3,7 @@
 import { IS_PRODUCTION } from '@/src/configs/env.config';
 import { UriHttpClient } from '@/src/configs/http.config';
 import { useEffect, useState } from 'react';
+import { currentUserId, getActiveBrandIdForUser } from '@/src/utils/userStorage.util';
 
 /** The new capabilities being rolled out in stages (staff first, then a share of brands). */
 export type FeatureFlag = 'website_playbook' | 'builder_products' | 'budget_suggestions' | 'competitors';
@@ -15,9 +16,11 @@ const ALL_ON: FeatureFlags = { website_playbook: true, builder_products: true, b
 let cached: { brand: string; at: number; promise: Promise<FeatureFlags> } | null = null;
 const MAX_AGE_MS = 5 * 60 * 1000;
 
+// The cache key: user AND brand (see src/utils/userStorage.util.ts). Sign-out
+// doesn't reload the page, so brand alone could hand the next user these flags.
 function activeBrand(): string {
   try {
-    return localStorage.getItem('@URI@ACTIVE_BRAND_ID') ?? '';
+    return `${currentUserId() ?? ''}|${getActiveBrandIdForUser() ?? ''}`;
   } catch {
     return '';
   }
