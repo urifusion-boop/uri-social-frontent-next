@@ -285,7 +285,7 @@ export default function SettingsPage({
   if (isMobile) {
     return (
       <div style={{ padding: 14 }}>
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
           {nav.map((n) => (
             <Btn
               key={n.id}

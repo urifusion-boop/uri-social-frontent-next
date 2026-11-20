@@ -162,7 +162,7 @@ export function OneboxUsagePanel({ isMobile, embedded = false }: { isMobile: boo
           <div style={{ fontSize: 12.5, color: MUTED, margin: '-8px 0 14px' }}>
             Shared across Instagram, Facebook, WhatsApp and TikTok. No automatic overage charges — ever.
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 14 }}>
             {data.plans.map((p) => (
               <div
                 key={p.plan_id}
