@@ -19,6 +19,10 @@ export default function StepGenerate({ wizard }: { wizard: ContentWizardState })
       : wizard.postType === 'story'
         ? 'Story'
         : 'Feed Post';
+  // What this costs, shown before generating (same rule the server charges: a carousel is 1 credit per slide,
+  // anything else — including a caption for your own photo — 1 credit).
+  const cost = !isUpload && wizard.postType === 'carousel' ? wizard.numSlides : 1;
+  const costLabel = `${cost} credit${cost === 1 ? '' : 's'}`;
 
   return (
     <Box>
@@ -29,6 +33,7 @@ export default function StepGenerate({ wizard }: { wizard: ContentWizardState })
       <Box sx={{ border: '1px solid #E5E7EB', borderRadius: '10px', p: 2, mb: 3 }}>
         <Row label="Platforms" value={platformLabel} />
         <Row label="Format" value={formatLabel} />
+        <Row label="Cost" value={costLabel} />
         {isUpload ? (
           <>
             <Row label="Files uploaded" value={String(wizard.uploadedFiles.length)} />
@@ -58,7 +63,7 @@ export default function StepGenerate({ wizard }: { wizard: ContentWizardState })
           '&:hover': { background: `linear-gradient(135deg, #A01560 0%, ${PINK} 100%)` },
         }}
       >
-        {wizard.loading ? 'Generating...' : isUpload ? 'Generate Caption' : 'Generate Content'}
+        {wizard.loading ? 'Generating...' : `${isUpload ? 'Generate Caption' : 'Generate Content'} · ${costLabel}`}
       </Button>
 
       <OutOfCreditsModal
