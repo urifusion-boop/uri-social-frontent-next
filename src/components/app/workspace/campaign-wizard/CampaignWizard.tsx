@@ -505,6 +505,7 @@ export default function CampaignWizard({
               description={audience.description}
               onChange={setCreative}
               onGoToCreative={() => setStepKey('creative')}
+              onGoToBrief={() => setStepKey('audience')}
             />
           )}
           {step === 'review' && objective && creative && (

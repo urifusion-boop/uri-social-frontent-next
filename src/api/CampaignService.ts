@@ -1208,9 +1208,21 @@ export class CampaignService {
      *  quoted testimonial, a comparison), on top of plain photo/eligibility
      *  ranking. Optional — omitted just means eligibility-only ranking. */
     description?: string;
-  }): Promise<{ suggested: AdFormat | null; alternatives: AdFormat[] }> {
+  }): Promise<{
+    suggested: AdFormat | null;
+    alternatives: AdFormat[];
+    needs_in_brief?: Record<string, string>;
+    credits?: Record<string, number>;
+    billing_mode?: 'off' | 'shadow' | 'on';
+  }> {
     const res = await UriHttpClient.getClient().post('/jane-ads/creative/suggest-format', params);
-    return res.data as { suggested: AdFormat | null; alternatives: AdFormat[] };
+    // needs_in_brief: the fact-led styles this brief can't support, with why ("Needs an event with a date
+    // in your brief") — shown greyed, never suggested.
+    return res.data as {
+      suggested: AdFormat | null;
+      alternatives: AdFormat[];
+      needs_in_brief?: Record<string, string>;
+    };
   }
 
   /** Turn a campaign on (starts spending its budget) or off. */

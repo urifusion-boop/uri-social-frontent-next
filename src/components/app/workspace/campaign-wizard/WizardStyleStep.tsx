@@ -75,15 +75,24 @@ export default function WizardStyleStep({
   description,
   onChange,
   onGoToCreative,
+  onGoToBrief,
 }: {
   creative: WizardCreativeChoice;
   description: string;
   onChange: (next: WizardCreativeChoice) => void;
   onGoToCreative: () => void;
+  /** Back to the step where the brief is written (Audience), for a style the brief can't support yet. */
+  onGoToBrief: () => void;
 }) {
   const [formats, setFormats] = useState<AdFormat[] | null>(null);
   const [suggested, setSuggested] = useState<AdFormat | null>(null);
   const [eligible, setEligible] = useState<Set<string> | null>(null);
+  // Styles that only state facts the brief gives (an event date, an offer, a price...), when this brief
+  // doesn't give them: greyed with the reason before anyone picks one.
+  const [needs, setNeeds] = useState<Record<string, string>>({});
+  // Each style's credit price — shown only once ad image billing is "on" (in "shadow" the flat
+  // 1 credit is still what's charged, so no price is shown).
+  const [prices, setPrices] = useState<Record<string, number> | null>(null);
   const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<'all' | Group>('all');
 
@@ -105,6 +114,8 @@ export default function WizardStyleStep({
         setFormats(all.formats.filter((f) => f.status === 'live' && STYLE_INFO[f.format_id]));
         setSuggested(s.suggested && STYLE_INFO[s.suggested.format_id] ? s.suggested : null);
         setEligible(new Set([s.suggested, ...s.alternatives].filter(Boolean).map((f) => (f as AdFormat).format_id)));
+        setNeeds(s.needs_in_brief ?? {});
+        setPrices(s.billing_mode === 'on' && s.credits ? s.credits : null);
       })
       .catch(() => alive && setFailed(true));
     return () => {
@@ -120,13 +131,17 @@ export default function WizardStyleStep({
   // First visit: Jane's pick is selected for you (nothing chosen yet is `undefined`;
   // "Let Jane choose for me" is the explicit '').
   useEffect(() => {
+    if (chosen && needs[chosen]) {
+      pick(suggested ? suggested.format_id : '');
+      return;
+    }
     if (chosen === undefined && suggested) pick(suggested.format_id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [suggested]);
+  }, [suggested, needs]);
 
   const cards = useMemo(() => {
     if (!formats || !eligible) return [];
-    const ok = (f: AdFormat) => eligible.has(f.format_id);
+    const ok = (f: AdFormat) => eligible.has(f.format_id) && !needs[f.format_id];
     const order = (f: AdFormat) => (suggested?.format_id === f.format_id ? 0 : ok(f) ? 1 : 2);
     return formats
       .filter((f) => filter === 'all' || STYLE_INFO[f.format_id].group === filter)
@@ -135,7 +150,7 @@ export default function WizardStyleStep({
           order(a) - order(b) ||
           Object.keys(STYLE_INFO).indexOf(a.format_id) - Object.keys(STYLE_INFO).indexOf(b.format_id)
       );
-  }, [formats, eligible, suggested, filter]);
+  }, [formats, eligible, suggested, filter, needs]);
 
   if (failed) {
     return (
@@ -283,7 +298,9 @@ export default function WizardStyleStep({
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 11 }}>
         {cards.map((f) => {
-          const ok = eligible.has(f.format_id);
+          const photoOk = eligible.has(f.format_id);
+          const briefNeed = needs[f.format_id];
+          const ok = photoOk && !briefNeed;
           const on = chosen === f.format_id;
           const isPick = suggested?.format_id === f.format_id;
           return (
@@ -360,14 +377,21 @@ export default function WizardStyleStep({
                 )}
               </div>
               <div style={{ padding: '8px 10px 10px' }}>
-                <div style={{ fontSize: 13.5, fontWeight: 800, color: ok ? '#1a0a12' : '#8a7f86' }}>{f.name}</div>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: ok ? '#1a0a12' : '#8a7f86' }}>
+                  {f.name}
+                  {prices?.[f.format_id] !== undefined && (
+                    <span style={{ fontSize: 11.5, fontWeight: 700, color: PINK, marginLeft: 6 }}>
+                      · {prices[f.format_id]} credit{prices[f.format_id] === 1 ? '' : 's'}
+                    </span>
+                  )}
+                </div>
                 <div style={{ fontSize: 12, color: '#5c5460', marginTop: 2, lineHeight: 1.35 }}>
                   {STYLE_INFO[f.format_id].bestFor}
                 </div>
                 {!ok && (
                   <div style={{ fontSize: 11.5, color: '#9a3412', fontWeight: 600, marginTop: 6, lineHeight: 1.35 }}>
-                    {reasonFor(f, creative)}
-                    {(f.requires.includes('product_photo') || f.requires.includes('real_customer_photo')) && (
+                    {photoOk ? briefNeed : reasonFor(f, creative)}
+                    {photoOk && (
                       <>
                         <br />
                         <span
@@ -375,15 +399,33 @@ export default function WizardStyleStep({
                           tabIndex={0}
                           onClick={(e) => {
                             e.stopPropagation();
-                            onGoToCreative();
+                            onGoToBrief();
                           }}
-                          onKeyDown={(e) => e.key === 'Enter' && onGoToCreative()}
+                          onKeyDown={(e) => e.key === 'Enter' && onGoToBrief()}
                           style={{ color: PINK, textDecoration: 'underline', cursor: 'pointer' }}
                         >
-                          Add one in Creative
+                          Edit your brief
                         </span>
                       </>
                     )}
+                    {!photoOk &&
+                      (f.requires.includes('product_photo') || f.requires.includes('real_customer_photo')) && (
+                        <>
+                          <br />
+                          <span
+                            role="link"
+                            tabIndex={0}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onGoToCreative();
+                            }}
+                            onKeyDown={(e) => e.key === 'Enter' && onGoToCreative()}
+                            style={{ color: PINK, textDecoration: 'underline', cursor: 'pointer' }}
+                          >
+                            Add one in Creative
+                          </span>
+                        </>
+                      )}
                   </div>
                 )}
               </div>
