@@ -3,7 +3,7 @@
 import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { useCallback, useEffect, useState } from 'react';
-import { getActiveBrandIdForUser } from '@/src/utils/userStorage.util';
+import { currentUserId, getActiveBrandIdForUser } from '@/src/utils/userStorage.util';
 
 /**
  * The one place the app learns which social accounts the active brand has connected.
@@ -42,9 +42,11 @@ EventBus.on(EVENTS.CONNECTIONS_CHANGED, () => {
   cached = null;
 });
 
+// The cache key: user AND brand. Sign-out doesn't reload the page, so a key of
+// brand alone handed the next user the previous user's connections for a while.
 function activeBrand(): string {
   try {
-    return getActiveBrandIdForUser() ?? '';
+    return `${currentUserId() ?? ''}|${getActiveBrandIdForUser() ?? ''}`;
   } catch {
     return '';
   }
