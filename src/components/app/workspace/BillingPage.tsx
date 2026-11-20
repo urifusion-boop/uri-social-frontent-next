@@ -18,6 +18,7 @@ import {
   SubscriptionResponse,
   SubscriptionTier,
   CUSTOM_CREDIT_PRICE_NGN,
+  LEGACY_CUSTOM_CREDIT_PRICE_NGN,
   CUSTOM_CREDIT_MIN_QUANTITY,
   CUSTOM_CREDIT_MAX_QUANTITY,
 } from '@/src/api/BillingService';
@@ -1064,9 +1065,7 @@ export default function BillingPage({ onBack, initialTab = 'overview', focusBuyC
                     </h3>
                   </div>
                   <p style={{ fontSize: 12.5, color: '#666', margin: 0, lineHeight: 1.5, maxWidth: 380 }}>
-                    Need a specific amount? Top up any quantity — no subscription, and they never expire.{' '}
-                    <strong style={{ color: '#C2185B' }}>₦{CUSTOM_CREDIT_PRICE_NGN.toLocaleString()}</strong> per
-                    credit.
+                    Need a specific amount? Top up any quantity — no subscription, and they never expire.
                   </p>
                 </div>
 
@@ -1469,9 +1468,7 @@ export default function BillingPage({ onBack, initialTab = 'overview', focusBuyC
                   <span style={{ color: '#C2185B', fontSize: 18, fontWeight: 900, lineHeight: 1 }}>+</span>
                 </div>
                 <div style={{ fontSize: 12.5, fontWeight: 700, color: '#C2185B' }}>Buy More Credits</div>
-                <div style={{ fontSize: 10.5, color: '#999', marginTop: 2 }}>
-                  ₦{CUSTOM_CREDIT_PRICE_NGN.toLocaleString()}/credit, any amount
-                </div>
+                <div style={{ fontSize: 10.5, color: '#999', marginTop: 2 }}>Any amount, no subscription</div>
               </div>
             </div>
 
@@ -1689,7 +1686,7 @@ export default function BillingPage({ onBack, initialTab = 'overview', focusBuyC
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'capitalize' }}>
                         {payment.purchase_type === 'custom_credits'
-                          ? `${payment.credit_quantity ?? Math.round(payment.amount / CUSTOM_CREDIT_PRICE_NGN)} Custom Credits`
+                          ? `${payment.credit_quantity ?? Math.round(payment.amount / LEGACY_CUSTOM_CREDIT_PRICE_NGN)} Custom Credits`
                           : `${payment.subscription_tier} Plan`}
                       </div>
                       <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{payment.transaction_ref}</div>
