@@ -38,6 +38,7 @@ import { useAuth } from '@/src/providers/AuthProvider';
 import { takeVideoSeed } from '@/src/utils/contentSeed';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
+import { userStorage } from '@/src/utils/userStorage.util';
 
 // "Describe it" flow: a free-text brief is the primary input (reference
 // images are optional, unlike VideoStoryboardGenerator's upload-first flow
@@ -210,9 +211,9 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
   // slice in hand (e.g. the frame-poll tick doesn't know the video job).
   const saveSession = (patch: Partial<DVGSession>) => {
     try {
-      const raw = localStorage.getItem(SESSION_KEY);
+      const raw = userStorage.getItem(SESSION_KEY);
       const existing = raw ? JSON.parse(raw) : {};
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ ...existing, ...patch }));
+      userStorage.setItem(SESSION_KEY, JSON.stringify({ ...existing, ...patch }));
     } catch {
       /* quota exceeded — ignore */
     }
@@ -220,7 +221,7 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
 
   const clearSession = () => {
     try {
-      localStorage.removeItem(SESSION_KEY);
+      userStorage.removeItem(SESSION_KEY);
     } catch {
       /* ignore */
     }
@@ -232,7 +233,7 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
   // stale snapshot.
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(SESSION_KEY);
+      const raw = userStorage.getItem(SESSION_KEY);
       if (!raw) return;
       const saved = JSON.parse(raw) as Partial<DVGSession>;
       if (!saved.storyboard && !saved.storyboardJobId) {

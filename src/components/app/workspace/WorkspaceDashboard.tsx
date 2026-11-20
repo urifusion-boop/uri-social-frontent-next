@@ -80,6 +80,7 @@ import MarketIntelligencePage from '@/src/components/app/workspace/MarketIntelli
 import AdminUsersPage from '@/src/components/app/workspace/AdminUsersPage';
 import ListeningCurationPage from '@/src/components/app/workspace/ListeningCurationPage';
 import { hasVideoSeed, takeAdTestSeed } from '@/src/utils/contentSeed';
+import { userStorage } from '@/src/utils/userStorage.util';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
@@ -2786,21 +2787,21 @@ const ConnectionsPage = ({
 
   const saveWaCache = (phone: string) => {
     try {
-      localStorage.setItem(WA_CACHE_KEY, JSON.stringify({ linked: true, phone }));
+      userStorage.setItem(WA_CACHE_KEY, JSON.stringify({ linked: true, phone }));
     } catch {
       /* noop */
     }
   };
   const clearWaCache = () => {
     try {
-      localStorage.removeItem(WA_CACHE_KEY);
+      userStorage.removeItem(WA_CACHE_KEY);
     } catch {
       /* noop */
     }
   };
   const readWaCache = (): PlatformStatus => {
     try {
-      const raw = localStorage.getItem(WA_CACHE_KEY);
+      const raw = userStorage.getItem(WA_CACHE_KEY);
       if (raw) return JSON.parse(raw) as PlatformStatus;
     } catch {
       /* noop */

@@ -2,6 +2,7 @@ import { UriHttpClient } from '@/src/configs/http.config';
 import { socialMediaAgentRoutes } from '@/src/constants/routes/socialMediaAgentRoutes';
 import { UriResponse } from '@/src/models/responses/UriResponse';
 import { AxiosResponse } from 'axios';
+import { getActiveBrandIdForUser, setActiveBrandIdForUser } from '@/src/utils/userStorage.util';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -73,20 +74,15 @@ export interface BrandReport {
 
 // ── Active-brand helpers (drives the X-Brand-Id header in http.config) ───────
 
-const ACTIVE_BRAND_KEY = '@URI@ACTIVE_BRAND_ID';
-
+// Filed under the signed-in user, so another account on this browser never
+// inherits it (see src/utils/userStorage.util.ts).
 export function getActiveBrandId(): string | null {
-  try {
-    return localStorage.getItem(ACTIVE_BRAND_KEY);
-  } catch {
-    return null;
-  }
+  return getActiveBrandIdForUser();
 }
 
 export function setActiveBrandId(brandId: string | null) {
   try {
-    if (brandId) localStorage.setItem(ACTIVE_BRAND_KEY, brandId);
-    else localStorage.removeItem(ACTIVE_BRAND_KEY);
+    setActiveBrandIdForUser(brandId);
     window.dispatchEvent(new CustomEvent('active-brand-changed', { detail: brandId }));
   } catch {
     /* no-op */

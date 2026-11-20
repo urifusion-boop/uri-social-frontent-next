@@ -3,6 +3,7 @@
 import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { useCallback, useEffect, useState } from 'react';
+import { getActiveBrandIdForUser } from '@/src/utils/userStorage.util';
 
 /**
  * The one place the app learns which social accounts the active brand has connected.
@@ -43,7 +44,7 @@ EventBus.on(EVENTS.CONNECTIONS_CHANGED, () => {
 
 function activeBrand(): string {
   try {
-    return localStorage.getItem('@URI@ACTIVE_BRAND_ID') ?? '';
+    return getActiveBrandIdForUser() ?? '';
   } catch {
     return '';
   }
