@@ -159,8 +159,15 @@ export default function InsightsPage({ isMobile }: { isMobile: boolean }) {
             marginTop: 14,
           }}
         >
-          {stats.map((s) => (
-            <Box key={s.label} style={{ padding: '12px 14px' }}>
+          {stats.map((s, i) => (
+            <Box
+              key={s.label}
+              style={{
+                padding: '12px 14px',
+                // Phone: two per row, so the odd last one spans the row rather than sitting alone.
+                gridColumn: isMobile && i === stats.length - 1 && stats.length % 2 ? '1 / -1' : undefined,
+              }}
+            >
               <div style={{ fontSize: 11, color: MSG_MUTED }}>{s.label}</div>
               <div style={{ fontSize: 21, fontWeight: 700, marginTop: 3 }}>{s.value}</div>
             </Box>
