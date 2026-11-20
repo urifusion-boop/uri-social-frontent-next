@@ -2831,7 +2831,11 @@ const ConnectionsPage = ({
     InboxService.resubscribeChannels()
       .then((res) => {
         const issue = res.subscriptions.find((s) => !s.subscribed)?.issue;
-        if (issue) ToastService.showToast(issue.message, ToastTypeEnum.Error);
+        if (issue)
+          ToastService.showToast(
+            `Connected, but the inbox won't receive messages yet. ${issue.message}`,
+            ToastTypeEnum.Warning
+          );
       })
       .catch(() => undefined);
   };
@@ -2850,7 +2854,9 @@ const ConnectionsPage = ({
     localStorage.removeItem(SETUP_RETURN_KEY);
     if (!back?.at || Date.now() - back.at > 30 * 60 * 1000) return false;
     const which = platform || back.source || '';
-    window.location.replace(`/social-media/brand-setup/?${ok ? 'read' : 'connect_failed'}=${encodeURIComponent(which)}`);
+    window.location.replace(
+      `/social-media/brand-setup/?${ok ? 'read' : 'connect_failed'}=${encodeURIComponent(which)}`
+    );
     return true;
   };
 
@@ -4348,7 +4354,8 @@ const ConnectionsPage = ({
                           const rowBusy = disconnecting === `${p.id}:${accountKey}`;
                           // An account that can't publish until it is connected again (its login
                           // lapsed, or it was connected the old way): offer a reconnect.
-                          const needsReconnect = Boolean(account.needs_reconnect) || account.connected_via === 'outstand';
+                          const needsReconnect =
+                            Boolean(account.needs_reconnect) || account.connected_via === 'outstand';
                           return (
                             <div
                               key={accountKey}
@@ -4376,7 +4383,8 @@ const ConnectionsPage = ({
                                       marginTop: 2,
                                     }}
                                   >
-                                    {account.reconnect_reason || 'This account needs to be reconnected to keep publishing.'}
+                                    {account.reconnect_reason ||
+                                      'This account needs to be reconnected to keep publishing.'}
                                   </span>
                                 )}
                                 {/* is_active is false only when the account is flagged unhealthy;
@@ -6460,7 +6468,13 @@ const PB_SOURCE_LABELS: Record<string, string> = {
 };
 
 const pbNorm = (v: unknown): string =>
-  JSON.stringify(Array.isArray(v) ? [...v].map((x) => String(x).trim().toLowerCase()).sort() : String(v ?? '').trim().toLowerCase());
+  JSON.stringify(
+    Array.isArray(v)
+      ? [...v].map((x) => String(x).trim().toLowerCase()).sort()
+      : String(v ?? '')
+          .trim()
+          .toLowerCase()
+  );
 
 /** Which rows still show what the website gave them: once the owner edits one, it's theirs. */
 const playbookSources = (profile: BrandProfileData | null): Record<string, 'website' | 'guess'> => {
