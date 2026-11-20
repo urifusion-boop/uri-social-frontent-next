@@ -652,12 +652,6 @@ function Overview({
           <Btn kind="secondary" onClick={() => onGo('playground')}>
             Test
           </Btn>
-          <Btn kind="ghost" onClick={() => onGo('advanced')}>
-            Edit
-          </Btn>
-          <Btn kind="ghost" onClick={() => onGo('history')}>
-            History
-          </Btn>
           <div style={{ flex: 1 }} />
           {canPublish ? (
             <Btn
