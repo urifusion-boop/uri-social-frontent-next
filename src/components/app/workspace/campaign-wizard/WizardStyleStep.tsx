@@ -76,6 +76,7 @@ export default function WizardStyleStep({
   onChange,
   onGoToCreative,
   onGoToBrief,
+  adAlreadyBuilt = false,
 }: {
   creative: WizardCreativeChoice;
   description: string;
@@ -83,6 +84,10 @@ export default function WizardStyleStep({
   onGoToCreative: () => void;
   /** Back to the step where the brief is written (Audience), for a style the brief can't support yet. */
   onGoToBrief: () => void;
+  /** Jane has already built this campaign's ad. Opening the step must not change anything then (an
+   *  automatic pick changed the creative, which the wizard reads as an edit: the built ad was thrown
+   *  away and rebuilt, costing credits); only a choice the client makes here does. */
+  adAlreadyBuilt?: boolean;
 }) {
   const [formats, setFormats] = useState<AdFormat[] | null>(null);
   const [suggested, setSuggested] = useState<AdFormat | null>(null);
@@ -131,6 +136,7 @@ export default function WizardStyleStep({
   // First visit: Jane's pick is selected for you (nothing chosen yet is `undefined`;
   // "Let Jane choose for me" is the explicit '').
   useEffect(() => {
+    if (adAlreadyBuilt) return;
     if (chosen && needs[chosen]) {
       pick(suggested ? suggested.format_id : '');
       return;

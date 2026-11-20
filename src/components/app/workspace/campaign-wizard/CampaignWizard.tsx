@@ -206,13 +206,21 @@ export default function CampaignWizard({
     // "resume" mean "click Next six times again through what's already filled in".
     const hadReachedReview =
       pendingResume.results?.single || Object.keys(pendingResume.results?.multi ?? {}).length > 0;
+    const resumedSteps = buildSteps(pendingResume.platform, pendingResume.creative, pendingResume.googlePlacement);
     if (hadReachedReview) {
-      setReachedKeys(
-        new Set(
-          buildSteps(pendingResume.platform, pendingResume.creative, pendingResume.googlePlacement).map((s) => s.key)
-        )
-      );
+      setReachedKeys(new Set(resumedSteps.map((s) => s.key)));
       setStepKey('review');
+    } else if (
+      pendingResume.objective &&
+      pendingResume.creative &&
+      pendingResume.audience?.description?.trim() &&
+      typeof pendingResume.budget?.amountNgn === 'number'
+    ) {
+      // Every answer is there but no ad was built yet: open on the last step before Finalize, with every
+      // earlier step reachable, not on step one (live-reported: Resume went back to Goal).
+      const beforeReview = resumedSteps[resumedSteps.length - 2];
+      setReachedKeys(new Set(resumedSteps.slice(0, -1).map((s) => s.key)));
+      setStepKey(beforeReview.key);
     }
     setResumed(true);
     onResumeConsumed?.();
@@ -506,6 +514,7 @@ export default function CampaignWizard({
               onChange={setCreative}
               onGoToCreative={() => setStepKey('creative')}
               onGoToBrief={() => setStepKey('audience')}
+              adAlreadyBuilt={Boolean(results?.single || Object.keys(results?.multi ?? {}).length)}
             />
           )}
           {step === 'review' && objective && creative && (
