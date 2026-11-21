@@ -20,6 +20,55 @@ export interface AdminUser {
   is_admin?: boolean;
 }
 
+export type AccountDeletionMode = 'everything' | 'keep_payments';
+
+export interface AccountDeletionCampaign {
+  platform: string;
+  campaign_id: string;
+  name: string;
+  brand_id: string;
+}
+
+export interface AccountDeletionBlocker {
+  kind: 'admin' | 'live_campaigns' | 'ad_wallet';
+  message: string;
+  items?: (AccountDeletionCampaign | { brand_id: string; balance_ngn: number })[];
+  total_ngn?: number;
+}
+
+export interface AccountDeletionPreview {
+  user_id: string;
+  email: string;
+  brands: { brand_id: string; name?: string }[];
+  agencies: { agency_id: string; name?: string; other_members: string[] }[];
+  areas: { area: string; count: number }[];
+  collections: { database: string; collection: string; area: string; count: number }[];
+  records_total: number;
+  payment_records: number;
+  connected_accounts: number;
+  blockers: AccountDeletionBlocker[];
+}
+
+export interface AccountDeletionReport {
+  deleted?: Record<string, number>;
+  scrubbed?: Record<string, number>;
+  anonymised?: Record<string, number>;
+  connected_accounts?: Record<string, number>;
+  files?: { deleted: number; found?: number; note?: string };
+  remaining?: Record<string, number>;
+  errors?: string[];
+}
+
+export interface AccountDeletionJob {
+  job_id: string;
+  mode: AccountDeletionMode;
+  status: 'running' | 'done' | 'done_with_leftovers' | 'failed';
+  progress?: string;
+  error?: string;
+  forfeited_wallet_ngn?: number;
+  report?: AccountDeletionReport;
+}
+
 export interface AdminUserDetails extends AdminUser {
   brand_profiles: BrandProfile[];
   ad_wallets?: AdWallet[];
@@ -471,6 +520,38 @@ export class AdminService {
     updates: { is_active?: boolean; label?: string; assigned_emails?: string[] }
   ): Promise<AccessCode> {
     const response = await UriHttpClient.getClient().patch(`/api/admin/access-codes/${code}`, updates);
+    return response.data;
+  }
+  // ── Delete an account permanently ──────────────────────────────────────────
+  // What would be deleted, and what has to be settled first.
+  static async getDeletionPreview(userId: string): Promise<AccountDeletionPreview> {
+    const response = await UriHttpClient.getClient().get(`/api/admin/users/${userId}/deletion-preview`);
+    return response.data;
+  }
+
+  /** Pause every running ad campaign of the account's brands on Meta/TikTok/Google. */
+  static async pauseUserCampaigns(
+    userId: string
+  ): Promise<{ paused: AccountDeletionCampaign[]; failed: (AccountDeletionCampaign & { error: string })[] }> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/users/${userId}/pause-campaigns`);
+    return response.data;
+  }
+
+  static async deleteUserAccount(
+    userId: string,
+    body: { mode: AccountDeletionMode; confirm_email: string; forfeit_wallet_ngn?: number }
+  ): Promise<{ job_id: string; status: string }> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/users/${userId}/delete`, body);
+    return response.data;
+  }
+
+  static async getAccountDeletion(jobId: string): Promise<AccountDeletionJob> {
+    const response = await UriHttpClient.getClient().get(`/api/admin/account-deletions/${jobId}`);
+    return response.data;
+  }
+
+  static async resumeAccountDeletion(jobId: string): Promise<{ job_id: string; status: string }> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/account-deletions/${jobId}/resume`);
     return response.data;
   }
 }

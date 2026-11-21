@@ -20,6 +20,7 @@ import {
 } from '@/src/api/AdminService';
 import { useRouter } from 'next/navigation';
 import ConfirmDialog from './ConfirmDialog';
+import AdminDeleteAccount from './AdminDeleteAccount';
 
 // Icon components
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
@@ -314,6 +315,13 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
     setSelectedUser((prev) => (prev && prev.id === userId ? { ...prev, ...updates } : prev));
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updates } : u)));
     setRecentUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updates } : u)));
+  };
+
+  // A deleted account leaves the window and both lists at once.
+  const handleUserDeleted = (userId: string) => {
+    setSelectedUser(null);
+    setUsers((prev) => prev.filter((u) => u.id !== userId));
+    setRecentUsers((prev) => prev.filter((u) => u.id !== userId));
   };
 
   const handleExportEmails = async () => {
@@ -829,6 +837,7 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
           onClose={() => setSelectedUser(null)}
           formatDate={formatDate}
           onUserUpdated={handleUserUpdated}
+          onUserDeleted={handleUserDeleted}
         />
       )}
     </div>
@@ -2308,11 +2317,13 @@ function UserDetailsModal({
   onClose,
   formatDate,
   onUserUpdated,
+  onUserDeleted,
 }: {
   user: AdminUserDetails;
   onClose: () => void;
   formatDate: (date?: string) => string;
   onUserUpdated: (userId: string, updates: Partial<AdminUser>) => void;
+  onUserDeleted: (userId: string) => void;
 }) {
   const name = user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.name || 'N/A';
 
@@ -2515,6 +2526,9 @@ function UserDetailsModal({
               </div>
             </div>
           )}
+
+          {/* Delete account — last, on purpose */}
+          <AdminDeleteAccount user={user} onDeleted={onUserDeleted} />
         </div>
       </div>
     </div>
