@@ -67,6 +67,8 @@ export interface AccountDeletionJob {
   error?: string;
   forfeited_wallet_ngn?: number;
   report?: AccountDeletionReport;
+  /** Running, but not moving: its server stopped. Safe to finish. */
+  stalled?: boolean;
 }
 
 export interface AdminUserDetails extends AdminUser {

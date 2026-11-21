@@ -153,10 +153,21 @@ export default function AdminDeleteAccount({
     return (
       <Section>
         <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {job.status === 'running' && (
+          {job.status === 'running' && !job.stalled && (
             <div style={{ fontSize: 13, color: '#1a1a1a' }}>
               <strong>Deleting…</strong> <span style={{ color: '#666' }}>{job.progress}</span>
             </div>
+          )}
+          {job.status === 'running' && job.stalled && (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 700, color: RED }}>This deletion stopped moving.</div>
+              <div style={{ fontSize: 12, color: '#666' }}>Last step: {job.progress}. It is safe to finish it.</div>
+              <div>
+                <button style={btn(RED)} onClick={resume}>
+                  Finish the deletion
+                </button>
+              </div>
+            </>
           )}
           {job.status === 'failed' && (
             <>
