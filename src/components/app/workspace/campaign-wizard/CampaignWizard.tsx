@@ -8,7 +8,7 @@
  */
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import type { CampaignRow, DraftSummary } from '@/src/api/CampaignService';
+import type { CampaignRow, DraftSummary, ExistingPost } from '@/src/api/CampaignService';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { uid } from '../CampaignsPage';
 import { GooglePlacement } from '../GooglePlacementPreview';
@@ -71,6 +71,8 @@ export default function CampaignWizard({
   onBack,
   pendingDraft,
   onDraftConsumed,
+  pendingPost,
+  onPostConsumed,
   pendingDuplicate,
   onDuplicateConsumed,
   pendingResume,
@@ -81,6 +83,9 @@ export default function CampaignWizard({
    *  one-shot hand-off pattern as WorkspaceDashboard's pendingResumeVideo. */
   pendingDraft?: DraftSummary | null;
   onDraftConsumed?: () => void;
+  /** A post from the owner's own account, picked on the Creatives page. */
+  pendingPost?: ExistingPost | null;
+  onPostConsumed?: () => void;
   /** "Duplicate" on a launched campaign (CampaignBuilderPage) — seeds Objective,
    *  Platform, Audience and Budget from it so the run starts "tweak and relaunch"
    *  instead of blank, same spirit as the chat flow's own duplicateThread. Creative
@@ -151,6 +156,22 @@ export default function CampaignWizard({
     // this can't re-fire from its own effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingDraft]);
+
+  useEffect(() => {
+    if (!pendingPost) return;
+    setCreative({
+      creative_source: 'existing_post',
+      post_platform: pendingPost.platform,
+      post_id: pendingPost.post_id,
+      caption: pendingPost.text,
+      is_video: pendingPost.is_video,
+      previewUrl: pendingPost.image_url,
+    });
+    setPrefilledFromLibrary(true);
+    onPostConsumed?.();
+    // One-shot hand-off, same as pendingDraft above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPost]);
 
   const [prefilledFromDuplicate, setPrefilledFromDuplicate] = useState(false);
   useEffect(() => {

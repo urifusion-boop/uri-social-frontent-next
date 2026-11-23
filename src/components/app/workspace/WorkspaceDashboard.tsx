@@ -40,7 +40,7 @@ import {
   SocialConnectionService,
 } from '@/src/api/SocialConnectionService';
 import { SocialAccountService } from '@/src/api/SocialAccountService';
-import { AdFormat, CampaignService, DraftSummary, PlanVariant } from '@/src/api/CampaignService';
+import { AdFormat, CampaignService, DraftSummary, ExistingPost, PlanVariant } from '@/src/api/CampaignService';
 import { AdFormatGalleryCard } from '@/src/components/app/workspace/AdFormatGallery';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -11803,6 +11803,15 @@ export default function WorkspaceDashboard() {
   // top-level pages via a bit of state set right before navigating, consumed once
   // by the destination.
   const [pendingWizardDraft, setPendingWizardDraft] = useState<DraftSummary | null>(null);
+  // Same hand-off for a post the owner published on their own account.
+  const [pendingWizardPost, setPendingWizardPost] = useState<ExistingPost | null>(null);
+  const handleUsePostInWizard = useCallback(
+    (post: ExistingPost) => {
+      setPendingWizardPost(post);
+      goTo('campaign-wizard');
+    },
+    [goTo]
+  );
   const handleUseDraftInWizard = useCallback(
     (draft: DraftSummary) => {
       setPendingWizardDraft(draft);
@@ -12264,6 +12273,8 @@ export default function WorkspaceDashboard() {
       <CampaignBuilderPage
         pendingDraft={pendingWizardDraft}
         onDraftConsumed={() => setPendingWizardDraft(null)}
+        pendingPost={pendingWizardPost}
+        onPostConsumed={() => setPendingWizardPost(null)}
         pendingResumeDraft={pendingWizardResumeDraft}
         onResumeDraftConsumed={() => setPendingWizardResumeDraft(null)}
         focusCampaignId={focusCampaignId}
@@ -12284,7 +12295,9 @@ export default function WorkspaceDashboard() {
     'campaign-competitors': <CompetitorsPage onNavigate={goTo} onUseInWizard={handleUseDraftInWizard} />,
     'campaign-wallet': <CampaignWalletPage />,
     'campaign-revenue': <CampaignRevenuePage />,
-    creatives: <CreativesLibraryPage onUseInWizard={handleUseDraftInWizard} />,
+    creatives: (
+      <CreativesLibraryPage onUseInWizard={handleUseDraftInWizard} onUsePostInWizard={handleUsePostInWizard} />
+    ),
     'market-intelligence': <MarketIntelligencePage />,
     admin: <AdminUsersPage onBack={goWorkspace} />,
     'listening-curation': <ListeningCurationPage onBack={goWorkspace} />,

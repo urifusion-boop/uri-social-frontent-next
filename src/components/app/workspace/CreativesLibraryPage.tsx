@@ -8,7 +8,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
-import { CampaignService, DraftSummary } from '@/src/api/CampaignService';
+import { CampaignService, DraftSummary, ExistingPost } from '@/src/api/CampaignService';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { useFeatures } from '@/src/hooks/useFeatures';
 import MakeFromPicture from '@/src/components/app/competitors/MakeFromPicture';
@@ -98,7 +98,121 @@ function Thumb({ url, caption, icon }: { url?: string | null; caption: string; i
   );
 }
 
-export default function CreativesLibraryPage({ onUseInWizard }: { onUseInWizard: (draft: DraftSummary) => void }) {
+type Tab = 'made' | 'own';
+
+function OwnPosts({ onUse, isMobile }: { onUse: (post: ExistingPost) => void; isMobile: boolean }) {
+  const [platform, setPlatform] = useState<'instagram' | 'facebook'>('instagram');
+  const [posts, setPosts] = useState<Record<string, ExistingPost[] | string>>({});
+
+  useEffect(() => {
+    if (posts[platform] !== undefined) return;
+    let alive = true;
+    CampaignService.listExistingPosts(platform)
+      .then((list) => alive && setPosts((prev) => ({ ...prev, [platform]: list })))
+      .catch((e: { response?: { data?: { detail?: string } } }) => {
+        if (alive)
+          setPosts((prev) => ({
+            ...prev,
+            [platform]: e?.response?.data?.detail || "Couldn't load your posts — try again shortly.",
+          }));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [platform, posts]);
+
+  const current = posts[platform];
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+        {(['instagram', 'facebook'] as const).map((pf) => (
+          <button
+            key={pf}
+            type="button"
+            onClick={() => setPlatform(pf)}
+            style={{
+              padding: '6px 14px',
+              borderRadius: 999,
+              fontSize: 12.5,
+              fontWeight: 700,
+              cursor: 'pointer',
+              border: platform === pf ? `1.5px solid ${PINK}` : '1px solid #ece8e6',
+              background: platform === pf ? 'rgba(194,24,91,.05)' : '#fff',
+              color: platform === pf ? PINK : '#1a0a12',
+            }}
+          >
+            {pf === 'instagram' ? 'Instagram' : 'Facebook'}
+          </button>
+        ))}
+      </div>
+      {current === undefined && <p style={{ fontSize: 13, color: '#7a7270' }}>Loading your posts…</p>}
+      {typeof current === 'string' && <p style={{ fontSize: 13, color: '#b91c1c' }}>{current}</p>}
+      {Array.isArray(current) && current.length === 0 && (
+        <p style={{ fontSize: 13, color: '#7a7270' }}>No posts found on this account.</p>
+      )}
+      {Array.isArray(current) && current.length > 0 && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(190px, 1fr))',
+            gap: 14,
+          }}
+        >
+          {current.map((p) => (
+            <div
+              key={p.post_id}
+              style={{ border: '1px solid #ece8e6', borderRadius: 12, overflow: 'hidden', background: '#fff' }}
+            >
+              <Thumb url={p.image_url} caption={p.text} icon={PLATFORM_ICON[p.platform]?.icon} />
+              <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 10.5, color: '#9a9090' }}>{p.created_at ? timeAgo(p.created_at) : ''}</span>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 11.5,
+                    color: '#4a4440',
+                    lineHeight: 1.4,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {p.text || 'No caption'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onUse(p)}
+                  style={{
+                    border: `1px solid ${PINK}`,
+                    background: '#fff',
+                    color: PINK,
+                    borderRadius: 8,
+                    padding: '6px 10px',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Use in Campaign Builder
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+export default function CreativesLibraryPage({
+  onUseInWizard,
+  onUsePostInWizard,
+}: {
+  onUseInWizard: (draft: DraftSummary) => void;
+  onUsePostInWizard: (post: ExistingPost) => void;
+}) {
+  const [tab, setTab] = useState<Tab>('made');
   const { flags } = useFeatures();
   // "Make one like this" from a creative the owner already has (PRD WS4; rolled out with Competitors).
   const [makeFrom, setMakeFrom] = useState<string | null>(null);
@@ -125,22 +239,57 @@ export default function CreativesLibraryPage({ onUseInWizard }: { onUseInWizard:
       <PageHeader
         section="Campaign Manager"
         title="Creatives"
-        description="Everything you've generated or uploaded — reuse any of it as a new campaign's creative."
+        description={
+          tab === 'made'
+            ? "Everything you've generated or uploaded — reuse any of it as a new campaign's creative."
+            : 'Posts you published yourself on Instagram or Facebook — run any of them as an ad.'
+        }
         compact={isMobile}
         style={{ marginBottom: 18 }}
       />
 
-      {drafts === null && !failed && <p style={{ fontSize: 13, color: '#7a7270' }}>Loading your creative…</p>}
-      {failed && (
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        {(
+          [
+            ['made', 'Made in URI'],
+            ['own', 'Your own posts'],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            style={{
+              padding: '7px 16px',
+              borderRadius: 999,
+              fontSize: 13,
+              fontWeight: 800,
+              cursor: 'pointer',
+              border: tab === id ? `1.5px solid ${PINK}` : '1px solid #ece8e6',
+              background: tab === id ? PINK : '#fff',
+              color: tab === id ? '#fff' : '#1a0a12',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'own' && <OwnPosts onUse={onUsePostInWizard} isMobile={isMobile} />}
+
+      {tab === 'made' && drafts === null && !failed && (
+        <p style={{ fontSize: 13, color: '#7a7270' }}>Loading your creative…</p>
+      )}
+      {tab === 'made' && failed && (
         <p style={{ fontSize: 13, color: '#b91c1c' }}>Couldn't load your creative library — try again shortly.</p>
       )}
-      {drafts !== null && drafts.length === 0 && (
+      {tab === 'made' && drafts !== null && drafts.length === 0 && (
         <p style={{ fontSize: 13, color: '#7a7270' }}>
           Nothing here yet — creative you generate or upload while building a campaign shows up here afterward.
         </p>
       )}
 
-      {drafts && drafts.length > 0 && (
+      {tab === 'made' && drafts && drafts.length > 0 && (
         <div
           style={{
             display: 'grid',

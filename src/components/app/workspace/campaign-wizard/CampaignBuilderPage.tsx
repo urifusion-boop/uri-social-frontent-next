@@ -20,7 +20,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { CampaignCard, PLATFORM_CHOICES, uid } from '../CampaignsPage';
-import { CampaignRow, CampaignService, DraftSummary } from '@/src/api/CampaignService';
+import { CampaignRow, CampaignService, DraftSummary, ExistingPost } from '@/src/api/CampaignService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import CampaignWizard from './CampaignWizard';
@@ -90,6 +90,8 @@ export function draftHasPlan(draft: WizardDraft): boolean {
 export default function CampaignBuilderPage({
   pendingDraft,
   onDraftConsumed,
+  pendingPost,
+  onPostConsumed,
   pendingResumeDraft,
   onResumeDraftConsumed,
   focusCampaignId,
@@ -99,6 +101,9 @@ export default function CampaignBuilderPage({
    *  straight in the wizard with this draft preloaded, same as before. */
   pendingDraft?: DraftSummary | null;
   onDraftConsumed?: () => void;
+  /** A post from the owner's own account, picked on the Creatives page. */
+  pendingPost?: ExistingPost | null;
+  onPostConsumed?: () => void;
   /** "Resume" clicked from the Overview page — same hand-off shape as pendingDraft
    *  above, so it lands straight in the wizard on THIS exact draft instead of on
    *  the list (live-reported: Overview's Resume used to just open the list, making
@@ -110,7 +115,9 @@ export default function CampaignBuilderPage({
   focusCampaignId?: string | null;
   onFocusConsumed?: () => void;
 }) {
-  const [mode, setMode] = useState<'list' | 'wizard'>(pendingDraft || pendingResumeDraft ? 'wizard' : 'list');
+  const [mode, setMode] = useState<'list' | 'wizard'>(
+    pendingDraft || pendingPost || pendingResumeDraft ? 'wizard' : 'list'
+  );
   // Forces a fresh CampaignWizard mount every time "+ New Campaign" is clicked —
   // without this, clicking it twice in a row (list -> wizard -> list -> wizard)
   // would reuse the same component instance and its stale state.
@@ -236,6 +243,8 @@ export default function CampaignBuilderPage({
         onBack={backToList}
         pendingDraft={pendingDraft}
         onDraftConsumed={onDraftConsumed}
+        pendingPost={pendingPost}
+        onPostConsumed={onPostConsumed}
         pendingDuplicate={pendingDuplicate}
         onDuplicateConsumed={() => setPendingDuplicate(null)}
         pendingResume={pendingResume}
