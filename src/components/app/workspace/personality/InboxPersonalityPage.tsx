@@ -76,6 +76,8 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
   }, [load]);
 
   const profile = profiles.find((p) => p.id === activeId);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  useEffect(() => setConfirmDelete(false), [activeId]);
 
   function upsert(p: VoiceProfile) {
     setProfiles((prev) => {
@@ -110,6 +112,21 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
       setNotice('New profile created. Click Next to continue.');
     } catch (e) {
       setError(errorText(e, "Couldn't create that profile."));
+    }
+    setBusy('');
+  }
+
+  async function removeProfile() {
+    if (!profile) return;
+    setBusy('delete');
+    setError('');
+    try {
+      await BrandVoiceService.archiveProfile(profile.id);
+      setConfirmDelete(false);
+      setNotice(`${profile.name} deleted.`);
+      await load();
+    } catch (e) {
+      setError(errorText(e, "Couldn't delete that profile."));
     }
     setBusy('');
   }
@@ -217,6 +234,24 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
               {p.departments.length ? ` · ${p.departments.join(', ')}` : ''}
             </Chip>
           ))}
+          {canPublish &&
+            profile &&
+            !profile.is_default &&
+            (confirmDelete ? (
+              <>
+                <span style={{ color: '#C62828' }}>Delete {profile.name}?</span>
+                <Btn small kind="danger" onClick={removeProfile} disabled={busy !== ''}>
+                  {busy === 'delete' ? 'Deleting…' : 'Yes, delete'}
+                </Btn>
+                <Btn small kind="ghost" onClick={() => setConfirmDelete(false)} disabled={busy !== ''}>
+                  Cancel
+                </Btn>
+              </>
+            ) : (
+              <Btn small kind="ghost" onClick={() => setConfirmDelete(true)} disabled={busy !== ''}>
+                Delete this profile
+              </Btn>
+            ))}
         </div>
       )}
 
