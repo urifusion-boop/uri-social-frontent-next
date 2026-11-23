@@ -69,9 +69,11 @@ export function Btn({
   disabled,
   small,
   type = 'button',
+  title,
 }: {
   children: ReactNode;
   onClick?: () => void;
+  title?: string;
   kind?: 'primary' | 'secondary' | 'ghost' | 'danger';
   disabled?: boolean;
   small?: boolean;
@@ -86,6 +88,7 @@ export function Btn({
   return (
     <button
       type={type}
+      title={title}
       onClick={onClick}
       disabled={disabled}
       style={{

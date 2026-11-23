@@ -250,7 +250,7 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
           title="Start from a template"
           desc={
             profile
-              ? 'Applying a template resets the traits and language of your draft. Everything else you set stays.'
+              ? 'Apply to draft restyles the profile you are editing (its traits and language reset; everything else stays). New profile adds a separate voice alongside it, for example one for sales and one for support.'
               : 'Pick the closest style; every setting stays editable.'
           }
         >
@@ -283,11 +283,22 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
                   &ldquo;{t.example}&rdquo;
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 'auto' }}>
-                  <Btn small onClick={() => applyTemplate(t.id)} disabled={busy !== ''}>
+                  <Btn
+                    small
+                    title="Restyle the profile you are editing with this template"
+                    onClick={() => applyTemplate(t.id)}
+                    disabled={busy !== ''}
+                  >
                     {busy === t.id ? 'Applying…' : profile ? 'Apply to draft' : 'Use this'}
                   </Btn>
                   {profile && canPublish && (
-                    <Btn small kind="ghost" onClick={() => newProfile(t.id)} disabled={busy !== ''}>
+                    <Btn
+                      small
+                      kind="ghost"
+                      title="Create an extra profile from this template, alongside the one you are editing"
+                      onClick={() => newProfile(t.id)}
+                      disabled={busy !== ''}
+                    >
                       New profile
                     </Btn>
                   )}
