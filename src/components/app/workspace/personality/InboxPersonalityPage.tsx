@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode, useCallback, useEffect, useState } from 'react';
+import { FaTrashAlt } from 'react-icons/fa';
 import {
   BrandVoiceService,
   VoiceAuditEntry,
@@ -227,31 +228,67 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
       {profiles.length > 1 && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 12.5, color: '#666' }}>
           Editing:
-          {profiles.map((p) => (
-            <Chip key={p.id} active={p.id === activeId} onClick={() => setActiveId(p.id)}>
-              {p.name}
-              {p.is_default ? ' · default' : ''}
-              {p.departments.length ? ` · ${p.departments.join(', ')}` : ''}
-            </Chip>
-          ))}
-          {canPublish &&
-            profile &&
-            !profile.is_default &&
-            (confirmDelete ? (
-              <>
-                <span style={{ color: '#C62828' }}>Delete {profile.name}?</span>
-                <Btn small kind="danger" onClick={removeProfile} disabled={busy !== ''}>
-                  {busy === 'delete' ? 'Deleting…' : 'Yes, delete'}
-                </Btn>
-                <Btn small kind="ghost" onClick={() => setConfirmDelete(false)} disabled={busy !== ''}>
-                  Cancel
-                </Btn>
-              </>
-            ) : (
-              <Btn small kind="ghost" onClick={() => setConfirmDelete(true)} disabled={busy !== ''}>
-                Delete this profile
-              </Btn>
-            ))}
+          {profiles.map((p) => {
+            const deletable = canPublish && !p.is_default && p.id === activeId;
+            return (
+              <span key={p.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <Chip active={p.id === activeId} onClick={() => setActiveId(p.id)}>
+                  {p.name}
+                  {p.is_default ? ' · default' : ''}
+                  {p.departments.length ? ` · ${p.departments.join(', ')}` : ''}
+                </Chip>
+                {deletable && (
+                  <button
+                    type="button"
+                    title="Delete this profile"
+                    aria-label={`Delete ${p.name}`}
+                    onClick={() => setConfirmDelete(true)}
+                    disabled={busy !== ''}
+                    style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: 999,
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#9a9090',
+                      cursor: 'pointer',
+                      display: 'grid',
+                      placeItems: 'center',
+                    }}
+                  >
+                    <FaTrashAlt size={12} />
+                  </button>
+                )}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {confirmDelete && profile && !profile.is_default && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+            background: '#FDECEC',
+            border: '1px solid #F5C2C2',
+            borderRadius: 10,
+            padding: '10px 14px',
+            fontSize: 13,
+            color: '#7A1F1F',
+          }}
+        >
+          <span style={{ flex: 1, minWidth: 200 }}>
+            Delete <b>{profile.name}</b>? It stops being available here. Customers keep hearing your default voice.
+          </span>
+          <Btn small kind="danger" onClick={removeProfile} disabled={busy !== ''}>
+            {busy === 'delete' ? 'Deleting…' : 'Delete'}
+          </Btn>
+          <Btn small kind="ghost" onClick={() => setConfirmDelete(false)} disabled={busy !== ''}>
+            Cancel
+          </Btn>
         </div>
       )}
 
