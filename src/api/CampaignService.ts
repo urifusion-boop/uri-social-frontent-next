@@ -523,6 +523,7 @@ export interface ExistingPost {
   is_video: boolean;
   permalink: string;
   created_at: string;
+  account?: string;
 }
 
 export interface BillingRow {

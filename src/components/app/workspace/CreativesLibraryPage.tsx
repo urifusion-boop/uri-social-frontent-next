@@ -165,7 +165,11 @@ function OwnPosts({ onUse, isMobile }: { onUse: (post: ExistingPost) => void; is
             >
               <Thumb url={p.image_url} caption={p.text} icon={PLATFORM_ICON[p.platform]?.icon} />
               <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span style={{ fontSize: 10.5, color: '#9a9090' }}>{p.created_at ? timeAgo(p.created_at) : ''}</span>
+                <span style={{ fontSize: 10.5, color: '#9a9090' }}>
+                  {[p.account ? `@${p.account.replace(/^@/, '')}` : '', p.created_at ? timeAgo(p.created_at) : '']
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
                 <p
                   style={{
                     margin: 0,
