@@ -54,6 +54,8 @@ import { userStorage } from '@/src/utils/userStorage.util';
 /** Where a Page's owner approves Uri Creative (URI Social's Business Manager) as a partner (Meta Business Suite → Settings → Requests). */
 const META_REQUESTS_URL = 'https://business.facebook.com/latest/settings/requests';
 
+import { ADS_RETURN_KEY } from './campaign-wizard/adsConnectReturn';
+
 const PINK = '#C2185B';
 
 // A wallet top-up handed off to Squad but not yet settled.
@@ -3704,6 +3706,11 @@ export function ConnectMetaAdsLink({ children }: { children: React.ReactNode }) 
     <a
       href={href}
       onClick={(e) => {
+        try {
+          localStorage.setItem(ADS_RETURN_KEY, JSON.stringify({ at: Date.now() }));
+        } catch {
+          /* private mode: they just land on Connected Accounts as before */
+        }
         // Android: keep Facebook's sign-in in the browser instead of the Facebook app.
         const target = keepInBrowser(href);
         if (target === href) return;

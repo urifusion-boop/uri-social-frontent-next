@@ -94,7 +94,8 @@ import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
 import CampaignBuilderPage from '@/src/components/app/workspace/campaign-wizard/CampaignBuilderPage';
-import type { WizardDraft } from '@/src/components/app/workspace/campaign-wizard/wizardDraft';
+import { loadWizardDrafts, type WizardDraft } from '@/src/components/app/workspace/campaign-wizard/wizardDraft';
+import { ADS_RETURN_KEY, ADS_RETURN_MAX_AGE_MS } from '@/src/components/app/workspace/campaign-wizard/adsConnectReturn';
 import CampaignOverviewPage from '@/src/components/app/workspace/campaign-wizard/CampaignOverviewPage';
 import CampaignGrowthPage from '@/src/components/app/workspace/campaign-wizard/CampaignGrowthPage';
 import CompetitorsPage from '@/src/components/app/competitors/CompetitorsPage';
@@ -2721,10 +2722,13 @@ const ConnectionsPage = ({
   onJane,
   isMobile,
   onOpenSectionNav,
+  onAdsConnectedFromCampaign,
 }: {
   onJane: () => void;
   isMobile?: boolean;
   onOpenSectionNav?: () => void;
+  /** Ads were connected from inside a campaign: take them back to it. */
+  onAdsConnectedFromCampaign?: () => void;
 }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -2861,6 +2865,19 @@ const ConnectionsPage = ({
     return true;
   };
 
+  // Ads were connected from inside a campaign: go back to that campaign, not Connected Accounts.
+  const returnToCampaignIfPending = () => {
+    let at = 0;
+    try {
+      at = JSON.parse(localStorage.getItem(ADS_RETURN_KEY) || 'null')?.at ?? 0;
+      localStorage.removeItem(ADS_RETURN_KEY);
+    } catch {
+      return;
+    }
+    if (!at || Date.now() - at > ADS_RETURN_MAX_AGE_MS) return;
+    onAdsConnectedFromCampaign?.();
+  };
+
   const finalizeAdsPage = (fbPageId: string, pageName: string) =>
     SocialAccountService.finalizeFacebookAds(fbPageId)
       .then((res) => {
@@ -2868,6 +2885,7 @@ const ConnectionsPage = ({
           ToastService.showToast(`${pageName} connected for ads!`, ToastTypeEnum.Success);
           posthog.capture('social_account_connected', { platform: 'facebook_ads', page_name: pageName });
           loadStatuses();
+          returnToCampaignIfPending();
         } else {
           ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error);
         }
@@ -11834,6 +11852,13 @@ export default function WorkspaceDashboard() {
     [goTo]
   );
 
+  // Back from connecting ads inside a campaign: reopen the most recent unfinished one.
+  const handleAdsConnectedFromCampaign = useCallback(() => {
+    const latest = loadWizardDrafts()[0];
+    if (latest) handleResumeDraftFromOverview(latest);
+    else goTo('campaign-wizard');
+  }, [goTo, handleResumeDraftFromOverview]);
+
   // A Listening opportunity card recommended as an ad test lands here with a
   // real draft thread already created server-side (POST /listening/cards/
   // {id}/create already opened it and built the seed message) — this just
@@ -12252,7 +12277,12 @@ export default function WorkspaceDashboard() {
       />
     ),
     connections: (
-      <ConnectionsPage onJane={goWorkspace} isMobile={isMobile} onOpenSectionNav={() => setSectionNavOpen(true)} />
+      <ConnectionsPage
+        onJane={goWorkspace}
+        isMobile={isMobile}
+        onOpenSectionNav={() => setSectionNavOpen(true)}
+        onAdsConnectedFromCampaign={handleAdsConnectedFromCampaign}
+      />
     ),
     records: <RecordsPanel />,
     performance: (

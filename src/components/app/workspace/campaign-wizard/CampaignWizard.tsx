@@ -67,6 +67,19 @@ function buildSteps(
 
 const DEFAULT_PLATFORM: WizardPlatformValue = { mode: 'single', single: '', multi: [], touched: false };
 
+/** A saved "connect your Facebook Page" answer is stale by the time someone resumes: they went
+ *  off to connect it. Dropped, so Review asks Jane again and gets the real plan. */
+function withoutConnectionBlockers(snapshot?: WizardReviewSnapshot): WizardReviewSnapshot | undefined {
+  if (!snapshot) return snapshot;
+  const blocked = (r?: { stage?: string } | null) => Boolean(r?.stage?.startsWith('meta_connection_'));
+  const multi = Object.fromEntries(Object.entries(snapshot.multi ?? {}).filter(([, r]) => !blocked(r)));
+  return {
+    ...snapshot,
+    single: blocked(snapshot.single) ? undefined : snapshot.single,
+    multi: multi as WizardReviewSnapshot['multi'],
+  };
+}
+
 export default function CampaignWizard({
   onBack,
   pendingDraft,
@@ -210,7 +223,7 @@ export default function CampaignWizard({
     setAudience(pendingResume.audience);
     setBudget(pendingResume.budget);
     setCreative(pendingResume.creative);
-    setResults(pendingResume.results);
+    setResults(withoutConnectionBlockers(pendingResume.results));
     // The invalidation effect below must not see this as "the fields changed
     // out from under the saved plan" — it's the plan's own fields arriving.
     lastResultsKeyRef.current = JSON.stringify({
