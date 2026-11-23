@@ -134,6 +134,11 @@ const listMessages = async (conversationId: string): Promise<InboxMessageDTO[]> 
 // double-clicked Send or a retried request sends once.
 // suggestionId marks a reply that started from the agent's draft, so URI can tell
 // a draft sent as-is from one an agent rewrote.
+// Let URI auto-reply in this conversation again after a team member had taken it over.
+const handBack = async (conversationId: string): Promise<void> => {
+  await UriHttpClient.getClient().post(`/inbox/conversations/${conversationId}/hand-back`, {});
+};
+
 const sendReply = async (
   conversationId: string,
   text: string,
@@ -430,6 +435,7 @@ export const InboxService = {
   listConversations,
   listMessages,
   sendReply,
+  handBack,
   regenerateSuggestion,
   correctClassification,
   getAgentSettings,

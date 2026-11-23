@@ -774,7 +774,6 @@ export default function InboxDashboard({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatExpanded, listOverlayOpen]);
   useEffect(() => {
     const el = deskRef.current;
@@ -1531,6 +1530,22 @@ export default function InboxDashboard({
       setAgentError(detail || "Couldn't draft a reply right now.");
     } finally {
       setDrafting(false);
+    }
+  }
+
+  async function handBackToJane() {
+    if (!selectedId) return;
+    setAgentError('');
+    try {
+      await InboxService.handBack(selectedId);
+      setAgentOverrides((prev) => {
+        const copy = { ...prev };
+        delete copy[selectedId];
+        return copy;
+      });
+      await refreshConversations();
+    } catch {
+      setAgentError("Couldn't hand this back to Jane. Try again.");
     }
   }
 
@@ -2801,6 +2816,25 @@ export default function InboxDashboard({
         >
           <strong>Not sent automatically:</strong> {agentInfo.handoffReason}. Check the draft below and send it
           yourself. Auto-replies only send when URI is sure the reply is right.
+          {/(team member|assigned)/i.test(agentInfo.handoffReason) && (
+            <button
+              type="button"
+              onClick={handBackToJane}
+              style={{
+                marginLeft: 8,
+                padding: '3px 10px',
+                borderRadius: 999,
+                border: '1px solid #C2185B',
+                background: '#fff',
+                color: '#C2185B',
+                fontWeight: 700,
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              Hand back to Jane
+            </button>
+          )}
         </div>
       )}
       {agentError && <div style={{ color: '#C62828' }}>{agentError}</div>}
