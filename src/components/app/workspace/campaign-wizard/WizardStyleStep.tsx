@@ -102,7 +102,10 @@ export default function WizardStyleStep({
   const [filter, setFilter] = useState<'all' | Group>('all');
 
   const attestation = creative.creative_source === 'upload' ? creative.asset_attestation : undefined;
-  const chosen = creative.creative_source === 'draft' ? undefined : creative.vsg01_format_id;
+  const chosen =
+    creative.creative_source === 'draft' || creative.creative_source === 'existing_post'
+      ? undefined
+      : creative.vsg01_format_id;
 
   useEffect(() => {
     let alive = true;
@@ -129,7 +132,7 @@ export default function WizardStyleStep({
   }, [description, attestation]);
 
   const pick = (formatId: string) => {
-    if (creative.creative_source === 'draft') return;
+    if (creative.creative_source === 'draft' || creative.creative_source === 'existing_post') return;
     onChange({ ...creative, vsg01_format_id: formatId });
   };
 

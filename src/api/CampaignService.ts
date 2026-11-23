@@ -513,7 +513,17 @@ export interface DraftSummary {
   created_at: string;
 }
 
-export type CreativeSource = 'generate' | 'upload' | 'draft' | 'ask' | 'recomposite';
+export type CreativeSource = 'generate' | 'upload' | 'draft' | 'ask' | 'recomposite' | 'existing_post';
+
+export interface ExistingPost {
+  platform: 'instagram' | 'facebook';
+  post_id: string;
+  text: string;
+  image_url: string;
+  is_video: boolean;
+  permalink: string;
+  created_at: string;
+}
 
 export interface BillingRow {
   business_id: string;
@@ -803,6 +813,12 @@ export class CampaignService {
     return res.data as LaunchFromMessageResult;
   }
 
+  /** The brand's own recent posts on a connected account, to run as an ad. */
+  static async listExistingPosts(platform: 'instagram' | 'facebook'): Promise<ExistingPost[]> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/existing-posts', { params: { platform } });
+    return res.data?.posts ?? [];
+  }
+
   /** Plan-before-launch, step 1: Jane understands the message, decides the platform,
    * and generates the creative — nothing touches Meta yet. Returns a reviewable plan
    * (plan_id) that can be launched later via launchPlan(), or just left alone —
@@ -821,6 +837,11 @@ export class CampaignService {
     reference_image_url?: string;
     is_video?: boolean;
     draft_id?: string;
+    // creative_source: 'existing_post' — a post already published on the brand's own account.
+    // reference_image_url is its picture (preview only).
+    existing_post_platform?: 'instagram' | 'facebook';
+    existing_post_id?: string;
+    existing_post_caption?: string;
     // "Make several ads" — Jane generates this many distinct concepts instead of
     // one, each its own credit. Only meaningful with creative_source: 'generate'.
     concepts?: number;

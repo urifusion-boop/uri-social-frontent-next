@@ -11,7 +11,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useFeatures } from '@/src/hooks/useFeatures';
 import MakeFromPicture from '@/src/components/app/competitors/MakeFromPicture';
-import { AssetAttestation, CampaignService, CreativeProvenanceInput, DraftSummary } from '@/src/api/CampaignService';
+import {
+  AssetAttestation,
+  CampaignService,
+  CreativeProvenanceInput,
+  DraftSummary,
+  ExistingPost,
+} from '@/src/api/CampaignService';
 import { useCreativePaths, VideoWhoPrompt } from '../CreativePathControls';
 import WizardAssetAttestation from './WizardAssetAttestation';
 
@@ -46,7 +52,15 @@ export type WizardCreativeChoice =
       /** The Style step's pick (an ad format id); '' = "Let Jane choose for me". */
       vsg01_format_id?: string;
     } & Partial<CreativeProvenanceInput>) // "who's in this video" — video uploads only
-  | { creative_source: 'draft'; draft_id: string; previewUrl: string };
+  | { creative_source: 'draft'; draft_id: string; previewUrl: string }
+  | {
+      creative_source: 'existing_post';
+      post_platform: 'instagram' | 'facebook';
+      post_id: string;
+      caption: string;
+      is_video: boolean;
+      previewUrl: string;
+    };
 
 function OptionCard({
   title,
@@ -108,6 +122,9 @@ export default function WizardCreativeStep({
   metaBudget?: { amountNgn: number; days: number } | null;
 }) {
   const [uploading, setUploading] = useState(false);
+  const [postsOpen, setPostsOpen] = useState(false);
+  const [postPlatform, setPostPlatform] = useState<'instagram' | 'facebook'>('instagram');
+  const [posts, setPosts] = useState<Record<string, ExistingPost[] | string>>({});
   const [testOpen, setTestOpen] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [carouselUploading, setCarouselUploading] = useState(false);
@@ -147,6 +164,20 @@ export default function WizardCreativeStep({
 
   const mode = value?.creative_source ?? null;
   const isTestMode = value?.creative_source === 'generate' && typeof value.concepts === 'number' && value.concepts >= 2;
+
+  const loadPosts = (platform: 'instagram' | 'facebook') => {
+    setPostsOpen(true);
+    setPostPlatform(platform);
+    if (posts[platform] !== undefined) return;
+    CampaignService.listExistingPosts(platform)
+      .then((list) => setPosts((prev) => ({ ...prev, [platform]: list })))
+      .catch((e: { response?: { data?: { detail?: string } } }) =>
+        setPosts((prev) => ({
+          ...prev,
+          [platform]: e?.response?.data?.detail || "Couldn't load your posts. Try again.",
+        }))
+      );
+  };
 
   const loadDrafts = () => {
     setShowDrafts(true);
@@ -699,6 +730,82 @@ export default function WizardCreativeStep({
               onChange({ creative_source: 'draft', draft_id: draft.draft_id, previewUrl: draft.image_url });
             }}
           />
+        )}
+        {isMeta && (
+          <OptionCard
+            title="Use a post you've already published"
+            subtitle="Run an Instagram or Facebook post you made yourself. It keeps its likes and comments."
+            isOn={mode === 'existing_post'}
+            onClick={() => loadPosts(postPlatform)}
+          >
+            {postsOpen && (
+              <div style={{ marginTop: 8, width: '100%' }} onClick={(e) => e.stopPropagation()}>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                  {(['instagram', 'facebook'] as const).map((pf) => (
+                    <button
+                      key={pf}
+                      type="button"
+                      onClick={() => loadPosts(pf)}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        border: postPlatform === pf ? `1.5px solid ${PINK}` : '1px solid #ece8e6',
+                        background: postPlatform === pf ? 'rgba(194,24,91,.05)' : '#fff',
+                        color: postPlatform === pf ? PINK : '#1a0a12',
+                      }}
+                    >
+                      {pf === 'instagram' ? 'Instagram' : 'Facebook'}
+                    </button>
+                  ))}
+                </div>
+                {posts[postPlatform] === undefined && (
+                  <span style={{ fontSize: 12, color: '#7a7270' }}>Loading your posts…</span>
+                )}
+                {typeof posts[postPlatform] === 'string' && (
+                  <span style={{ fontSize: 12, color: '#b3261e' }}>{posts[postPlatform] as string}</span>
+                )}
+                {Array.isArray(posts[postPlatform]) && (posts[postPlatform] as ExistingPost[]).length === 0 && (
+                  <span style={{ fontSize: 12, color: '#7a7270' }}>No posts found on this account.</span>
+                )}
+                {Array.isArray(posts[postPlatform]) && (posts[postPlatform] as ExistingPost[]).length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                    {(posts[postPlatform] as ExistingPost[]).map((p) => {
+                      const isSelected = value?.creative_source === 'existing_post' && value.post_id === p.post_id;
+                      return (
+                        <button
+                          key={p.post_id}
+                          type="button"
+                          onClick={() =>
+                            onChange({
+                              creative_source: 'existing_post',
+                              post_platform: p.platform,
+                              post_id: p.post_id,
+                              caption: p.text,
+                              is_video: p.is_video,
+                              previewUrl: p.image_url,
+                            })
+                          }
+                          style={{
+                            padding: 0,
+                            border: isSelected ? `2px solid ${PINK}` : '1px solid #ece8e6',
+                            borderRadius: 8,
+                            overflow: 'hidden',
+                            cursor: 'pointer',
+                            aspectRatio: '1',
+                            background: `center/cover no-repeat url(${p.image_url})`,
+                          }}
+                          aria-label={p.text ? `Use post: ${p.text.slice(0, 60)}` : 'Use this post'}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </OptionCard>
         )}
         <OptionCard
           title="Use a past draft"

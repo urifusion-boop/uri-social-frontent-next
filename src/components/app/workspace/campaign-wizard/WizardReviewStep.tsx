@@ -91,6 +91,16 @@ function creativePayload(creative: WizardCreativeChoice): Partial<PlanFromMessag
   if (creative.creative_source === 'draft') {
     return { creative_source: 'draft', draft_id: creative.draft_id };
   }
+  if (creative.creative_source === 'existing_post') {
+    return {
+      creative_source: 'existing_post',
+      reference_image_url: creative.previewUrl,
+      is_video: creative.is_video,
+      existing_post_platform: creative.post_platform,
+      existing_post_id: creative.post_id,
+      existing_post_caption: creative.caption,
+    };
+  }
   return {
     creative_source: 'generate',
     ...(creative.concepts ? { concepts: creative.concepts } : {}),
@@ -160,11 +170,13 @@ function RecapStrip({
         : 'Jane-generated creative'
       : creative.creative_source === 'draft'
         ? 'Creative from a past draft'
-        : creative.is_video
-          ? 'Your uploaded video'
-          : (creative.carouselExtraUrls?.length ?? 0) > 0
-            ? `Your ${1 + (creative.carouselExtraUrls?.length ?? 0)} uploaded photos`
-            : 'Your uploaded photo';
+        : creative.creative_source === 'existing_post'
+          ? `Your ${creative.post_platform === 'instagram' ? 'Instagram' : 'Facebook'} post`
+          : creative.is_video
+            ? 'Your uploaded video'
+            : (creative.carouselExtraUrls?.length ?? 0) > 0
+              ? `Your ${1 + (creative.carouselExtraUrls?.length ?? 0)} uploaded photos`
+              : 'Your uploaded photo';
   const items = [
     objective.label || objective.value,
     platformText,
@@ -289,14 +301,19 @@ export default function WizardReviewStep({
   const platforms: MultiWizardPlatform[] = isMulti ? platform.multi : [];
   // The style picked on the Style step, when this ad came out in a different one (that style's
   // content couldn't be built for this ad), so the card says so instead of silently differing.
-  const chosenStyle = creative.creative_source === 'draft' ? '' : creative.vsg01_format_id || '';
+  const chosenStyle =
+    creative.creative_source === 'draft' || creative.creative_source === 'existing_post'
+      ? ''
+      : creative.vsg01_format_id || '';
   const styleFallbackFrom = (r: LaunchFromMessageResult | null | undefined) => {
     const used = r?.creative?.vsg01_format_id;
     return chosenStyle && used && used !== chosenStyle ? chosenStyle : undefined;
   };
   const [adFormats, setAdFormats] = useState<AdFormat[]>([]);
   const styleText =
-    creative.creative_source === 'draft' || creative.vsg01_format_id === undefined
+    creative.creative_source === 'draft' ||
+    creative.creative_source === 'existing_post' ||
+    creative.vsg01_format_id === undefined
       ? null
       : creative.vsg01_format_id === ''
         ? 'Style: Jane chooses'
