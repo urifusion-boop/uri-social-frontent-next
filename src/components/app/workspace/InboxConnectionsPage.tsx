@@ -134,6 +134,11 @@ const CHANNEL_SHELLS: {
   },
 ];
 
+// WhatsApp messaging isn't working yet: its card stays (so people know it's on the way) but
+// reads "Coming soon" — no status, no connect. Flip to false when it's ready.
+const WHATSAPP_COMING_SOON = true;
+const comingSoon = (id: string) => id === 'whatsapp' && WHATSAPP_COMING_SOON;
+
 function timeAgo(iso: string | null): string {
   if (!iso) return 'No events yet';
   const zoned = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`;
@@ -622,7 +627,8 @@ export default function InboxConnectionsPage({
               const brand = CHANNEL_LOOK[c.id] ?? { icon: <span>{c.label[0]}</span>, bg: c.color, sub: '' };
               // The status pill says Connected / Not connected; the line under the name says what kind of
               // account it is, or the extra detail when there is one (which account, reconnect needed).
-              const subtitle = c.statusNote === 'Not connected' ? brand.sub : c.statusNote;
+              const soon = comingSoon(c.id);
+              const subtitle = soon ? 'Coming soon' : c.statusNote === 'Not connected' ? brand.sub : c.statusNote;
               return (
                 <div
                   key={c.id}
@@ -651,7 +657,7 @@ export default function InboxConnectionsPage({
                       <div
                         style={{
                           fontSize: 12.5,
-                          color: c.connected ? '#1E7A45' : c.warning ? '#B26A00' : MUTED,
+                          color: soon ? MUTED : c.connected ? '#1E7A45' : c.warning ? '#B26A00' : MUTED,
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
@@ -674,17 +680,17 @@ export default function InboxConnectionsPage({
                           fontWeight: 700,
                           borderRadius: 999,
                           padding: '4px 10px',
-                          background: cap.ok ? '#EEF8F2' : '#F7F2F4',
-                          color: cap.ok ? '#1E7A45' : '#9A8F94',
+                          background: cap.ok && !soon ? '#EEF8F2' : '#F7F2F4',
+                          color: cap.ok && !soon ? '#1E7A45' : '#9A8F94',
                         }}
                       >
-                        {cap.ok && <I n="check" s={11} c="#1E7A45" />}
+                        {cap.ok && !soon && <I n="check" s={11} c="#1E7A45" />}
                         {cap.label}
                       </span>
                     ))}
                   </div>
 
-                  {c.scopes.length > 0 && (
+                  {!soon && c.scopes.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                       {c.scopes.map((s) => (
                         <span
@@ -705,7 +711,7 @@ export default function InboxConnectionsPage({
                     </div>
                   )}
 
-                  {c.warning && (
+                  {!soon && c.warning && (
                     <div
                       style={{
                         display: 'flex',
@@ -743,50 +749,69 @@ export default function InboxConnectionsPage({
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span
-                      style={{
-                        fontSize: 11.5,
-                        fontWeight: 800,
-                        padding: '4px 10px',
-                        borderRadius: 999,
-                        background: c.connected ? '#E7F6EE' : '#F4EEF0',
-                        color: c.connected ? '#1E7A45' : '#8A7F84',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      ● {c.connected ? 'Connected' : 'Not connected'}
-                    </span>
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        fontSize: 11.5,
-                        fontWeight: 700,
-                        color: health.fg,
-                      }}
-                    >
-                      <I n={health.icon} s={11} c={health.fg} />
-                      {health.label}
-                    </span>
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        fontSize: 11.5,
-                        fontWeight: 600,
-                        color: '#9A9090',
-                      }}
-                    >
-                      <I n="clock" s={11} c="#B0A6AA" />
-                      Last event: {c.lastEvent}
-                    </span>
-                  </div>
+                  {soon ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontSize: 11.5,
+                          fontWeight: 800,
+                          padding: '4px 10px',
+                          borderRadius: 999,
+                          background: '#F4EEF0',
+                          color: '#8A7F84',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        ● Coming soon
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontSize: 11.5,
+                          fontWeight: 800,
+                          padding: '4px 10px',
+                          borderRadius: 999,
+                          background: c.connected ? '#E7F6EE' : '#F4EEF0',
+                          color: c.connected ? '#1E7A45' : '#8A7F84',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        ● {c.connected ? 'Connected' : 'Not connected'}
+                      </span>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          color: health.fg,
+                        }}
+                      >
+                        <I n={health.icon} s={11} c={health.fg} />
+                        {health.label}
+                      </span>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontSize: 11.5,
+                          fontWeight: 600,
+                          color: '#9A9090',
+                        }}
+                      >
+                        <I n="clock" s={11} c="#B0A6AA" />
+                        Last event: {c.lastEvent}
+                      </span>
+                    </div>
+                  )}
 
                   <button
                     type="button"
+                    disabled={soon}
                     onClick={() =>
                       c.id === 'whatsapp' ? setWhatsAppOpen(true) : c.connected ? setReplaceFor(c) : connectDirect(c.id)
                     }
@@ -796,14 +821,17 @@ export default function InboxConnectionsPage({
                       padding: '10px 16px',
                       fontSize: 13,
                       fontWeight: 800,
-                      cursor: 'pointer',
+                      cursor: soon ? 'not-allowed' : 'pointer',
+                      opacity: soon ? 0.55 : 1,
                       fontFamily: FONT,
                     }}
                   >
-                    {c.connected ? `Reconnect ${c.label}` : `Connect ${c.label}`}
+                    {soon ? 'Coming soon' : c.connected ? `Reconnect ${c.label}` : `Connect ${c.label}`}
                   </button>
 
-                  {c.connected && <TroubleshootPanel channelId={c.id} defaultOpen={c.lastEvent === 'No events yet'} />}
+                  {!soon && c.connected && (
+                    <TroubleshootPanel channelId={c.id} defaultOpen={c.lastEvent === 'No events yet'} />
+                  )}
                 </div>
               );
             })}
@@ -814,7 +842,7 @@ export default function InboxConnectionsPage({
       <div style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.5 }}>
         💡 Connect Instagram and Facebook here with your Meta login so their messages and comments reach this inbox. Use
         the account that has full control of your Facebook Page.{' '}
-        {IS_PRODUCTION ? '' : 'WhatsApp is connected here too.'}
+        {IS_PRODUCTION ? '' : WHATSAPP_COMING_SOON ? 'WhatsApp is coming soon.' : 'WhatsApp is connected here too.'}
       </div>
 
       {whatsAppOpen && (
