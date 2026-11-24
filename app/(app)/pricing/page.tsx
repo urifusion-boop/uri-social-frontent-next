@@ -124,7 +124,8 @@ export default function PricingPage() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl mb-4">Choose Your Plan</h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
-            1 Credit = 1 Complete Content Campaign with AI-generated images and multi-platform formatting
+            Your plan gives you credits every month. A post uses 1 credit, and the cost of anything you make is shown
+            before you start.
           </p>
 
           {/* Currency Selector */}
@@ -222,7 +223,7 @@ export default function PricingPage() {
                   <CardHeader className="pb-4 min-h-[80px] flex flex-col justify-start">
                     <CardTitle className="text-xl font-bold text-gray-900">{tier.name}</CardTitle>
                     <CardDescription className="text-sm text-gray-500 mt-1">
-                      {credits} campaigns
+                      {credits} credits
                       {selectedBillingCycle !== 'monthly' && ` (${tier.credits_monthly || tier.credits}/mo)`}
                     </CardDescription>
                   </CardHeader>
@@ -315,11 +316,7 @@ export default function PricingPage() {
                     <h3 className="text-lg font-bold text-gray-900">Buy Custom Credits</h3>
                   </div>
                   <p className="text-sm text-gray-600 max-w-md">
-                    Need a specific amount? Top up any quantity — no subscription, and they never expire.{' '}
-                    <span className="font-bold text-[#CD1B78]">
-                      {BillingService.formatNGN(CUSTOM_CREDIT_PRICE_NGN)}
-                    </span>{' '}
-                    per credit.
+                    Need a specific amount? Top up any quantity — no subscription, and they never expire.
                   </p>
                 </div>
 
@@ -394,7 +391,10 @@ export default function PricingPage() {
                 <ul className="space-y-2 ml-8">
                   <li className="flex items-start gap-2 text-gray-700">
                     <Check className="h-5 w-5 text-[#CD1B78] flex-shrink-0 mt-0.5" />
-                    <span>1 credit = 1 complete content campaign (image + caption + multi-platform formatting)</span>
+                    <span>
+                      A post uses 1 credit (a carousel, 1 per slide). A campaign can use several — each ad, video or
+                      post in it is its own generation, and its cost is shown before you confirm.
+                    </span>
                   </li>
                   <li className="flex items-start gap-2 text-gray-700">
                     <Check className="h-5 w-5 text-[#CD1B78] flex-shrink-0 mt-0.5" />

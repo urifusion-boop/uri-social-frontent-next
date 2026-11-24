@@ -52,7 +52,10 @@ export interface CreditTransaction {
 // Kept in sync with PaymentService.CUSTOM_CREDIT_PRICE_NGN on the backend —
 // used here only for instant client-side total preview before the backend
 // computes the authoritative amount at checkout time.
-export const CUSTOM_CREDIT_PRICE_NGN = 800;
+export const CUSTOM_CREDIT_PRICE_NGN = 667;
+// Only to work out how many credits an OLD custom purchase was (one saved without its quantity) — those were
+// bought at ₦800 each.
+export const LEGACY_CUSTOM_CREDIT_PRICE_NGN = 800;
 export const CUSTOM_CREDIT_MIN_QUANTITY = 1;
 export const CUSTOM_CREDIT_MAX_QUANTITY = 1000;
 

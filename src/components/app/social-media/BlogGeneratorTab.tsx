@@ -454,7 +454,7 @@ export default function BlogGeneratorTab() {
             ) : (
               <>
                 <FiZap size={18} />
-                {dna ? 'Generate Blog with Your Voice' : 'Generate Blog'}
+                {dna ? 'Generate Blog with Your Voice' : 'Generate Blog'} · 1 credit
               </>
             )}
           </button>

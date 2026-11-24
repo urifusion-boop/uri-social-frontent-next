@@ -18,6 +18,7 @@ import {
   SubscriptionResponse,
   SubscriptionTier,
   CUSTOM_CREDIT_PRICE_NGN,
+  LEGACY_CUSTOM_CREDIT_PRICE_NGN,
   CUSTOM_CREDIT_MIN_QUANTITY,
   CUSTOM_CREDIT_MAX_QUANTITY,
 } from '@/src/api/BillingService';
@@ -939,7 +940,7 @@ export default function BillingPage({ onBack, initialTab = 'overview', focusBuyC
                       <div style={{ marginBottom: 12 }}>
                         <h3 style={{ fontSize: 18, fontWeight: 900, margin: '0 0 4px', color: '#111' }}>{tier.name}</h3>
                         {/* <p style={{ fontSize: 11, color: '#666', margin: 0 }}>
-                          {credits} campaigns{selectedBillingCycle !== 'monthly' && ` (${tier.credits_monthly}/mo)`}
+                          {credits} credits{selectedBillingCycle !== 'monthly' && ` (${tier.credits_monthly}/mo)`}
                         </p> */}
                       </div>
 
@@ -1080,9 +1081,7 @@ export default function BillingPage({ onBack, initialTab = 'overview', focusBuyC
                     </h3>
                   </div>
                   <p style={{ fontSize: 12.5, color: '#666', margin: 0, lineHeight: 1.5, maxWidth: 380 }}>
-                    Need a specific amount? Top up any quantity — no subscription, and they never expire.{' '}
-                    <strong style={{ color: '#C2185B' }}>₦{CUSTOM_CREDIT_PRICE_NGN.toLocaleString()}</strong> per
-                    credit.
+                    Need a specific amount? Top up any quantity — no subscription, and they never expire.
                   </p>
                 </div>
 
@@ -1485,9 +1484,7 @@ export default function BillingPage({ onBack, initialTab = 'overview', focusBuyC
                   <span style={{ color: '#C2185B', fontSize: 18, fontWeight: 900, lineHeight: 1 }}>+</span>
                 </div>
                 <div style={{ fontSize: 12.5, fontWeight: 700, color: '#C2185B' }}>Buy More Credits</div>
-                <div style={{ fontSize: 10.5, color: '#999', marginTop: 2 }}>
-                  ₦{CUSTOM_CREDIT_PRICE_NGN.toLocaleString()}/credit, any amount
-                </div>
+                <div style={{ fontSize: 10.5, color: '#999', marginTop: 2 }}>Any amount, no subscription</div>
               </div>
             </div>
 
@@ -1612,6 +1609,40 @@ export default function BillingPage({ onBack, initialTab = 'overview', focusBuyC
                 )}
               </div>
             </div>
+            {/* How credits work — "Show the credit cost before a customer starts each generation" and "explain
+                how failed attempts, retries, and regenerations are handled" (Pricing Update, Nov 2026). Matches
+                what the server charges. */}
+            <div
+              style={{
+                marginTop: 16,
+                padding: '16px 18px',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                background: '#fff',
+              }}
+            >
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#111', marginBottom: 8 }}>How credits work</div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: '#4b5563', lineHeight: 1.65 }}>
+                <li>
+                  Your plan gives you a set number of credits each month. Generating content uses them; the cost is
+                  shown before you start.
+                </li>
+                <li>
+                  A post uses 1 credit (a carousel, 1 per slide). A caption for your own photo or a blog post uses 1. An
+                  ad, a video storyboard and a video show their cost before you confirm.
+                </li>
+                <li>A campaign can use several credits — each ad, video or post in it is its own generation.</li>
+                <li>
+                  If a generation fails and nothing is made, you&apos;re not charged, or the credits are returned
+                  straight away. Scenes of a video that don&apos;t come out are returned too.
+                </li>
+                <li>
+                  Automatic retries while something is being made are free. Redoing a post&apos;s image is free the
+                  first time, then 1 credit (we ask first). Rewriting a post&apos;s text is free.
+                </li>
+                <li>We&apos;ll let you know when your credits are running low and when they run out.</li>
+              </ul>
+            </div>
           </div>
         )}
 
@@ -1671,7 +1702,7 @@ export default function BillingPage({ onBack, initialTab = 'overview', focusBuyC
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'capitalize' }}>
                         {payment.purchase_type === 'custom_credits'
-                          ? `${payment.credit_quantity ?? Math.round(payment.amount / CUSTOM_CREDIT_PRICE_NGN)} Custom Credits`
+                          ? `${payment.credit_quantity ?? Math.round(payment.amount / LEGACY_CUSTOM_CREDIT_PRICE_NGN)} Custom Credits`
                           : `${payment.subscription_tier} Plan`}
                       </div>
                       <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{payment.transaction_ref}</div>
@@ -1763,7 +1794,7 @@ export default function BillingPage({ onBack, initialTab = 'overview', focusBuyC
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                   <span style={{ fontSize: 14, color: '#666' }}>Credits</span>
                   <span style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>
-                    {BillingService.getCreditsForCycle(confirmTier, selectedBillingCycle)} campaigns
+                    {BillingService.getCreditsForCycle(confirmTier, selectedBillingCycle)} credits
                     {selectedBillingCycle !== 'monthly' && (
                       <span style={{ color: '#666', fontWeight: 400, marginLeft: 6 }}>
                         ({confirmTier.credits_monthly}/mo)
