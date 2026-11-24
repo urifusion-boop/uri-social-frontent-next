@@ -18,7 +18,7 @@ import WizardGooglePlacementStep from './WizardGooglePlacementStep';
 import WizardAudienceStep, { WizardAudienceValue } from './WizardAudienceStep';
 import WizardBudgetStep, { WizardBudgetValue } from './WizardBudgetStep';
 import { useFeatures } from '@/src/hooks/useFeatures';
-import WizardCreativeStep, { WizardCreativeChoice } from './WizardCreativeStep';
+import WizardCreativeStep, { creativeFitsTikTok, WizardCreativeChoice } from './WizardCreativeStep';
 import WizardStyleStep, { styleApplies } from './WizardStyleStep';
 import WizardReviewStep from './WizardReviewStep';
 import { deleteWizardDraft, saveWizardDraft, WizardDraft, WizardReviewSnapshot } from './wizardDraft';
@@ -314,8 +314,12 @@ export default function CampaignWizard({
   // picked is the same "real progress" bar the list page's resume banner implies).
   // Debounced inside saveWizardDraft itself, so this effect firing on every
   // keystroke (the audience textarea) costs nothing extra here.
+  // Set once every ad in this run has launched and its draft was deleted. The launch
+  // also updates `results`, and saving that a moment later brought the deleted draft
+  // straight back under Unfinished — so nothing is saved after that point.
+  const finishedRef = useRef(false);
   useEffect(() => {
-    if (!objective) return;
+    if (!objective || finishedRef.current) return;
     saveWizardDraft(draftId, { objective, platform, googlePlacement, audience, budget, creative, results });
   }, [draftId, objective, platform, googlePlacement, audience, budget, creative, results]);
 
@@ -324,7 +328,11 @@ export default function CampaignWizard({
     if (step === 'platform') return platform.mode === 'single' ? platform.touched : platform.multi.length >= 2;
     if (step === 'audience') return Boolean(audience.description.trim() && audience.city.trim());
     if (step === 'budget') return typeof budget.amountNgn === 'number' && budget.amountNgn > 0;
-    if (step === 'creative') return Boolean(creative);
+    if (step === 'creative') {
+      // TikTok alone can't run Jane's images or a single photo (see creativeFitsTikTok).
+      if (platform.mode === 'single' && platform.single === 'tiktok') return creativeFitsTikTok(creative);
+      return Boolean(creative);
+    }
     return true;
   };
 
@@ -611,8 +619,12 @@ export default function CampaignWizard({
               onStatusChange={setReviewReady}
               initialResults={results}
               onResultsChange={setResults}
-              onAnyLaunched={() => deleteWizardDraft(draftId)}
+              onAnyLaunched={() => {
+                finishedRef.current = true;
+                deleteWizardDraft(draftId);
+              }}
               onChangeStyle={steps.some((s) => s.key === 'style') ? () => setStepKey('style') : undefined}
+              onChangeCreative={() => setStepKey('creative')}
             />
           )}
         </div>

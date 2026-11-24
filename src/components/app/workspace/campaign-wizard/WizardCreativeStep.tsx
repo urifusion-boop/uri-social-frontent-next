@@ -62,23 +62,37 @@ export type WizardCreativeChoice =
       previewUrl: string;
     };
 
+/** TikTok runs a video, or 2+ photos as a carousel — there is no single-image TikTok ad.
+ *  Anything else picked for a TikTok-only run reached Review and stopped at "TikTok needs
+ *  a video", with nothing in the wizard to answer it with (live-found on staging). */
+export function creativeFitsTikTok(c: WizardCreativeChoice | null): boolean {
+  if (!c || c.creative_source !== 'upload') return false;
+  return c.is_video || (c.carouselExtraUrls?.length ?? 0) >= 1;
+}
+
+const TIKTOK_IMAGE_ONLY = 'TikTok runs a video or 2+ photos, so this one can’t run there — upload your own instead.';
+
 function OptionCard({
   title,
   subtitle,
   isOn,
   onClick,
   children,
+  disabledReason,
 }: {
   title: string;
   subtitle: string;
   isOn: boolean;
   onClick: () => void;
   children?: React.ReactNode;
+  /** Shown instead of a click when this option can't work for this campaign. */
+  disabledReason?: string;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={disabledReason ? undefined : onClick}
+      disabled={Boolean(disabledReason)}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -89,12 +103,16 @@ function OptionCard({
         background: isOn ? 'rgba(194,24,91,.05)' : '#fff',
         borderRadius: 12,
         padding: '14px 16px',
-        cursor: 'pointer',
+        cursor: disabledReason ? 'default' : 'pointer',
+        opacity: disabledReason ? 0.6 : 1,
         width: '100%',
       }}
     >
       <span style={{ fontSize: 13.5, fontWeight: 800, color: isOn ? PINK : '#1a0a12' }}>{title}</span>
       <span style={{ fontSize: 12, color: '#7a7270', lineHeight: 1.45 }}>{subtitle}</span>
+      {disabledReason && (
+        <span style={{ fontSize: 11.5, color: '#a15c00', fontWeight: 600, lineHeight: 1.45 }}>{disabledReason}</span>
+      )}
       {children}
     </button>
   );
@@ -385,6 +403,7 @@ export default function WizardCreativeStep({
           subtitle="On-brand AI creative built from your objective and audience — no asset needed."
           isOn={mode === 'generate' && !isTestMode}
           onClick={() => onChange({ creative_source: 'generate' })}
+          disabledReason={isTikTok ? TIKTOK_IMAGE_ONLY : undefined}
         />
         {isMeta && (
           // A sibling block, not nested inside OptionCard's own <button> — same
@@ -633,6 +652,15 @@ export default function WizardCreativeStep({
             sibling, not nested inside the OptionCard button above, which is itself
             a <button> — a <button> can't legally contain other buttons (and this
             one needs its own "+ Add" and "×" buttons). */}
+        {isTikTok &&
+          mode === 'upload' &&
+          value?.creative_source === 'upload' &&
+          !value.is_video &&
+          !(value.carouselExtraUrls?.length ?? 0) && (
+            <p style={{ margin: '-2px 0 0', fontSize: 12, color: '#a15c00', fontWeight: 600 }}>
+              Add at least one more photo — TikTok runs photos as a carousel of 2 or more (or upload a video).
+            </p>
+          )}
         {isTikTok && mode === 'upload' && value?.creative_source === 'upload' && !value.is_video && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: -4 }}>
             <input
@@ -705,6 +733,7 @@ export default function WizardCreativeStep({
             subtitle="Add a screenshot of an ad you liked. Jane makes your own version of the idea, in your brand."
             isOn={false}
             onClick={() => likedInput.current?.click()}
+            disabledReason={isTikTok ? TIKTOK_IMAGE_ONLY : undefined}
           >
             <input
               ref={likedInput}
@@ -812,6 +841,7 @@ export default function WizardCreativeStep({
           subtitle="Reuse an image from something you've already created."
           isOn={mode === 'draft'}
           onClick={loadDrafts}
+          disabledReason={isTikTok ? TIKTOK_IMAGE_ONLY : undefined}
         >
           {showDrafts && (
             <div style={{ marginTop: 8, width: '100%' }}>

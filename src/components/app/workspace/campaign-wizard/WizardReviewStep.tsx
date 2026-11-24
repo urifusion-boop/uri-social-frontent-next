@@ -33,7 +33,7 @@ import {
   LaunchFromMessageResult,
   PlanVariant,
 } from '@/src/api/CampaignService';
-import { QuickReplyChips, ResultCard, uid } from '../CampaignsPage';
+import { QuickReplyChips, ResultCard, ResultCardLaunchOutcome, ResultCardLaunchState, uid } from '../CampaignsPage';
 import { useCreativePaths, VideoWhoPrompt } from '../CreativePathControls';
 import type { GooglePlacement } from '../GooglePlacementPreview';
 import type { WizardObjectiveValue } from './WizardObjectiveStep';
@@ -346,6 +346,7 @@ export default function WizardReviewStep({
   onResultsChange,
   onAnyLaunched,
   onChangeStyle,
+  onChangeCreative,
 }: {
   objective: WizardObjectiveValue;
   audience: WizardAudienceValue;
@@ -381,6 +382,8 @@ export default function WizardReviewStep({
   onAnyLaunched?: () => void;
   /** Back to the Style step ("Change style" beside the style the ad was made in). */
   onChangeStyle?: () => void;
+  /** Back to the Creative step (TikTok's "needs a video" answer: use 2+ photos instead). */
+  onChangeCreative?: () => void;
 }) {
   const isMulti = platform.mode === 'multi' && platform.multi.length >= 2;
   const platforms: MultiWizardPlatform[] = isMulti ? platform.multi : [];
@@ -655,6 +658,18 @@ export default function WizardReviewStep({
   }, [isMulti, runs, onResultsChange]);
 
   const launchedCount = runs.filter((r) => r.slot.result?.stage === 'launched').length;
+  // What each ad's card reports about launching (see ResultCardLaunchState), and its own launch.
+  const [launchStates, setLaunchStates] = useState<Record<string, ResultCardLaunchState>>({});
+  const launchers = useRef<Record<string, () => Promise<ResultCardLaunchOutcome>>>({});
+  const [launchAll, setLaunchAll] = useState<{
+    running: boolean;
+    current: string | null;
+    index: number;
+    total: number;
+    failed: string[];
+  } | null>(null);
+  // The mid-flow "Upload a video" for TikTok's needs-a-video answer takes a video only.
+  const videoOnlyRef = useRef(false);
 
   // ---- shared pieces ----
   // Live-reported: clicking a button near the bottom of a long card (e.g. "Use
@@ -810,8 +825,326 @@ export default function WizardReviewStep({
     );
   }
 
-  const onPlatform = active ? (active.platform ?? platform.single) : '';
-  const floor = activeSlot?.result && onPlatform === 'tiktok' ? tiktokFloorChip(activeSlot.result) : null;
+  const renderRun = (r: PlanRun) => {
+    const st = r.slot;
+    const where = r.platform ?? platform.single;
+    const floor = st.result && where === 'tiktok' ? tiktokFloorChip(st.result) : null;
+    if (!st.result && !st.error) return <p style={{ fontSize: 13.5, color: '#7a7270' }}>{buildingText(r)}</p>;
+    if (st.error && !st.result) {
+      return (
+        <div>
+          <p style={{ fontSize: 13.5, color: '#b91c1c', marginBottom: 10 }}>{st.error}</p>
+          <button
+            type="button"
+            onClick={() => void submitRun(r.key)}
+            style={{
+              border: `1.5px solid ${PINK}`,
+              background: '#fff',
+              color: PINK,
+              borderRadius: 10,
+              padding: '8px 16px',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+    if (!st.result) return null;
+    const result = st.result;
+    return (
+      <div>
+        {st.working && workingBanner(updatingText(r))}
+        {st.error && errorBanner(st.error, () => void submitRun(r.key))}
+        <div
+          className={st.working ? 'wizard-dim' : ''}
+          style={st.working ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
+        >
+          {!isMulti && (
+            <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#7a7270' }}>
+              {decided(result.stage)
+                ? "Here's what Jane's put together — adjust anything before you launch."
+                : 'A couple of quick questions to finish this plan before you review it.'}
+            </p>
+          )}
+          <ResultCard
+            result={result}
+            adFormats={adFormats}
+            formatFallbackFrom={styleFallbackFrom(result)}
+            onChangeStyle={onChangeStyle}
+            onResultChange={(next) => patchSlot(r.key, { result: next })}
+            onLaunched={() => {
+              // The autosaved draft is done only once EVERY ad has launched —
+              // clearing it on the first would stop offering the still-unfinished
+              // others as "resume" while they're genuinely in progress. "Create
+              // another campaign" stays the explicit way back to a fresh wizard.
+              const others = runsRef.current.filter((o) => o.key !== r.key);
+              if (others.every((o) => o.slot.result?.stage === 'launched')) onAnyLaunched?.();
+            }}
+            onLaunchState={(state) => setLaunchStates((prev) => ({ ...prev, [r.key]: state }))}
+            registerLaunch={(launch) => {
+              if (launch) launchers.current[r.key] = launch;
+              else delete launchers.current[r.key];
+            }}
+            onQuickReply={(text) => void submitRun(r.key, { message: `${message} ${text}` })}
+            onTopUp={() => window.open('/workspace/?tab=campaigns', '_blank')}
+            onSubmitWhatsapp={(number) => void submitRun(r.key, { whatsapp_number: number })}
+            onSubmitMetaConnectionWhatsapp={async (number) => {
+              await CampaignService.setWhatsapp(number);
+              void submitRun(r.key, { whatsapp_number: number });
+            }}
+            onChooseGenerate={() => void submitRun(r.key, { creative_source: 'generate' })}
+            onChooseConcepts={(n) => void submitRun(r.key, { creative_source: 'generate', concepts: n })}
+            onChooseUpload={() => {
+              uploadForRef.current = 'upload';
+              videoOnlyRef.current = false;
+              fileInputRef.current?.click();
+            }}
+            onChooseRecomposite={() => {
+              uploadForRef.current = 'recompose';
+              videoOnlyRef.current = false;
+              fileInputRef.current?.click();
+            }}
+            onChooseDraft={(draftId) => void submitRun(r.key, { creative_source: 'draft', draft_id: draftId })}
+            onChooseAiVideo={(url, provenance: CreativeProvenanceInput) =>
+              void submitRun(r.key, {
+                creative_source: 'upload',
+                reference_image_url: url,
+                is_video: true,
+                ...provenance,
+              })
+            }
+            creativePaths={creativePaths}
+            briefText={message}
+            onChooseVariants={(variants, groupId) => answerAudience(r.key, { variants, groupId })}
+            onChooseOwnAudience={(text) => answerAudience(r.key, { ownAudience: text.trim() })}
+            onChooseDestination={(answer) => answerDestination(r.key, answer as Partial<PlanFromMessagePayload>)}
+            onPickPlatform={!isMulti ? (p) => void submitRun(r.key, { preferred_platform: p || undefined }) : undefined}
+          />
+          {/* Live-found on staging: TikTok's "needs a video" answer ends with "send your
+              message again" — there is no message box in the wizard, so it was a dead end.
+              The two real ways forward, as buttons. */}
+          {result.stage === 'tiktok_needs_video' && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '10px 0 0 40px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  uploadForRef.current = 'upload';
+                  videoOnlyRef.current = true;
+                  fileInputRef.current?.click();
+                }}
+                style={{
+                  border: 'none',
+                  background: PINK,
+                  color: '#fff',
+                  borderRadius: 10,
+                  padding: '9px 16px',
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                Upload a video
+              </button>
+              {onChangeCreative && (
+                <button
+                  type="button"
+                  onClick={onChangeCreative}
+                  style={{
+                    border: `1.5px solid ${PINK}`,
+                    background: '#fff',
+                    color: PINK,
+                    borderRadius: 10,
+                    padding: '8px 15px',
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Use 2+ photos instead
+                </button>
+              )}
+            </div>
+          )}
+          {pendingAttestation?.key === r.key && (
+            <WizardAssetAttestation previewUrls={[pendingAttestation.url]} onAnswer={resolveAttestation} />
+          )}
+          {pendingVideoWho?.key === r.key && (
+            <div style={{ background: '#faf7f6', border: '1px solid #ece8e6', borderRadius: 12, padding: 12 }}>
+              <p style={{ margin: '0 0 10px', fontSize: 12.5, fontWeight: 700, color: '#1a0a12' }}>
+                Who&rsquo;s in this video?
+              </p>
+              <VideoWhoPrompt info={creativePaths} onAnswer={resolveVideoWho} />
+            </div>
+          )}
+          {floor && (
+            <QuickReplyChips
+              chips={[`Use ₦${floor} instead`]}
+              onPick={() => void submitRun(r.key, { message: `${message} ${floor}` })}
+            />
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // ---- Launch all ----
+  // Every ad not yet launched, launched one after another through its own card's launch
+  // (the same checks, errors and long-video follow-up as its own button). One at a time,
+  // not all at once: the backend checks the wallet before a launch and charges after it,
+  // so parallel launches could each pass the check and together overdraw it.
+  const pendingRuns = runs.filter((r) => r.slot.result?.stage !== 'launched');
+  const notReady = pendingRuns.filter((r) => !launchStates[r.key]?.ready);
+  const totalDue = pendingRuns.reduce((sum, r) => sum + (launchStates[r.key]?.dueNgn ?? 0), 0);
+  const balance = runs.map((r) => launchStates[r.key]?.balanceNgn).find((b): b is number => typeof b === 'number');
+  const short = balance !== undefined && totalDue > balance;
+  const naira = (n: number) => `₦${Math.round(n).toLocaleString()}`;
+  const runLaunchAll = async () => {
+    if (launchAll?.running) return;
+    const queue = runsRef.current
+      .filter((r) => r.slot.result?.stage !== 'launched' && launchStates[r.key]?.ready)
+      .map((r) => r.key);
+    const failed: string[] = [];
+    for (let i = 0; i < queue.length; i++) {
+      setLaunchAll({ running: true, current: queue[i], index: i, total: queue.length, failed: [] });
+      const launch = launchers.current[queue[i]];
+      const outcome = launch ? await launch() : 'skipped';
+      if (outcome === 'failed' || outcome === 'skipped') failed.push(queue[i]);
+    }
+    setLaunchAll({ running: false, current: null, index: queue.length, total: queue.length, failed });
+  };
+  const barButton = (label: string, onClick: () => void, primary: boolean, disabled = false) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        border: primary ? 'none' : `1.5px solid ${PINK}`,
+        background: disabled ? '#eee' : primary ? `linear-gradient(135deg,${PINK},#8E1545)` : '#fff',
+        color: disabled ? '#999' : primary ? '#fff' : PINK,
+        borderRadius: 10,
+        padding: primary ? '10px 18px' : '9px 15px',
+        fontSize: 13,
+        fontWeight: 800,
+        cursor: disabled ? 'default' : 'pointer',
+        flexShrink: 0,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </button>
+  );
+  const failedRuns = (launchAll && !launchAll.running ? launchAll.failed : [])
+    .map((k) => runs.find((r) => r.key === k))
+    .filter((r): r is PlanRun => Boolean(r) && r!.slot.result?.stage !== 'launched');
+  const launchAllBar =
+    showTabs && pendingRuns.length > 0 ? (
+      <div
+        style={{
+          position: 'sticky',
+          bottom: 12,
+          zIndex: 6,
+          marginTop: 18,
+          background: '#fff',
+          border: '1px solid #ece8e6',
+          borderRadius: 12,
+          padding: '12px 14px',
+          boxShadow: '0 6px 20px rgba(0,0,0,.10)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 12,
+          fontSize: 12.5,
+          color: '#4a4240',
+        }}
+      >
+        {launchAll?.running ? (
+          <>
+            <span style={{ fontWeight: 700, color: '#1a0a12' }}>
+              Launching {planName(runs.find((r) => r.key === launchAll.current) ?? runs[0])} — {launchAll.index + 1} of{' '}
+              {launchAll.total}…
+            </span>
+            {barButton('Launching…', () => {}, true, true)}
+          </>
+        ) : failedRuns.length > 0 ? (
+          <>
+            <span style={{ color: '#991b1b', fontWeight: 700 }}>
+              {failedRuns.map((r) => planName(r)).join(', ')} didn&rsquo;t launch — open{' '}
+              {failedRuns.length > 1 ? 'them' : 'it'} to see why. Nothing was charged for{' '}
+              {failedRuns.length > 1 ? 'those' : 'it'}.
+            </span>
+            <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {failedRuns[0].key !== active?.key &&
+                barButton(`Open ${planName(failedRuns[0])}`, () => setActiveKey(failedRuns[0].key), false)}
+              {barButton(
+                'Try again',
+                () => void runLaunchAll(),
+                true,
+                !failedRuns.some((r) => launchStates[r.key]?.ready)
+              )}
+            </span>
+          </>
+        ) : notReady.length > 0 ? (
+          <>
+            <span>
+              <strong style={{ color: '#1a0a12' }}>
+                {pendingRuns.length - notReady.length} of {pendingRuns.length} ready to launch.
+              </strong>{' '}
+              {planName(notReady[0])}{' '}
+              {notReady[0].slot.result?.stage === 'planned'
+                ? 'needs a look before it can launch'
+                : notReady[0].slot.result
+                  ? 'still has a question to answer'
+                  : 'is still being built'}
+              {notReady.length > 1 ? ` (and ${notReady.length - 1} more)` : ''} — then launch them all together.
+            </span>
+            {notReady[0].key !== active?.key
+              ? barButton(`Go to ${planName(notReady[0])}`, () => setActiveKey(notReady[0].key), false)
+              : barButton(`Launch all ${pendingRuns.length}`, () => {}, true, true)}
+          </>
+        ) : short ? (
+          <>
+            <span>
+              <strong style={{ color: '#1a0a12' }}>All {pendingRuns.length} ready.</strong> Together they need{' '}
+              <strong>{naira(totalDue)}</strong> in your wallet — you have {naira(balance!)}.
+            </span>
+            {barButton('Top up wallet', () => window.open('/workspace/?tab=campaigns', '_blank'), false)}
+          </>
+        ) : (
+          <>
+            <span>
+              <strong style={{ color: '#1a0a12' }}>
+                {pendingRuns.length === 1
+                  ? `${planName(pendingRuns[0])} is ready.`
+                  : launchedCount > 0
+                    ? `The other ${pendingRuns.length} are ready.`
+                    : `All ${pendingRuns.length} ads are ready.`}
+              </strong>
+              {totalDue > 0 && (
+                <>
+                  {' '}
+                  <strong>{naira(totalDue)}</strong>
+                  {' from your wallet in total.'}
+                </>
+              )}
+            </span>
+            {barButton(
+              pendingRuns.length === 1
+                ? `Launch ${planName(pendingRuns[0])}`
+                : launchedCount > 0
+                  ? `Launch the other ${pendingRuns.length}`
+                  : `Launch all ${pendingRuns.length}`,
+              () => void runLaunchAll(),
+              true
+            )}
+          </>
+        )}
+      </div>
+    ) : null;
 
   return (
     <div>
@@ -853,7 +1186,13 @@ export default function WizardReviewStep({
         >
           {runs.map((r) => {
             const st = r.slot;
-            const status: PlatformStatus = st.result ? statusForStage(st.result.stage) : st.error ? 'attn' : 'decide';
+            const status: PlatformStatus = launchStates[r.key]?.error
+              ? 'attn'
+              : st.result
+                ? statusForStage(st.result.stage)
+                : st.error
+                  ? 'attn'
+                  : 'decide';
             const who = planWho(r);
             const isActive = r.key === active?.key;
             return (
@@ -941,141 +1280,50 @@ export default function WizardReviewStep({
         </div>
       )}
 
-      {!active || !activeSlot ? null : !activeSlot.result && !activeSlot.error ? (
-        <p style={{ fontSize: 13.5, color: '#7a7270' }}>{buildingText(active)}</p>
-      ) : activeSlot.error && !activeSlot.result ? (
-        <div>
-          <p style={{ fontSize: 13.5, color: '#b91c1c', marginBottom: 10 }}>{activeSlot.error}</p>
-          <button
-            type="button"
-            onClick={() => void submitRun(active.key)}
-            style={{
-              border: `1.5px solid ${PINK}`,
-              background: '#fff',
-              color: PINK,
-              borderRadius: 10,
-              padding: '8px 16px',
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            Try again
-          </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*"
+        style={{ display: 'none' }}
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file || !active) return;
+          const key = active.key;
+          if (videoOnlyRef.current && !file.type.startsWith('video/')) {
+            patchSlot(key, {
+              error: 'TikTok needs a video here — choose a video file, or change the creative to 2+ photos.',
+            });
+            return;
+          }
+          const { url, is_video } = await CampaignService.uploadMedia(file);
+          if (uploadForRef.current === 'recompose') {
+            if (is_video) {
+              patchSlot(key, {
+                error: 'Recompositing works with a photo, not a video — please choose an image.',
+              });
+              return;
+            }
+            setPendingAttestation({ key, url, forRecompose: true });
+            return;
+          }
+          if (!is_video) {
+            setPendingAttestation({ key, url, forRecompose: false });
+            return;
+          }
+          setPendingVideoWho({ key, url });
+        }}
+      />
+      {/* Every ad stays mounted, the inactive ones hidden: switching tabs used to remount the
+          card and throw away edits not yet saved, and "Launch all" needs each card's own
+          launch (and its plan checks) available whichever tab is open. */}
+      {runs.map((r) => (
+        <div key={r.key} style={r.key === active?.key ? undefined : { display: 'none' }}>
+          {renderRun(r)}
         </div>
-      ) : activeSlot.result ? (
-        <div>
-          {activeSlot.working && workingBanner(updatingText(active))}
-          {activeSlot.error && errorBanner(activeSlot.error, () => void submitRun(active.key))}
-          <div
-            className={activeSlot.working ? 'wizard-dim' : ''}
-            style={activeSlot.working ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
-          >
-            {!isMulti && (
-              <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#7a7270' }}>
-                {decided(activeSlot.result.stage)
-                  ? "Here's what Jane's put together — adjust anything before you launch."
-                  : 'A couple of quick questions to finish this plan before you review it.'}
-              </p>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,video/*"
-              style={{ display: 'none' }}
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                e.target.value = '';
-                if (!file) return;
-                const key = active.key;
-                const { url, is_video } = await CampaignService.uploadMedia(file);
-                if (uploadForRef.current === 'recompose') {
-                  if (is_video) {
-                    patchSlot(key, {
-                      error: 'Recompositing works with a photo, not a video — please choose an image.',
-                    });
-                    return;
-                  }
-                  setPendingAttestation({ key, url, forRecompose: true });
-                  return;
-                }
-                if (!is_video) {
-                  setPendingAttestation({ key, url, forRecompose: false });
-                  return;
-                }
-                setPendingVideoWho({ key, url });
-              }}
-            />
-            <ResultCard
-              key={active.key}
-              result={activeSlot.result}
-              adFormats={adFormats}
-              formatFallbackFrom={styleFallbackFrom(activeSlot.result)}
-              onChangeStyle={onChangeStyle}
-              onResultChange={(r) => patchSlot(active.key, { result: r })}
-              onLaunched={() => {
-                // The autosaved draft is done only once EVERY ad has launched —
-                // clearing it on the first would stop offering the still-unfinished
-                // others as "resume" while they're genuinely in progress. "Create
-                // another campaign" stays the explicit way back to a fresh wizard.
-                const others = runsRef.current.filter((r) => r.key !== active.key);
-                if (others.every((r) => r.slot.result?.stage === 'launched')) onAnyLaunched?.();
-              }}
-              onQuickReply={(text) => void submitRun(active.key, { message: `${message} ${text}` })}
-              onTopUp={() => window.open('/workspace/?tab=campaigns', '_blank')}
-              onSubmitWhatsapp={(number) => void submitRun(active.key, { whatsapp_number: number })}
-              onSubmitMetaConnectionWhatsapp={async (number) => {
-                await CampaignService.setWhatsapp(number);
-                void submitRun(active.key, { whatsapp_number: number });
-              }}
-              onChooseGenerate={() => void submitRun(active.key, { creative_source: 'generate' })}
-              onChooseConcepts={(n) => void submitRun(active.key, { creative_source: 'generate', concepts: n })}
-              onChooseUpload={() => {
-                uploadForRef.current = 'upload';
-                fileInputRef.current?.click();
-              }}
-              onChooseRecomposite={() => {
-                uploadForRef.current = 'recompose';
-                fileInputRef.current?.click();
-              }}
-              onChooseDraft={(draftId) => void submitRun(active.key, { creative_source: 'draft', draft_id: draftId })}
-              onChooseAiVideo={(url, provenance: CreativeProvenanceInput) =>
-                void submitRun(active.key, {
-                  creative_source: 'upload',
-                  reference_image_url: url,
-                  is_video: true,
-                  ...provenance,
-                })
-              }
-              creativePaths={creativePaths}
-              briefText={message}
-              onChooseVariants={(variants, groupId) => answerAudience(active.key, { variants, groupId })}
-              onChooseOwnAudience={(text) => answerAudience(active.key, { ownAudience: text.trim() })}
-              onChooseDestination={(answer) => answerDestination(active.key, answer as Partial<PlanFromMessagePayload>)}
-              onPickPlatform={
-                !isMulti ? (p) => void submitRun(active.key, { preferred_platform: p || undefined }) : undefined
-              }
-            />
-            {pendingAttestation?.key === active.key && (
-              <WizardAssetAttestation previewUrls={[pendingAttestation.url]} onAnswer={resolveAttestation} />
-            )}
-            {pendingVideoWho?.key === active.key && (
-              <div style={{ background: '#faf7f6', border: '1px solid #ece8e6', borderRadius: 12, padding: 12 }}>
-                <p style={{ margin: '0 0 10px', fontSize: 12.5, fontWeight: 700, color: '#1a0a12' }}>
-                  Who&rsquo;s in this video?
-                </p>
-                <VideoWhoPrompt info={creativePaths} onAnswer={resolveVideoWho} />
-              </div>
-            )}
-            {floor && (
-              <QuickReplyChips
-                chips={[`Use ₦${floor} instead`]}
-                onPick={() => void submitRun(active.key, { message: `${message} ${floor}` })}
-              />
-            )}
-          </div>
-        </div>
-      ) : null}
+      ))}
+
+      {launchAllBar}
 
       {!showTabs && launchedCount > 0 && (
         <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #ece8e6', textAlign: 'center' }}>
