@@ -526,6 +526,16 @@ export interface ExistingPost {
   account?: string;
 }
 
+/** A post URI published for the brand (Content Library), handed to the campaign wizard so
+ *  its video or photos run as a TikTok ad. Unlike ExistingPost, this is a file we host. */
+export interface PublishedPostCreative {
+  draft_id: string;
+  caption: string;
+  video_url?: string;
+  /** Carousel photos, in order — at least 2 when there is no video. */
+  photo_urls?: string[];
+}
+
 export interface BillingRow {
   business_id: string;
   label?: string; // owning account email, best-effort

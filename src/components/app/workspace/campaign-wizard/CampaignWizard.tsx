@@ -8,7 +8,7 @@
  */
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import type { CampaignRow, DraftSummary, ExistingPost } from '@/src/api/CampaignService';
+import type { CampaignRow, DraftSummary, ExistingPost, PublishedPostCreative } from '@/src/api/CampaignService';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { uid } from '../CampaignsPage';
 import { GooglePlacement } from '../GooglePlacementPreview';
@@ -86,6 +86,8 @@ export default function CampaignWizard({
   onDraftConsumed,
   pendingPost,
   onPostConsumed,
+  pendingPublished,
+  onPublishedConsumed,
   pendingDuplicate,
   onDuplicateConsumed,
   pendingResume,
@@ -99,6 +101,10 @@ export default function CampaignWizard({
   /** A post from the owner's own account, picked on the Creatives page. */
   pendingPost?: ExistingPost | null;
   onPostConsumed?: () => void;
+  /** A TikTok post URI published, picked in the Content Library: its video (or photos, as a
+   *  carousel) becomes the ad and TikTok is preselected. */
+  pendingPublished?: PublishedPostCreative | null;
+  onPublishedConsumed?: () => void;
   /** "Duplicate" on a launched campaign (CampaignBuilderPage) — seeds Objective,
    *  Platform, Audience and Budget from it so the run starts "tweak and relaunch"
    *  instead of blank, same spirit as the chat flow's own duplicateThread. Creative
@@ -128,6 +134,7 @@ export default function CampaignWizard({
   const [budget, setBudget] = useState<WizardBudgetValue>({ amountNgn: '', days: 7 });
   const [creative, setCreative] = useState<WizardCreativeChoice | null>(null);
   const [prefilledFromLibrary, setPrefilledFromLibrary] = useState(false);
+  const [prefilledFromPublished, setPrefilledFromPublished] = useState(false);
   // Flips once every selected platform has a finished, launch-ready plan with no
   // open question left — see the STEPS comment above.
   const [reviewReady, setReviewReady] = useState(false);
@@ -185,6 +192,32 @@ export default function CampaignWizard({
     // One-shot hand-off, same as pendingDraft above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPost]);
+
+  useEffect(() => {
+    if (!pendingPublished) return;
+    const { video_url, photo_urls = [] } = pendingPublished;
+    if (video_url) {
+      // Same shape as a video the person uploaded here. No "who's in it" answer is
+      // collected (that prompt lives inside the Creative step), same as choosing Skip.
+      setCreative({ creative_source: 'upload', reference_image_url: video_url, is_video: true, previewUrl: video_url });
+    } else if (photo_urls.length >= 2) {
+      setCreative({
+        creative_source: 'upload',
+        reference_image_url: photo_urls[0],
+        is_video: false,
+        previewUrl: photo_urls[0],
+        carouselExtraUrls: photo_urls.slice(1),
+      });
+    } else {
+      onPublishedConsumed?.();
+      return;
+    }
+    setPlatform({ mode: 'single', single: 'tiktok', multi: [], touched: true });
+    setPrefilledFromPublished(true);
+    onPublishedConsumed?.();
+    // One-shot hand-off, same as pendingDraft above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPublished]);
 
   const [prefilledFromDuplicate, setPrefilledFromDuplicate] = useState(false);
   useEffect(() => {
@@ -348,6 +381,11 @@ export default function CampaignWizard({
           {prefilledFromLibrary && (
             <p style={{ margin: '8px 0 0', fontSize: 12, color: PINK, fontWeight: 600 }}>
               ✓ Using the creative you picked from your library — it's already set on the Creative step.
+            </p>
+          )}
+          {prefilledFromPublished && (
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: PINK, fontWeight: 600 }}>
+              ✓ Using your published TikTok post — TikTok is selected and its media is set on the Creative step.
             </p>
           )}
           {prefilledFromDuplicate && (
