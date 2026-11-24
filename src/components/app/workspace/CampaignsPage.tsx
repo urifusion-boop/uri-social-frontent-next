@@ -3014,6 +3014,56 @@ function JaneBubble({ children }: { children: React.ReactNode }) {
   );
 }
 
+// A typed answer to one of Jane's open questions ("which cities?"). The chat page has its
+// composer for this; the campaign wizard has none, so without it that question is a dead end.
+function FreeTextReply({ onSend }: { onSend: (text: string) => void }) {
+  const [text, setText] = useState('');
+  const send = () => {
+    const answer = text.trim();
+    if (!answer) return;
+    setText('');
+    onSend(answer);
+  };
+  return (
+    <div className="camp-indent" style={{ display: 'flex', gap: 8, marginTop: 10, marginLeft: 40 }}>
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && send()}
+        placeholder="Type your answer…"
+        style={{
+          flex: 1,
+          minWidth: 0,
+          border: '1.5px solid #ece8e6',
+          borderRadius: 10,
+          padding: '9px 12px',
+          fontSize: 13,
+          fontFamily: 'inherit',
+          outline: 'none',
+        }}
+      />
+      <button
+        type="button"
+        onClick={send}
+        disabled={!text.trim()}
+        style={{
+          background: PINK,
+          color: '#fff',
+          border: 'none',
+          borderRadius: 10,
+          padding: '9px 18px',
+          fontSize: 13,
+          fontWeight: 700,
+          cursor: text.trim() ? 'pointer' : 'default',
+          opacity: text.trim() ? 1 : 0.5,
+        }}
+      >
+        Send
+      </button>
+    </div>
+  );
+}
+
 export function QuickReplyChips({ chips, onPick }: { chips: string[]; onPick: (text: string) => void }) {
   return (
     <div className="camp-indent" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, marginLeft: 40 }}>
@@ -4076,6 +4126,7 @@ export function ResultCard({
   onResultChange,
   onLaunched,
   onQuickReply,
+  onFreeTextReply,
   onTopUp,
   onSubmitWhatsapp,
   onSubmitMetaConnectionWhatsapp,
@@ -4108,6 +4159,9 @@ export function ResultCard({
   onResultChange: (result: LaunchFromMessageResult) => void;
   onLaunched: () => void;
   onQuickReply: (text: string) => void;
+  /** Passed only where there is no chat composer to answer in (the campaign wizard): shows
+   *  a text box under Jane's open questions. */
+  onFreeTextReply?: (text: string) => void;
   onTopUp: () => void;
   onSubmitWhatsapp: (number: string) => void;
   onSubmitMetaConnectionWhatsapp: (number: string) => void;
@@ -4367,6 +4421,7 @@ export function ResultCard({
           <JaneBubble>{result.question || 'Could you tell me a bit more, especially your budget?'}</JaneBubble>
           {asksForObjective && <QuickReplyChips chips={OBJECTIVE_REPLY_CHIPS} onPick={onQuickReply} />}
           {asksForBudget && <QuickReplyChips chips={BUDGET_REPLY_CHIPS} onPick={onQuickReply} />}
+          {onFreeTextReply && <FreeTextReply onSend={onFreeTextReply} />}
         </div>
       );
     }

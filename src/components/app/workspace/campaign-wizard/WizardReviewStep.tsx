@@ -890,6 +890,8 @@ export default function WizardReviewStep({
               else delete launchers.current[r.key];
             }}
             onQuickReply={(text) => void submitRun(r.key, { message: `${message} ${text}` })}
+            // The wizard has no composer, so an open question ("which cities?") needs its own box.
+            onFreeTextReply={(text) => void submitRun(r.key, { message: `${message} ${text}` })}
             onTopUp={() => window.open('/workspace/?tab=campaigns', '_blank')}
             onSubmitWhatsapp={(number) => void submitRun(r.key, { whatsapp_number: number })}
             onSubmitMetaConnectionWhatsapp={async (number) => {
