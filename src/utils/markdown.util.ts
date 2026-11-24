@@ -3,8 +3,21 @@
  * Handles: headings, bold/italic, unordered + ordered lists, paragraphs, blockquotes, code.
  */
 
-function inlineFormat(text: string): string {
+// The output goes into dangerouslySetInnerHTML, and the text is AI-generated from user
+// prompts and scraped pages, so any markup in it must arrive as text, never as HTML.
+// Escaped before formatting: the markdown markers (*, `) are not HTML-special, so the
+// formatting below still applies to the escaped text.
+function escapeHtml(text: string): string {
   return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function inlineFormat(text: string): string {
+  return escapeHtml(text)
     .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
