@@ -77,6 +77,7 @@ function withoutConnectionBlockers(snapshot?: WizardReviewSnapshot): WizardRevie
     ...snapshot,
     single: blocked(snapshot.single) ? undefined : snapshot.single,
     multi: multi as WizardReviewSnapshot['multi'],
+    plans: snapshot.plans?.map((p) => (blocked(p.result) ? { ...p, result: null } : p)),
   };
 }
 
