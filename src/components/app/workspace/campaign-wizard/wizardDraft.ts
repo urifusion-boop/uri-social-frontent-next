@@ -42,7 +42,21 @@ export interface WizardReviewChoice {
 /** The last plan/creative Jane actually built for this run, per platform (or
  *  just 'single') — not re-interpreted here, only carried so WizardReviewStep
  *  can show it again on resume instead of starting a fresh conversation. */
+/** One ad on the Review step (WizardReviewStep's PlanRun), as saved: several audience
+ *  plans picked together are several ads, each with its own result and budget share. */
+export interface WizardPlanSnapshot {
+  key: string;
+  parent?: string;
+  platform: MultiWizardPlatform | null;
+  share: number | null;
+  result: LaunchFromMessageResult | null;
+  choice?: WizardReviewChoice;
+}
+
 export interface WizardReviewSnapshot {
+  /** Every ad, extra audience plans included. single/multi below still hold the first ad
+   *  (per platform) for readers that only know those. */
+  plans?: WizardPlanSnapshot[];
   single?: LaunchFromMessageResult | null;
   multi?: Partial<Record<MultiWizardPlatform, LaunchFromMessageResult>>;
   singleChoice?: WizardReviewChoice;
@@ -200,10 +214,16 @@ export async function pruneLaunchedDrafts(drafts: WizardDraft[]): Promise<string
   const gone: string[] = [];
   await Promise.all(
     drafts.map(async (d) => {
-      const results = [d.results?.single, ...Object.values(d.results?.multi ?? {})].filter(
-        (r): r is LaunchFromMessageResult => Boolean(r)
+      // Every ad, extra audience plans included — a draft whose first plan launched while
+      // a second is still unlaunched is unfinished, not done.
+      const results = [
+        d.results?.single,
+        ...Object.values(d.results?.multi ?? {}),
+        ...(d.results?.plans ?? []).map((p) => p.result),
+      ].filter((r): r is LaunchFromMessageResult => Boolean(r));
+      const planIds = Array.from(
+        new Set(results.filter((r) => r.stage !== 'launched' && r.plan_id).map((r) => r.plan_id as string))
       );
-      const planIds = results.filter((r) => r.stage !== 'launched' && r.plan_id).map((r) => r.plan_id as string);
       const anyLaunchedLocally = results.some((r) => r.stage === 'launched');
       if (!planIds.length && !anyLaunchedLocally) return;
       try {

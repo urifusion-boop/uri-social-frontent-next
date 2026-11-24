@@ -12,6 +12,10 @@
  *    ResultCard or one per selected platform, each an independent plan/launch through
  *    the exact same planFromMessage call, fired in parallel — same pattern as the chat
  *    flow's sendMultiPlatform, just one call per platform instead of one per message.
+ *  - Several audience plans picked on one ad's plan card become several ads (one per
+ *    plan, each its own campaign, all running at once) with that ad's budget split
+ *    evenly between them — see answerAudience. Every ad, whatever made it, is one
+ *    PlanRun with its own tab.
  *  - A visible "working"/"error" state for every call AFTER the first one. Live-reported
  *    stuck bug: the original version gated its loading/error UI on `!result`, which is
  *    only true before the very first response — so a follow-up call that was slow, or
@@ -38,7 +42,7 @@ import type { WizardBudgetValue } from './WizardBudgetStep';
 import type { WizardCreativeChoice } from './WizardCreativeStep';
 import type { MultiWizardPlatform, WizardPlatformValue } from './WizardPlatformStep';
 import WizardAssetAttestation from './WizardAssetAttestation';
-import { WizardReviewChoice, WizardReviewSnapshot } from './wizardDraft';
+import { WizardPlanSnapshot, WizardReviewChoice, WizardReviewSnapshot } from './wizardDraft';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 
 const PINK = '#C2185B';
@@ -247,6 +251,87 @@ interface SlotState {
   error: string;
 }
 const emptySlot = (): SlotState => ({ result: null, loading: true, working: false, error: '' });
+const restoredSlot = (result: LaunchFromMessageResult | null | undefined): SlotState =>
+  result ? { result, loading: false, working: false, error: '' } : emptySlot();
+
+/** The one ad of a single-platform run (a multi-platform run keys its first ad per platform by the platform). */
+const SINGLE_KEY = 'single';
+/** An extra audience plan split off `parentKey`'s ad — stable, so a resumed draft finds it again. */
+const extraPlanKey = (parentKey: string, rank: number) => `${parentKey}~plan${rank}`;
+
+/** One ad this step builds: its own planFromMessage conversation, from the first call to
+ *  its own Launch button. One in a single-platform run, one per platform in a
+ *  multi-platform run, and one more beside it for every extra audience plan picked on
+ *  that ad's "choose a plan" card. */
+interface PlanRun {
+  key: string;
+  /** The ad this extra audience plan was split off. */
+  parent?: string;
+  /** null in a single-platform run (platform.single, or Jane's pick). */
+  platform: MultiWizardPlatform | null;
+  /** This ad's budget when it's a share of the total — one platform of several, or one
+   *  audience plan of several. null sends no override (the message's own budget). */
+  share: number | null;
+  /** Resent on every call — see WizardReviewChoice for why. */
+  choice: { variant: PlanVariant; variantGroupId: string } | null;
+  ownAudience: string | null;
+  slot: SlotState;
+}
+
+function choiceFrom(c?: WizardReviewChoice): PlanRun['choice'] {
+  return c?.variant && c.variantGroupId ? { variant: c.variant, variantGroupId: c.variantGroupId } : null;
+}
+
+/** The ads to show on entry: a resumed draft's own (when they still match this run's
+ *  platforms — CampaignWizard drops saved results whenever an input changes, so this is
+ *  a guard, not the usual path), else one per platform, else the one single ad. */
+function initialRuns(
+  isMulti: boolean,
+  platforms: MultiWizardPlatform[],
+  amountNgn: number,
+  saved?: WizardReviewSnapshot
+): PlanRun[] {
+  const plans = saved?.plans;
+  const fits =
+    !!plans &&
+    plans.length > 0 &&
+    (isMulti
+      ? plans.every((p) => p.platform && platforms.includes(p.platform)) &&
+        platforms.every((p) => plans.some((s) => s.key === p))
+      : plans.every((p) => !p.platform) && plans.some((p) => p.key === SINGLE_KEY));
+  if (fits) {
+    return plans.map((p) => ({
+      key: p.key,
+      ...(p.parent ? { parent: p.parent } : {}),
+      platform: p.platform ?? null,
+      share: p.share ?? null,
+      choice: choiceFrom(p.choice),
+      ownAudience: p.choice?.ownAudience ?? null,
+      slot: restoredSlot(p.result),
+    }));
+  }
+  if (isMulti) {
+    const share = amountNgn / platforms.length;
+    return platforms.map((p) => ({
+      key: p,
+      platform: p,
+      share,
+      choice: choiceFrom(saved?.multiChoice?.[p]),
+      ownAudience: saved?.multiChoice?.[p]?.ownAudience ?? null,
+      slot: restoredSlot(saved?.multi?.[p]),
+    }));
+  }
+  return [
+    {
+      key: SINGLE_KEY,
+      platform: null,
+      share: null,
+      choice: choiceFrom(saved?.singleChoice),
+      ownAudience: saved?.singleChoice?.ownAudience ?? null,
+      slot: restoredSlot(saved?.single),
+    },
+  ];
+}
 
 export default function WizardReviewStep({
   objective,
@@ -338,168 +423,167 @@ export default function WizardReviewStep({
       .catch(() => setAdFormats([]));
   }, []);
 
-  // ===================== single platform =====================
-  const [slot, setSlot] = useState<SlotState>(() =>
-    initialResults?.single ? { result: initialResults.single, loading: false, working: false, error: '' } : emptySlot()
-  );
-  // Seeded from initialResults on resume — live-reported: resuming past the
-  // choose_plan_variant/choose_own_audience question that first set these and
-  // answering the NEXT question (e.g. choose_destination) sent a request with
-  // neither resent, since a fresh mount otherwise starts both at null. Jane's
-  // /plan-from-message call is stateless (every call resends the full picture,
-  // not just this turn's answer), so without this the backend lost track of
-  // the already-settled audience and reopened earlier questions — including,
-  // confusingly, re-asking about creative.
-  const chosenVariantRef = useRef<{ variant: PlanVariant; variantGroupId: string } | null>(
-    initialResults?.singleChoice?.variant && initialResults.singleChoice.variantGroupId
-      ? { variant: initialResults.singleChoice.variant, variantGroupId: initialResults.singleChoice.variantGroupId }
-      : null
-  );
-  const ownAudienceRef = useRef<string | null>(initialResults?.singleChoice?.ownAudience ?? null);
+  // ===================== the ads being built =====================
+  // One PlanRun per ad (see PlanRun). Kept in a ref as well as state: a submit reads the
+  // run's chosen audience the moment it's called, often right after a pick just changed it,
+  // which a state value from the last render wouldn't have yet.
+  const totalNgn = typeof budget.amountNgn === 'number' ? budget.amountNgn : 0;
+  const [runs, setRunsState] = useState<PlanRun[]>(() => initialRuns(isMulti, platforms, totalNgn, initialResults));
+  const runsRef = useRef<PlanRun[]>(runs);
+  const commitRuns = (next: PlanRun[]) => {
+    runsRef.current = next;
+    setRunsState(next);
+  };
+  const patchRun = (key: string, fn: (r: PlanRun) => PlanRun) =>
+    commitRuns(runsRef.current.map((r) => (r.key === key ? fn(r) : r)));
+  const patchSlot = (key: string, slot: Partial<SlotState>) =>
+    patchRun(key, (r) => ({ ...r, slot: { ...r.slot, ...slot } }));
+
+  const campaignGroupId = useRef(uid());
+  const [activeKey, setActiveKey] = useState<string>(() => runs[0]?.key ?? 'single');
   // "What does this photo actually show?" — asked for any real photo picked via the
   // mid-flow choose_creative_source card (upload or recompose), same as every other
-  // real-photo entry point. See WizardAssetAttestation.tsx.
-  const [pendingAttestation, setPendingAttestation] = useState<{ url: string; forRecompose: boolean } | null>(null);
-  const resolveAttestation = (asset_attestation: AssetAttestation | undefined) => {
-    const pending = pendingAttestation;
-    if (!pending) return;
-    setPendingAttestation(null);
-    void submitSingle(
-      pending.forRecompose
-        ? { creative_source: 'recomposite', reference_image_url: pending.url, asset_attestation }
-        : { creative_source: 'upload', reference_image_url: pending.url, is_video: false, asset_attestation }
-    );
-  };
+  // real-photo entry point. See WizardAssetAttestation.tsx. Scoped to the ad it was
+  // started from.
+  const [pendingAttestation, setPendingAttestation] = useState<{
+    key: string;
+    url: string;
+    forRecompose: boolean;
+  } | null>(null);
   // Same gate for a real video — "who's in it?" — only reachable via "Upload my
   // own" (recompose is image-only, rejected before this point).
-  const [pendingVideoWho, setPendingVideoWho] = useState<string | null>(null);
-  const resolveVideoWho = (provenance?: CreativeProvenanceInput) => {
-    const url = pendingVideoWho;
-    if (!url) return;
-    setPendingVideoWho(null);
-    void submitSingle({ creative_source: 'upload', reference_image_url: url, is_video: true, ...(provenance ?? {}) });
-  };
+  const [pendingVideoWho, setPendingVideoWho] = useState<{ key: string; url: string } | null>(null);
 
-  const submitSingle = async (extra: Partial<PlanFromMessagePayload> = {}) => {
-    const isFirst = !slot.result;
-    setSlot((s) => ({ ...s, loading: isFirst, working: !isFirst, error: '' }));
+  const submitRun = async (key: string, extra: Partial<PlanFromMessagePayload> = {}) => {
+    const run = runsRef.current.find((r) => r.key === key);
+    if (!run) return;
+    const isFirst = !run.slot.result;
+    patchSlot(key, { loading: isFirst, working: !isFirst, error: '' });
+    const onPlatform = run.platform ?? platform.single;
     try {
       const res = await CampaignService.planFromMessage({
         objective: objective.value,
         message,
-        ...goalPayload(objective, platform.single),
-        ...(platform.single ? { preferred_platform: platform.single } : {}),
-        ...(platform.single === 'google' ? { google_placement: googlePlacement } : {}),
+        ...goalPayload(objective, onPlatform),
+        ...(onPlatform ? { preferred_platform: onPlatform } : {}),
+        ...(onPlatform === 'google' ? { google_placement: googlePlacement } : {}),
+        // This ad's share of the total — one platform of several, or one audience plan of several.
+        ...(run.share != null ? { budget_ngn_override: run.share, days_override: budget.days } : {}),
+        ...(isMulti ? { campaign_group_id: campaignGroupId.current } : {}),
         ...creativePayload(creative),
-        ...(chosenVariantRef.current
-          ? {
-              selected_plan_variant: chosenVariantRef.current.variant,
-              variant_group_id: chosenVariantRef.current.variantGroupId,
-            }
+        ...(run.choice
+          ? { selected_plan_variant: run.choice.variant, variant_group_id: run.choice.variantGroupId }
           : {}),
-        ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
+        ...(run.ownAudience ? { target_audience: run.ownAudience } : {}),
         ...extra,
       } as PlanFromMessagePayload);
-      setSlot({ result: res, loading: false, working: false, error: '' });
+      patchSlot(key, { result: res, loading: false, working: false, error: '' });
       // A finished plan carries an ad Jane made (a credit) — let the header badge re-read.
       if (res.stage === 'planned') EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'ad_plan' });
     } catch (e) {
       const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
-      setSlot((s) => ({ ...s, loading: false, working: false, error: msg }));
+      patchSlot(key, { loading: false, working: false, error: msg });
     }
   };
 
-  // ===================== multi platform =====================
-  const [slots, setSlots] = useState<Partial<Record<MultiWizardPlatform, SlotState>>>(() => {
-    const seeded: Partial<Record<MultiWizardPlatform, SlotState>> = {};
-    for (const [p, result] of Object.entries(initialResults?.multi ?? {})) {
-      if (result) seeded[p as MultiWizardPlatform] = { result, loading: false, working: false, error: '' };
+  /** Answers the audience question on one ad. Live-reported (staging, 2026-11-24): picking
+   *  two audience plans built only the first — "when I build two ads, should I not expect
+   *  that it generates two graphics/ads that will run simultaneously?". Every plan picked
+   *  now gets its own ad: the first continues this run, each other one starts its own run
+   *  right beside it, and the budget this run had is split evenly between them — what the
+   *  plan cards already promised ("₦X if run alone, or ₦Y alongside another"). Answering
+   *  again (one plan, or the client's own audience) folds the extra plans back in; any
+   *  that already launched are live campaigns, so they stay, with their share. */
+  const answerAudience = (
+    key: string,
+    answer: { variants: PlanVariant[]; groupId: string } | { ownAudience: string }
+  ) => {
+    const run = runsRef.current.find((r) => r.key === key);
+    if (!run) return;
+    const variants = 'variants' in answer ? answer.variants : [];
+    if ('variants' in answer && variants.length === 0) return;
+    const siblings = runsRef.current.filter((r) => r.parent === key);
+    const live = siblings.filter((r) => r.slot.result?.stage === 'launched');
+    const liveKeys = new Set(live.map((r) => r.key));
+    const pool =
+      run.share != null
+        ? run.share * (1 + siblings.length) - live.reduce((sum, r) => sum + (r.share ?? 0), 0)
+        : totalNgn > 0
+          ? totalNgn
+          : null;
+    const extraVariants = variants.slice(1).filter((v) => !liveKeys.has(extraPlanKey(key, v.rank)));
+    const count = 1 + extraVariants.length;
+    // Unchanged from before when nothing was ever split: no override, the message's own budget.
+    const share =
+      count === 1 && siblings.length === 0
+        ? run.share
+        : pool != null
+          ? Math.round((pool / count) * 100) / 100
+          : run.share;
+    const choiceFor = (v: PlanVariant) => ({ variant: v, variantGroupId: 'groupId' in answer ? answer.groupId : '' });
+    const extras: PlanRun[] = extraVariants.map((v) => ({
+      key: extraPlanKey(key, v.rank),
+      parent: key,
+      platform: run.platform,
+      share,
+      choice: choiceFor(v),
+      ownAudience: null,
+      slot: emptySlot(),
+    }));
+    const next: PlanRun[] = [];
+    for (const r of runsRef.current) {
+      if (r.parent === key && !liveKeys.has(r.key)) continue;
+      if (r.key === key) {
+        next.push({
+          ...r,
+          share,
+          choice: variants[0] ? choiceFor(variants[0]) : null,
+          ownAudience: 'ownAudience' in answer ? answer.ownAudience : null,
+        });
+        next.push(...extras);
+      } else next.push(r);
     }
-    return seeded;
-  });
-  const multiRefs = useRef<
-    Record<
-      string,
-      { chosenVariant: { variant: PlanVariant; variantGroupId: string } | null; ownAudience: string | null }
-    >
-  >(
-    // Same seeding as chosenVariantRef/ownAudienceRef above, per platform.
-    Object.fromEntries(
-      Object.entries(initialResults?.multiChoice ?? {}).map(([p, choice]) => [
-        p,
-        {
-          chosenVariant:
-            choice?.variant && choice.variantGroupId
-              ? { variant: choice.variant, variantGroupId: choice.variantGroupId }
-              : null,
-          ownAudience: choice?.ownAudience ?? null,
-        },
-      ])
-    )
-  );
-  const campaignGroupId = useRef(uid());
-  const [activeTab, setActiveTab] = useState<MultiWizardPlatform | null>(null);
-  // Same attestation gate as the single-platform path, scoped to whichever tab the
-  // upload/recompose was started from.
-  const [multiPendingAttestation, setMultiPendingAttestation] = useState<{
-    platform: MultiWizardPlatform;
-    url: string;
-    forRecompose: boolean;
-  } | null>(null);
-  // Same "who's in it?" gate as single-platform, scoped to whichever tab started it.
-  const [multiPendingVideoWho, setMultiPendingVideoWho] = useState<{
-    platform: MultiWizardPlatform;
-    url: string;
-  } | null>(null);
-
-  const submitMulti = async (p: MultiWizardPlatform, extra: Partial<PlanFromMessagePayload> = {}) => {
-    const refs = (multiRefs.current[p] ??= { chosenVariant: null, ownAudience: null });
-    const prior = slots[p];
-    const isFirst = !prior?.result;
-    setSlots((s) => ({ ...s, [p]: { result: prior?.result ?? null, loading: isFirst, working: !isFirst, error: '' } }));
-    try {
-      const perPlatformBudget = typeof budget.amountNgn === 'number' ? budget.amountNgn / platforms.length : 0;
-      const res = await CampaignService.planFromMessage({
-        objective: objective.value,
-        message,
-        ...goalPayload(objective, p),
-        preferred_platform: p,
-        budget_ngn_override: perPlatformBudget,
-        days_override: budget.days,
-        campaign_group_id: campaignGroupId.current,
-        ...(p === 'google' ? { google_placement: googlePlacement } : {}),
-        ...creativePayload(creative),
-        ...(refs.chosenVariant
-          ? { selected_plan_variant: refs.chosenVariant.variant, variant_group_id: refs.chosenVariant.variantGroupId }
-          : {}),
-        ...(refs.ownAudience ? { target_audience: refs.ownAudience } : {}),
-        ...extra,
-      } as PlanFromMessagePayload);
-      setSlots((s) => ({ ...s, [p]: { result: res, loading: false, working: false, error: '' } }));
-      if (res.stage === 'planned') EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'ad_plan' });
-    } catch (e) {
-      const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
-      setSlots((s) => ({ ...s, [p]: { result: prior?.result ?? null, loading: false, working: false, error: msg } }));
-    }
+    commitRuns(next);
+    if (!next.some((r) => r.key === activeKey)) setActiveKey(key);
+    void submitRun(key);
+    extras.forEach((r) => void submitRun(r.key));
   };
 
-  const resolveMultiAttestation = (asset_attestation: AssetAttestation | undefined) => {
-    const pending = multiPendingAttestation;
+  /** Where a tap goes is the business's answer, not the audience's — so the audience plans
+   *  split off the same pick, all asking it at once, take it from whichever one is answered
+   *  instead of each asking again. Only those still waiting on that exact question. */
+  const answerDestination = (key: string, answer: Partial<PlanFromMessagePayload>) => {
+    const run = runsRef.current.find((r) => r.key === key);
+    if (!run) return;
+    const root = run.parent ?? run.key;
+    const waiting = runsRef.current.filter(
+      (r) =>
+        r.key !== key &&
+        (r.key === root || r.parent === root) &&
+        r.slot.result?.stage === 'choose_destination' &&
+        !r.slot.working
+    );
+    void submitRun(key, answer);
+    waiting.forEach((r) => void submitRun(r.key, answer));
+  };
+
+  const resolveAttestation = (asset_attestation: AssetAttestation | undefined) => {
+    const pending = pendingAttestation;
     if (!pending) return;
-    setMultiPendingAttestation(null);
-    void submitMulti(
-      pending.platform,
+    setPendingAttestation(null);
+    void submitRun(
+      pending.key,
       pending.forRecompose
         ? { creative_source: 'recomposite', reference_image_url: pending.url, asset_attestation }
         : { creative_source: 'upload', reference_image_url: pending.url, is_video: false, asset_attestation }
     );
   };
 
-  const resolveMultiVideoWho = (provenance?: CreativeProvenanceInput) => {
-    const pending = multiPendingVideoWho;
+  const resolveVideoWho = (provenance?: CreativeProvenanceInput) => {
+    const pending = pendingVideoWho;
     if (!pending) return;
-    setMultiPendingVideoWho(null);
-    void submitMulti(pending.platform, {
+    setPendingVideoWho(null);
+    void submitRun(pending.key, {
       creative_source: 'upload',
       reference_image_url: pending.url,
       is_video: true,
@@ -510,25 +594,18 @@ export default function WizardReviewStep({
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
-    if (isMulti) {
-      setActiveTab(platforms[0]);
-      // A platform already seeded from a resumed draft (initialResults) picks
-      // the conversation back up where it was instead of firing a fresh call —
-      // only the ones with nothing saved start from scratch.
-      platforms.forEach((p) => {
-        if (!initialResults?.multi?.[p]) void submitMulti(p);
-      });
-    } else if (!initialResults?.single) {
-      void submitSingle();
-    }
+    // An ad already seeded from a resumed draft (initialResults) picks the
+    // conversation back up where it was instead of firing a fresh call — only
+    // the ones with nothing saved start from scratch.
+    runsRef.current.forEach((r) => {
+      if (!r.slot.result) void submitRun(r.key);
+    });
     // Runs once, on entry to this step — every later call is a user-driven follow-up.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const decided = (stage: LaunchFromMessageResult['stage'] | undefined) => stage === 'planned' || stage === 'launched';
-  const ready = isMulti
-    ? platforms.length > 0 && platforms.every((p) => decided(slots[p]?.result?.stage))
-    : decided(slot.result?.stage);
+  const ready = runs.length > 0 && runs.every((r) => decided(r.slot.result?.stage));
 
   useEffect(() => {
     onStatusChange?.(ready);
@@ -536,47 +613,48 @@ export default function WizardReviewStep({
 
   // Keeps the autosaved draft's snapshot current — whatever's actually on
   // screen right now, so a resume later picks up from here, not from scratch.
-  // Carries the chosen-variant/own-audience refs alongside the result itself —
-  // see chosenVariantRef/ownAudienceRef's own comment above for why those also
-  // have to survive a resume, not just the result they led to.
+  // Carries each ad's chosen plan/own audience alongside the result itself:
+  // Jane's /plan-from-message call is stateless (every call resends the full
+  // picture), so resuming past the question that set them and answering the
+  // NEXT one would otherwise send neither, and the backend would reopen the
+  // already-settled audience — including, confusingly, re-asking about creative.
+  // `plans` holds every ad; single/multi stay filled from the first ad of each
+  // platform for the readers that only know those (the draft list's thumbnail).
   useEffect(() => {
     if (!onResultsChange) return;
+    const choiceOf = (r: PlanRun): WizardReviewChoice | undefined =>
+      r.choice || r.ownAudience
+        ? {
+            variant: r.choice?.variant,
+            variantGroupId: r.choice?.variantGroupId,
+            ownAudience: r.ownAudience ?? undefined,
+          }
+        : undefined;
+    const plans: WizardPlanSnapshot[] = runs.map((r) => ({
+      key: r.key,
+      ...(r.parent ? { parent: r.parent } : {}),
+      platform: r.platform,
+      share: r.share,
+      result: r.slot.result,
+      choice: choiceOf(r),
+    }));
     if (isMulti) {
       const multi: Partial<Record<MultiWizardPlatform, LaunchFromMessageResult>> = {};
       const multiChoice: Partial<Record<MultiWizardPlatform, WizardReviewChoice>> = {};
-      for (const p of platforms) {
-        if (slots[p]?.result) multi[p] = slots[p]!.result!;
-        const refs = multiRefs.current[p];
-        if (refs?.chosenVariant || refs?.ownAudience) {
-          multiChoice[p] = {
-            variant: refs.chosenVariant?.variant,
-            variantGroupId: refs.chosenVariant?.variantGroupId,
-            ownAudience: refs.ownAudience ?? undefined,
-          };
-        }
+      for (const r of runs) {
+        if (!r.platform || r.key !== r.platform) continue;
+        if (r.slot.result) multi[r.platform] = r.slot.result;
+        const c = choiceOf(r);
+        if (c) multiChoice[r.platform] = c;
       }
-      onResultsChange({ multi, multiChoice });
+      onResultsChange({ multi, multiChoice, plans });
     } else {
-      const singleChoice: WizardReviewChoice | undefined =
-        chosenVariantRef.current || ownAudienceRef.current
-          ? {
-              variant: chosenVariantRef.current?.variant,
-              variantGroupId: chosenVariantRef.current?.variantGroupId,
-              ownAudience: ownAudienceRef.current ?? undefined,
-            }
-          : undefined;
-      onResultsChange({ single: slot.result, singleChoice });
+      const first = runs.find((r) => r.key === SINGLE_KEY);
+      onResultsChange({ single: first?.slot.result ?? null, singleChoice: first ? choiceOf(first) : undefined, plans });
     }
-    // platforms is derived fresh from platform/isMulti every render; including
-    // the whole array would re-fire this on every render for no reason.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMulti, slot.result, slots, onResultsChange]);
+  }, [isMulti, runs, onResultsChange]);
 
-  const launchedCount = isMulti
-    ? platforms.filter((p) => slots[p]?.result?.stage === 'launched').length
-    : slot.result?.stage === 'launched'
-      ? 1
-      : 0;
+  const launchedCount = runs.filter((r) => r.slot.result?.stage === 'launched').length;
 
   // ---- shared pieces ----
   // Live-reported: clicking a button near the bottom of a long card (e.g. "Use
@@ -659,15 +737,41 @@ export default function WizardReviewStep({
 
   // ============================= render =============================
 
-  if (!isMulti) {
-    if (slot.loading) return <p style={{ fontSize: 13.5, color: '#7a7270' }}>Building your campaign plan…</p>;
-    if (slot.error && !slot.result) {
+  const active = runs.find((r) => r.key === activeKey) ?? runs[0];
+  const activeSlot = active?.slot;
+  const showTabs = runs.length > 1;
+  const allLaunched = launchedCount === runs.length;
+  // A platform (or the one single-platform run) whose budget is split between audience plans.
+  const isSplit = (r: PlanRun) => runs.filter((o) => o.platform === r.platform).length > 1;
+  const planName = (r: PlanRun) => {
+    const rank = r.choice?.variant.rank;
+    const where = r.platform ? PLATFORM_LABEL[r.platform] : '';
+    if (!isSplit(r) || !rank) return where || 'Your ad';
+    return where ? `${where} · Plan ${rank}` : `Plan ${rank}`;
+  };
+  const planWho = (r: PlanRun) => {
+    const who = isSplit(r) ? r.choice?.variant.who_its_for?.trim() : '';
+    return who ? who.charAt(0).toUpperCase() + who.slice(1) : '';
+  };
+  const buildingText = (r: PlanRun) =>
+    !showTabs
+      ? 'Building your campaign plan…'
+      : isSplit(r)
+        ? `Building ${planName(r)}…`
+        : `Building the ${planName(r)} plan…`;
+  const updatingText = (r: PlanRun) =>
+    !showTabs ? 'Updating your plan…' : isSplit(r) ? `Updating ${planName(r)}…` : `Updating the ${planName(r)} plan…`;
+
+  // Exactly as before for a single-platform run with one ad: nothing on screen until the first answer.
+  if (!isMulti && !showTabs && activeSlot) {
+    if (activeSlot.loading) return <p style={{ fontSize: 13.5, color: '#7a7270' }}>Building your campaign plan…</p>;
+    if (activeSlot.error && !activeSlot.result) {
       return (
         <div>
-          <p style={{ fontSize: 13.5, color: '#b91c1c', marginBottom: 10 }}>{slot.error}</p>
+          <p style={{ fontSize: 13.5, color: '#b91c1c', marginBottom: 10 }}>{activeSlot.error}</p>
           <button
             type="button"
-            onClick={() => void submitSingle()}
+            onClick={() => void submitRun(active.key)}
             style={{
               border: `1.5px solid ${PINK}`,
               background: '#fff',
@@ -684,155 +788,30 @@ export default function WizardReviewStep({
         </div>
       );
     }
-    if (!slot.result) return null;
-    const result = slot.result;
-    const tiktokFloor = platform.single === 'tiktok' ? tiktokFloorChip(result) : null;
+    if (!activeSlot.result) return null;
+  }
 
-    return (
-      <div>
-        <RecapStrip
-          objective={objective}
-          platform={platform}
-          audience={audience}
-          budget={budget}
-          creative={creative}
-          styleText={styleText}
-        />
-        {slot.working && workingBanner('Updating your plan…')}
-        {slot.error && slot.result && errorBanner(slot.error, () => void submitSingle())}
-        <div
-          className={slot.working ? 'wizard-dim' : ''}
-          style={slot.working ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
-        >
-          <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#7a7270' }}>
-            {ready
-              ? "Here's what Jane's put together — adjust anything before you launch."
-              : 'A couple of quick questions to finish this plan before you review it.'}
-          </p>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,video/*"
-            style={{ display: 'none' }}
-            onChange={async (e) => {
-              const file = e.target.files?.[0];
-              e.target.value = '';
-              if (!file) return;
-              const { url, is_video } = await CampaignService.uploadMedia(file);
-              if (uploadForRef.current === 'recompose') {
-                if (is_video) {
-                  setSlot((s) => ({
-                    ...s,
-                    error: 'Recompositing works with a photo, not a video — please choose an image.',
-                  }));
-                  return;
-                }
-                setPendingAttestation({ url, forRecompose: true });
-                return;
-              }
-              if (!is_video) {
-                setPendingAttestation({ url, forRecompose: false });
-                return;
-              }
-              setPendingVideoWho(url);
-            }}
-          />
-          <ResultCard
-            result={result}
-            adFormats={adFormats}
-            formatFallbackFrom={styleFallbackFrom(result)}
-            onChangeStyle={onChangeStyle}
-            onResultChange={(r) => setSlot((s) => ({ ...s, result: r }))}
-            onLaunched={() => {
-              // The autosaved draft is done once something real has launched from
-              // it — "Create another campaign" (below) is still the explicit,
-              // user-chosen way back to a fresh wizard; this only stops a finished
-              // run from being offered as "resume" on the list page.
-              onAnyLaunched?.();
-            }}
-            onQuickReply={(text) => void submitSingle({ message: `${message} ${text}` })}
-            onTopUp={() => window.open('/workspace/?tab=campaigns', '_blank')}
-            onSubmitWhatsapp={(number) => void submitSingle({ whatsapp_number: number })}
-            onSubmitMetaConnectionWhatsapp={async (number) => {
-              await CampaignService.setWhatsapp(number);
-              void submitSingle({ whatsapp_number: number });
-            }}
-            onChooseGenerate={() => void submitSingle({ creative_source: 'generate' })}
-            onChooseConcepts={(n) => void submitSingle({ creative_source: 'generate', concepts: n })}
-            onChooseUpload={() => {
-              uploadForRef.current = 'upload';
-              fileInputRef.current?.click();
-            }}
-            onChooseRecomposite={() => {
-              uploadForRef.current = 'recompose';
-              fileInputRef.current?.click();
-            }}
-            onChooseDraft={(draftId) => void submitSingle({ creative_source: 'draft', draft_id: draftId })}
-            onChooseAiVideo={(url, provenance: CreativeProvenanceInput) =>
-              void submitSingle({ creative_source: 'upload', reference_image_url: url, is_video: true, ...provenance })
-            }
-            creativePaths={creativePaths}
-            briefText={message}
-            onChooseVariants={(variants, groupId) => {
-              ownAudienceRef.current = null;
-              chosenVariantRef.current = { variant: variants[0], variantGroupId: groupId };
-              void submitSingle({ selected_plan_variant: variants[0], variant_group_id: groupId });
-            }}
-            onChooseOwnAudience={(text) => {
-              const audienceText = text.trim();
-              chosenVariantRef.current = null;
-              ownAudienceRef.current = audienceText;
-              void submitSingle({ target_audience: audienceText });
-            }}
-            onChooseDestination={(answer) => void submitSingle(answer as Partial<PlanFromMessagePayload>)}
-            onPickPlatform={(p) => void submitSingle({ preferred_platform: p || undefined })}
-          />
-          {pendingAttestation && (
-            <WizardAssetAttestation previewUrls={[pendingAttestation.url]} onAnswer={resolveAttestation} />
-          )}
-          {pendingVideoWho && (
-            <div style={{ background: '#faf7f6', border: '1px solid #ece8e6', borderRadius: 12, padding: 12 }}>
-              <p style={{ margin: '0 0 10px', fontSize: 12.5, fontWeight: 700, color: '#1a0a12' }}>
-                Who&rsquo;s in this video?
-              </p>
-              <VideoWhoPrompt info={creativePaths} onAnswer={resolveVideoWho} />
-            </div>
-          )}
-          {tiktokFloor && (
-            <QuickReplyChips
-              chips={[`Use ₦${tiktokFloor} instead`]}
-              onPick={() => void submitSingle({ message: `${message} ${tiktokFloor}` })}
-            />
-          )}
-        </div>
-        {launchedCount > 0 && (
-          <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #ece8e6', textAlign: 'center' }}>
-            <button
-              type="button"
-              onClick={onCreateAnother}
-              style={{
-                border: 'none',
-                background: PINK,
-                color: '#fff',
-                borderRadius: 10,
-                padding: '10px 20px',
-                fontSize: 13,
-                fontWeight: 800,
-                cursor: 'pointer',
-              }}
-            >
-              + Create another campaign
-            </button>
-          </div>
-        )}
-      </div>
+  // How each split budget was divided — said once, up front, so two ads costing half each
+  // never reads as the budget having silently shrunk.
+  const splitNotes: string[] = [];
+  for (const where of Array.from(new Set(runs.map((r) => r.platform)))) {
+    const group = runs.filter((r) => r.platform === where);
+    if (group.length < 2) continue;
+    const each = group[0].share;
+    const total = group.reduce((sum, r) => sum + (r.share ?? 0), 0);
+    const money =
+      each != null && total > 0
+        ? ` — ₦${Math.round(each).toLocaleString()} each of ${where ? 'its' : 'your'} ₦${Math.round(total).toLocaleString()}`
+        : '';
+    splitNotes.push(
+      where
+        ? `${PLATFORM_LABEL[where]}: ${group.length} audience plans, a separate ad for each${money}.`
+        : `${group.length} audience plans, a separate ad for each, all running at the same time${money}.`
     );
   }
 
-  // ---- multi-platform ----
-  const active = activeTab ?? platforms[0];
-  const activeSlot = slots[active];
-  const allLaunched = platforms.every((p) => slots[p]?.result?.stage === 'launched');
+  const onPlatform = active ? (active.platform ?? platform.single) : '';
+  const floor = activeSlot?.result && onPlatform === 'tiktok' ? tiktokFloorChip(activeSlot.result) : null;
 
   return (
     <div>
@@ -844,48 +823,84 @@ export default function WizardReviewStep({
         creative={creative}
         styleText={styleText}
       />
-      <div
-        style={{
-          display: 'flex',
-          gap: 6,
-          marginBottom: 16,
-          borderBottom: '1px solid #ece8e6',
-          overflowX: 'auto',
-        }}
-      >
-        {platforms.map((p) => {
-          const st = slots[p];
-          const status: PlatformStatus = st?.result ? statusForStage(st.result.stage) : st?.error ? 'attn' : 'decide';
-          return (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setActiveTab(p)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 7,
-                padding: '10px 14px',
-                border: 'none',
-                background: 'none',
-                fontSize: 12.5,
-                fontWeight: 700,
-                color: p === active ? '#1a0a12' : '#7a7270',
-                borderBottom: p === active ? `2px solid ${PINK}` : '2px solid transparent',
-                cursor: 'pointer',
-                marginBottom: -1,
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}
-            >
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: STATUS_DOT[status] }} />
-              {PLATFORM_LABEL[p]}
-            </button>
-          );
-        })}
-      </div>
+      {splitNotes.length > 0 && (
+        <div
+          style={{
+            background: '#faf7f6',
+            border: '1px solid #ece8e6',
+            borderRadius: 10,
+            padding: '9px 13px',
+            marginBottom: 14,
+            fontSize: 12.5,
+            color: '#4a4240',
+            lineHeight: 1.5,
+          }}
+        >
+          {splitNotes.map((n) => (
+            <div key={n}>{n}</div>
+          ))}
+        </div>
+      )}
+      {showTabs && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            marginBottom: 16,
+            borderBottom: '1px solid #ece8e6',
+            overflowX: 'auto',
+          }}
+        >
+          {runs.map((r) => {
+            const st = r.slot;
+            const status: PlatformStatus = st.result ? statusForStage(st.result.stage) : st.error ? 'attn' : 'decide';
+            const who = planWho(r);
+            const isActive = r.key === active?.key;
+            return (
+              <button
+                key={r.key}
+                type="button"
+                onClick={() => setActiveKey(r.key)}
+                title={who || undefined}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  padding: '10px 14px',
+                  border: 'none',
+                  background: 'none',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  color: isActive ? '#1a0a12' : '#7a7270',
+                  borderBottom: isActive ? `2px solid ${PINK}` : '2px solid transparent',
+                  cursor: 'pointer',
+                  marginBottom: -1,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                }}
+              >
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: STATUS_DOT[status] }} />
+                {planName(r)}
+                {who && (
+                  <span
+                    style={{
+                      fontWeight: 600,
+                      color: '#9a9090',
+                      maxWidth: 170,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {who}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-      {launchedCount > 0 && (
+      {showTabs && launchedCount > 0 && (
         <div
           style={{
             display: 'flex',
@@ -904,7 +919,7 @@ export default function WizardReviewStep({
           }}
         >
           <span>
-            {launchedCount} of {platforms.length} launched{allLaunched ? ' — all set.' : ', paused until you say go.'}
+            {launchedCount} of {runs.length} launched{allLaunched ? ' — all set.' : ', paused until you say go.'}
           </span>
           <button
             type="button"
@@ -926,14 +941,14 @@ export default function WizardReviewStep({
         </div>
       )}
 
-      {!activeSlot || activeSlot.loading ? (
-        <p style={{ fontSize: 13.5, color: '#7a7270' }}>Building the {PLATFORM_LABEL[active]} plan…</p>
+      {!active || !activeSlot ? null : !activeSlot.result && !activeSlot.error ? (
+        <p style={{ fontSize: 13.5, color: '#7a7270' }}>{buildingText(active)}</p>
       ) : activeSlot.error && !activeSlot.result ? (
         <div>
           <p style={{ fontSize: 13.5, color: '#b91c1c', marginBottom: 10 }}>{activeSlot.error}</p>
           <button
             type="button"
-            onClick={() => void submitMulti(active)}
+            onClick={() => void submitRun(active.key)}
             style={{
               border: `1.5px solid ${PINK}`,
               background: '#fff',
@@ -950,9 +965,19 @@ export default function WizardReviewStep({
         </div>
       ) : activeSlot.result ? (
         <div>
-          {activeSlot.working && workingBanner(`Updating the ${PLATFORM_LABEL[active]} plan…`)}
-          {activeSlot.error && errorBanner(activeSlot.error, () => void submitMulti(active))}
-          <div style={activeSlot.working ? { opacity: 0.5, pointerEvents: 'none' } : undefined}>
+          {activeSlot.working && workingBanner(updatingText(active))}
+          {activeSlot.error && errorBanner(activeSlot.error, () => void submitRun(active.key))}
+          <div
+            className={activeSlot.working ? 'wizard-dim' : ''}
+            style={activeSlot.working ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
+          >
+            {!isMulti && (
+              <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#7a7270' }}>
+                {decided(activeSlot.result.stage)
+                  ? "Here's what Jane's put together — adjust anything before you launch."
+                  : 'A couple of quick questions to finish this plan before you review it.'}
+              </p>
+            )}
             <input
               ref={fileInputRef}
               type="file"
@@ -962,50 +987,49 @@ export default function WizardReviewStep({
                 const file = e.target.files?.[0];
                 e.target.value = '';
                 if (!file) return;
+                const key = active.key;
                 const { url, is_video } = await CampaignService.uploadMedia(file);
                 if (uploadForRef.current === 'recompose') {
                   if (is_video) {
-                    setSlots((s) => ({
-                      ...s,
-                      [active]: {
-                        ...s[active]!,
-                        error: 'Recompositing works with a photo, not a video — please choose an image.',
-                      },
-                    }));
+                    patchSlot(key, {
+                      error: 'Recompositing works with a photo, not a video — please choose an image.',
+                    });
                     return;
                   }
-                  setMultiPendingAttestation({ platform: active, url, forRecompose: true });
+                  setPendingAttestation({ key, url, forRecompose: true });
                   return;
                 }
                 if (!is_video) {
-                  setMultiPendingAttestation({ platform: active, url, forRecompose: false });
+                  setPendingAttestation({ key, url, forRecompose: false });
                   return;
                 }
-                setMultiPendingVideoWho({ platform: active, url });
+                setPendingVideoWho({ key, url });
               }}
             />
             <ResultCard
+              key={active.key}
               result={activeSlot.result}
               adFormats={adFormats}
               formatFallbackFrom={styleFallbackFrom(activeSlot.result)}
               onChangeStyle={onChangeStyle}
-              onResultChange={(r) => setSlots((s) => ({ ...s, [active]: { ...s[active]!, result: r } }))}
+              onResultChange={(r) => patchSlot(active.key, { result: r })}
               onLaunched={() => {
-                // Only once EVERY selected platform has launched — clearing on the
-                // first one would stop offering the still-unfinished others as
-                // "resume" while they're still genuinely in progress.
-                const others = platforms.filter((p) => p !== active);
-                if (others.every((p) => slots[p]?.result?.stage === 'launched')) onAnyLaunched?.();
+                // The autosaved draft is done only once EVERY ad has launched —
+                // clearing it on the first would stop offering the still-unfinished
+                // others as "resume" while they're genuinely in progress. "Create
+                // another campaign" stays the explicit way back to a fresh wizard.
+                const others = runsRef.current.filter((r) => r.key !== active.key);
+                if (others.every((r) => r.slot.result?.stage === 'launched')) onAnyLaunched?.();
               }}
-              onQuickReply={(text) => void submitMulti(active, { message: `${message} ${text}` })}
+              onQuickReply={(text) => void submitRun(active.key, { message: `${message} ${text}` })}
               onTopUp={() => window.open('/workspace/?tab=campaigns', '_blank')}
-              onSubmitWhatsapp={(number) => void submitMulti(active, { whatsapp_number: number })}
+              onSubmitWhatsapp={(number) => void submitRun(active.key, { whatsapp_number: number })}
               onSubmitMetaConnectionWhatsapp={async (number) => {
                 await CampaignService.setWhatsapp(number);
-                void submitMulti(active, { whatsapp_number: number });
+                void submitRun(active.key, { whatsapp_number: number });
               }}
-              onChooseGenerate={() => void submitMulti(active, { creative_source: 'generate' })}
-              onChooseConcepts={(n) => void submitMulti(active, { creative_source: 'generate', concepts: n })}
+              onChooseGenerate={() => void submitRun(active.key, { creative_source: 'generate' })}
+              onChooseConcepts={(n) => void submitRun(active.key, { creative_source: 'generate', concepts: n })}
               onChooseUpload={() => {
                 uploadForRef.current = 'upload';
                 fileInputRef.current?.click();
@@ -1014,9 +1038,9 @@ export default function WizardReviewStep({
                 uploadForRef.current = 'recompose';
                 fileInputRef.current?.click();
               }}
-              onChooseDraft={(draftId) => void submitMulti(active, { creative_source: 'draft', draft_id: draftId })}
+              onChooseDraft={(draftId) => void submitRun(active.key, { creative_source: 'draft', draft_id: draftId })}
               onChooseAiVideo={(url, provenance: CreativeProvenanceInput) =>
-                void submitMulti(active, {
+                void submitRun(active.key, {
                   creative_source: 'upload',
                   reference_image_url: url,
                   is_video: true,
@@ -1025,46 +1049,54 @@ export default function WizardReviewStep({
               }
               creativePaths={creativePaths}
               briefText={message}
-              onChooseVariants={(variants, groupId) => {
-                const refs = (multiRefs.current[active] ??= { chosenVariant: null, ownAudience: null });
-                refs.ownAudience = null;
-                refs.chosenVariant = { variant: variants[0], variantGroupId: groupId };
-                void submitMulti(active, { selected_plan_variant: variants[0], variant_group_id: groupId });
-              }}
-              onChooseOwnAudience={(text) => {
-                const refs = (multiRefs.current[active] ??= { chosenVariant: null, ownAudience: null });
-                const audienceText = text.trim();
-                refs.chosenVariant = null;
-                refs.ownAudience = audienceText;
-                void submitMulti(active, { target_audience: audienceText });
-              }}
-              onChooseDestination={(answer) => void submitMulti(active, answer as Partial<PlanFromMessagePayload>)}
+              onChooseVariants={(variants, groupId) => answerAudience(active.key, { variants, groupId })}
+              onChooseOwnAudience={(text) => answerAudience(active.key, { ownAudience: text.trim() })}
+              onChooseDestination={(answer) => answerDestination(active.key, answer as Partial<PlanFromMessagePayload>)}
+              onPickPlatform={
+                !isMulti ? (p) => void submitRun(active.key, { preferred_platform: p || undefined }) : undefined
+              }
             />
-            {multiPendingAttestation?.platform === active && (
-              <WizardAssetAttestation previewUrls={[multiPendingAttestation.url]} onAnswer={resolveMultiAttestation} />
+            {pendingAttestation?.key === active.key && (
+              <WizardAssetAttestation previewUrls={[pendingAttestation.url]} onAnswer={resolveAttestation} />
             )}
-            {multiPendingVideoWho?.platform === active && (
+            {pendingVideoWho?.key === active.key && (
               <div style={{ background: '#faf7f6', border: '1px solid #ece8e6', borderRadius: 12, padding: 12 }}>
                 <p style={{ margin: '0 0 10px', fontSize: 12.5, fontWeight: 700, color: '#1a0a12' }}>
                   Who&rsquo;s in this video?
                 </p>
-                <VideoWhoPrompt info={creativePaths} onAnswer={resolveMultiVideoWho} />
+                <VideoWhoPrompt info={creativePaths} onAnswer={resolveVideoWho} />
               </div>
             )}
-            {active === 'tiktok' &&
-              tiktokFloorChip(activeSlot.result) &&
-              (() => {
-                const floor = tiktokFloorChip(activeSlot.result!)!;
-                return (
-                  <QuickReplyChips
-                    chips={[`Use ₦${floor} instead`]}
-                    onPick={() => void submitMulti(active, { message: `${message} ${floor}` })}
-                  />
-                );
-              })()}
+            {floor && (
+              <QuickReplyChips
+                chips={[`Use ₦${floor} instead`]}
+                onPick={() => void submitRun(active.key, { message: `${message} ${floor}` })}
+              />
+            )}
           </div>
         </div>
       ) : null}
+
+      {!showTabs && launchedCount > 0 && (
+        <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #ece8e6', textAlign: 'center' }}>
+          <button
+            type="button"
+            onClick={onCreateAnother}
+            style={{
+              border: 'none',
+              background: PINK,
+              color: '#fff',
+              borderRadius: 10,
+              padding: '10px 20px',
+              fontSize: 13,
+              fontWeight: 800,
+              cursor: 'pointer',
+            }}
+          >
+            + Create another campaign
+          </button>
+        </div>
+      )}
     </div>
   );
 }
