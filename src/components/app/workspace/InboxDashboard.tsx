@@ -1506,7 +1506,9 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         )}
 
       {selectedConv.type === 'comment' && (
-        <div style={{ border: '1px solid rgba(0,0,0,.08)', borderRadius: 12, overflow: 'hidden' }}>
+        // flexShrink 0: with overflow hidden, the column would otherwise squash this card to the
+        // panel height and cut the comments off instead of letting the panel scroll.
+        <div style={{ border: '1px solid rgba(0,0,0,.08)', borderRadius: 12, overflow: 'hidden', flexShrink: 0 }}>
           {selectedConv.post && (
             <div style={{ display: 'flex', gap: 12, padding: 12, background: '#fafafa' }}>
               <div
