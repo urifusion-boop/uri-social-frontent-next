@@ -17,6 +17,23 @@ export interface WizardBudgetValue {
 
 const DURATION_OPTIONS = [3, 7, 14, 30];
 
+// What each platform's ads need to spend to work at all (backend constants.USEFUL_MIN_NGN), and
+// URI's service fee taken out of the budget first (constants.SERVICE_FEE_RATE). Jane checks the
+// same rule on Finalize; saying it here means nobody makes ads first and only then hears it.
+const AD_SPEND_FLOOR_NGN: Record<string, number> = { meta: 5_000, google: 5_000, tiktok: 50_000 };
+const SERVICE_FEE_RATE = 0.1;
+const PLATFORM_NAME: Record<string, string> = { meta: 'Instagram & Facebook', google: 'Google', tiktok: 'TikTok' };
+
+/** The smallest total that leaves every platform its floor after the fee (an even split across
+ *  platforms), rounded up to ₦100 like the backend's budget_for_ad_spend. */
+export function minimumBudget(platforms: string[]): { total: number; floor: number; name: string } {
+  const list = platforms.length ? platforms.map((p) => p || 'meta') : ['meta'];
+  const tightest = list.reduce((a, b) => ((AD_SPEND_FLOOR_NGN[b] ?? 5_000) > (AD_SPEND_FLOOR_NGN[a] ?? 5_000) ? b : a));
+  const floor = AD_SPEND_FLOOR_NGN[tightest] ?? 5_000;
+  const perPlatform = Math.ceil(floor / (1 - SERVICE_FEE_RATE) / 100) * 100;
+  return { total: perPlatform * list.length, floor, name: PLATFORM_NAME[tightest] ?? tightest };
+}
+
 const inputStyle: React.CSSProperties = {
   width: '100%',
   border: '1px solid #ece8e6',
@@ -46,6 +63,8 @@ export default function WizardBudgetStep({
   suggest?: boolean;
 }) {
   const suggested = useBudgetSuggestions(suggest ? platforms : [], value.days, suggest);
+  const minimum = minimumBudget(platforms);
+  const tooLow = typeof value.amountNgn === 'number' && value.amountNgn > 0 && value.amountNgn < minimum.total;
   const perPlatform =
     platformCount > 1 && typeof value.amountNgn === 'number' && value.amountNgn > 0
       ? Math.round(value.amountNgn / platformCount)
@@ -164,6 +183,46 @@ export default function WizardBudgetStep({
             placeholder="e.g. 15000"
             style={inputStyle}
           />
+          {tooLow && (
+            <span
+              role="status"
+              style={{
+                fontSize: 12,
+                color: '#8a4b00',
+                background: '#fff6e5',
+                borderRadius: 9,
+                padding: '8px 10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                flexWrap: 'wrap',
+                lineHeight: 1.45,
+              }}
+            >
+              <span style={{ flex: '1 1 240px' }}>
+                {minimum.name} ads need at least ₦{minimum.floor.toLocaleString()}
+                {platformCount > 1 ? ' each' : ''} to work, after URI&apos;s {Math.round(SERVICE_FEE_RATE * 100)}%
+                service fee. Make your budget at least ₦{minimum.total.toLocaleString()}.
+              </span>
+              <button
+                type="button"
+                onClick={() => onChange({ ...value, amountNgn: minimum.total })}
+                style={{
+                  border: '1px solid #e8c9a0',
+                  background: '#fff',
+                  color: '#8a4b00',
+                  borderRadius: 8,
+                  padding: '5px 10px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Use ₦{minimum.total.toLocaleString()}
+              </button>
+            </span>
+          )}
           {perPlatform != null && (
             <span
               style={{ fontSize: 11.5, color: '#7a7270', background: '#f7f5f8', borderRadius: 9, padding: '7px 10px' }}
