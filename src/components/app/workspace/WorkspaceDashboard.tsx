@@ -132,7 +132,6 @@ import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { AuthService } from '@/src/api/AuthService';
 import { loadConnections, useConnectedAccounts } from '@/src/hooks/useConnectedAccounts';
 import { keepInBrowser } from '@/src/utils/keepInBrowser.util';
-import { QUICK_REPLIES_ENABLED } from '@/src/components/app/workspace/messaging/MessagingHeader';
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
@@ -11680,16 +11679,14 @@ export default function WorkspaceDashboard() {
       ['insights', 'chart', 'Insights'],
       ['settings', 'settings', 'Settings'],
     ] as const
-  )
-    .filter(([view]) => QUICK_REPLIES_ENABLED || view !== 'quick')
-    .map(([view, icon, label]) => ({
-      id: `messages-${view}`,
-      icon,
-      label,
-      active:
-        messagesView === view || (view === 'settings' && (messagesView === 'connections' || messagesView === 'usage')),
-      onClick: () => goToMessagesView(view),
-    }));
+  ).map(([view, icon, label]) => ({
+    id: `messages-${view}`,
+    icon,
+    label,
+    active:
+      messagesView === view || (view === 'settings' && (messagesView === 'connections' || messagesView === 'usage')),
+    onClick: () => goToMessagesView(view),
+  }));
 
   // Which contextual sidebar (if any) the current nav value belongs to.
   // A nav id not claimed by any zone falls through to the flat PRIMARY_NAV
