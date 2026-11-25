@@ -6,6 +6,7 @@ import { AdAnalysis, AdList, Competitor, CompetitorAd, CompetitorService } from 
 import { Drawer } from '@mui/material';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { btn, C, card, errorText, font, input, linkLabel, Notice, pill } from './ui';
+import ZoomableImage from '@/src/components/app/atoms/ZoomableImage';
 import EmptyState from '@/src/components/app/atoms/EmptyState';
 
 interface Props {
@@ -230,7 +231,7 @@ function AdDetail({ ad, onClose, onMake, onDeleted }: { ad: CompetitorAd; onClos
         </button>
       </div>
       <div style={{ padding: 18, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <img src={ad.image_url} alt="" style={{ width: '100%', borderRadius: 12, border: `1px solid ${C.line}` }} />
+        <ZoomableImage src={ad.image_url} alt={ad.competitor_name ? `${ad.competitor_name}'s ad` : 'Competitor ad'} style={{ width: '100%', borderRadius: 12, border: `1px solid ${C.line}`, display: 'block' }} />
         {ad.status === 'analyzing' && <Notice tone="pink">Jane is reading this ad. It takes a few seconds.</Notice>}
         {ad.status === 'failed' && <Notice>{ad.error || "Jane couldn't read this ad."}</Notice>}
         {ad.status === 'ready' && (

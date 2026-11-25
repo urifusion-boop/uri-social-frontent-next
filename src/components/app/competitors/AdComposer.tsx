@@ -6,6 +6,7 @@ import type { DraftSummary } from '@/src/api/CampaignService';
 import { AdAnalysis, CompetitorAd, CompetitorService, Recreation } from '@/src/api/CompetitorService';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { useEffect, useRef, useState } from 'react';
+import ZoomableImage from '@/src/components/app/atoms/ZoomableImage';
 import { btn, C, card, errorText, font, input, Notice } from './ui';
 
 interface Props {
@@ -165,7 +166,7 @@ export default function AdComposer({ ad, onClose, onUseInCampaign }: Props) {
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, alignItems: 'start' }}>
           <div style={card}>
             <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase', color: C.pink }}>The reference</div>
-            <img src={ad.image_url} alt="" style={{ width: '100%', borderRadius: 10, border: `1px solid ${C.line}` }} />
+            <ZoomableImage src={ad.image_url} alt="The reference ad" style={{ width: '100%', borderRadius: 10, border: `1px solid ${C.line}`, display: 'block' }} />
             <div style={{ fontSize: 12.5, color: C.body, lineHeight: 1.5 }}>
               <b>Taken from it:</b> {[a.hook && `the hook (${a.hook})`, a.layout && 'the layout', ad.angle_label && `the ${ad.angle_label.toLowerCase()} angle`].filter(Boolean).join(', ') || 'the idea'}.
             </div>
@@ -232,7 +233,7 @@ export default function AdComposer({ ad, onClose, onUseInCampaign }: Props) {
                         {redoing ? (
                           <div className="cmp-shimmer" style={{ width: '100%', aspectRatio: '1 / 1' }} aria-label="Making it again" />
                         ) : (
-                          <img src={r.image_url} alt={r.headline} style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', display: 'block' }} />
+                          <ZoomableImage src={r.image_url} alt={r.headline || `Version ${i + 1}`} style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', display: 'block' }} />
                         )}
                         <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                           {isEditing ? (

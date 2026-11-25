@@ -4,6 +4,7 @@ import { Competitor, CompetitorAd, CompetitorService } from '@/src/api/Competito
 import { Drawer } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { btn, C, font, linkLabel, pill } from './ui';
+import ZoomableImage from '@/src/components/app/atoms/ZoomableImage';
 
 /** One competitor in full, next to the list: what they sell, why they compete, where Jane found
  * them, and the ads of theirs the owner has saved. */
@@ -90,7 +91,7 @@ export default function CompetitorSheet({
               ) : ads.length ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
                   {ads.map((a) => (
-                    <img key={a.id} src={a.thumb_url || a.image_url} alt={a.angle_label || 'Their ad'} loading="lazy" style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.line}` }} />
+                    <ZoomableImage key={a.id} src={a.image_url || a.thumb_url || ''} alt={a.angle_label || 'Their ad'} loading="lazy" style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.line}`, display: 'block' }} />
                   ))}
                 </div>
               ) : (
