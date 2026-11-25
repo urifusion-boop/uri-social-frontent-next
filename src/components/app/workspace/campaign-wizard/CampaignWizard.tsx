@@ -8,7 +8,7 @@
  */
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import type { CampaignRow, DraftSummary, ExistingPost } from '@/src/api/CampaignService';
+import type { CampaignRow, DraftSummary, ExistingPost, PublishedPostCreative } from '@/src/api/CampaignService';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { uid } from '../CampaignsPage';
 import { GooglePlacement } from '../GooglePlacementPreview';
@@ -18,7 +18,7 @@ import WizardGooglePlacementStep from './WizardGooglePlacementStep';
 import WizardAudienceStep, { WizardAudienceValue } from './WizardAudienceStep';
 import WizardBudgetStep, { WizardBudgetValue } from './WizardBudgetStep';
 import { useFeatures } from '@/src/hooks/useFeatures';
-import WizardCreativeStep, { WizardCreativeChoice } from './WizardCreativeStep';
+import WizardCreativeStep, { creativeFitsTikTok, WizardCreativeChoice } from './WizardCreativeStep';
 import WizardStyleStep, { styleApplies } from './WizardStyleStep';
 import WizardReviewStep from './WizardReviewStep';
 import { deleteWizardDraft, saveWizardDraft, WizardDraft, WizardReviewSnapshot } from './wizardDraft';
@@ -77,6 +77,7 @@ function withoutConnectionBlockers(snapshot?: WizardReviewSnapshot): WizardRevie
     ...snapshot,
     single: blocked(snapshot.single) ? undefined : snapshot.single,
     multi: multi as WizardReviewSnapshot['multi'],
+    plans: snapshot.plans?.map((p) => (blocked(p.result) ? { ...p, result: null } : p)),
   };
 }
 
@@ -86,6 +87,8 @@ export default function CampaignWizard({
   onDraftConsumed,
   pendingPost,
   onPostConsumed,
+  pendingPublished,
+  onPublishedConsumed,
   pendingDuplicate,
   onDuplicateConsumed,
   pendingResume,
@@ -99,6 +102,10 @@ export default function CampaignWizard({
   /** A post from the owner's own account, picked on the Creatives page. */
   pendingPost?: ExistingPost | null;
   onPostConsumed?: () => void;
+  /** A TikTok post URI published, picked in the Content Library: its video (or photos, as a
+   *  carousel) becomes the ad and TikTok is preselected. */
+  pendingPublished?: PublishedPostCreative | null;
+  onPublishedConsumed?: () => void;
   /** "Duplicate" on a launched campaign (CampaignBuilderPage) — seeds Objective,
    *  Platform, Audience and Budget from it so the run starts "tweak and relaunch"
    *  instead of blank, same spirit as the chat flow's own duplicateThread. Creative
@@ -128,6 +135,7 @@ export default function CampaignWizard({
   const [budget, setBudget] = useState<WizardBudgetValue>({ amountNgn: '', days: 7 });
   const [creative, setCreative] = useState<WizardCreativeChoice | null>(null);
   const [prefilledFromLibrary, setPrefilledFromLibrary] = useState(false);
+  const [prefilledFromPublished, setPrefilledFromPublished] = useState(false);
   // Flips once every selected platform has a finished, launch-ready plan with no
   // open question left — see the STEPS comment above.
   const [reviewReady, setReviewReady] = useState(false);
@@ -185,6 +193,32 @@ export default function CampaignWizard({
     // One-shot hand-off, same as pendingDraft above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPost]);
+
+  useEffect(() => {
+    if (!pendingPublished) return;
+    const { video_url, photo_urls = [] } = pendingPublished;
+    if (video_url) {
+      // Same shape as a video the person uploaded here. No "who's in it" answer is
+      // collected (that prompt lives inside the Creative step), same as choosing Skip.
+      setCreative({ creative_source: 'upload', reference_image_url: video_url, is_video: true, previewUrl: video_url });
+    } else if (photo_urls.length >= 2) {
+      setCreative({
+        creative_source: 'upload',
+        reference_image_url: photo_urls[0],
+        is_video: false,
+        previewUrl: photo_urls[0],
+        carouselExtraUrls: photo_urls.slice(1),
+      });
+    } else {
+      onPublishedConsumed?.();
+      return;
+    }
+    setPlatform({ mode: 'single', single: 'tiktok', multi: [], touched: true });
+    setPrefilledFromPublished(true);
+    onPublishedConsumed?.();
+    // One-shot hand-off, same as pendingDraft above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPublished]);
 
   const [prefilledFromDuplicate, setPrefilledFromDuplicate] = useState(false);
   useEffect(() => {
@@ -280,8 +314,12 @@ export default function CampaignWizard({
   // picked is the same "real progress" bar the list page's resume banner implies).
   // Debounced inside saveWizardDraft itself, so this effect firing on every
   // keystroke (the audience textarea) costs nothing extra here.
+  // Set once every ad in this run has launched and its draft was deleted. The launch
+  // also updates `results`, and saving that a moment later brought the deleted draft
+  // straight back under Unfinished — so nothing is saved after that point.
+  const finishedRef = useRef(false);
   useEffect(() => {
-    if (!objective) return;
+    if (!objective || finishedRef.current) return;
     saveWizardDraft(draftId, { objective, platform, googlePlacement, audience, budget, creative, results });
   }, [draftId, objective, platform, googlePlacement, audience, budget, creative, results]);
 
@@ -290,7 +328,11 @@ export default function CampaignWizard({
     if (step === 'platform') return platform.mode === 'single' ? platform.touched : platform.multi.length >= 2;
     if (step === 'audience') return Boolean(audience.description.trim() && audience.city.trim());
     if (step === 'budget') return typeof budget.amountNgn === 'number' && budget.amountNgn > 0;
-    if (step === 'creative') return Boolean(creative);
+    if (step === 'creative') {
+      // TikTok alone can't run Jane's images or a single photo (see creativeFitsTikTok).
+      if (platform.mode === 'single' && platform.single === 'tiktok') return creativeFitsTikTok(creative);
+      return Boolean(creative);
+    }
     return true;
   };
 
@@ -348,6 +390,11 @@ export default function CampaignWizard({
           {prefilledFromLibrary && (
             <p style={{ margin: '8px 0 0', fontSize: 12, color: PINK, fontWeight: 600 }}>
               ✓ Using the creative you picked from your library — it's already set on the Creative step.
+            </p>
+          )}
+          {prefilledFromPublished && (
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: PINK, fontWeight: 600 }}>
+              ✓ Using your published TikTok post — TikTok is selected and its media is set on the Creative step.
             </p>
           )}
           {prefilledFromDuplicate && (
@@ -572,8 +619,12 @@ export default function CampaignWizard({
               onStatusChange={setReviewReady}
               initialResults={results}
               onResultsChange={setResults}
-              onAnyLaunched={() => deleteWizardDraft(draftId)}
+              onAnyLaunched={() => {
+                finishedRef.current = true;
+                deleteWizardDraft(draftId);
+              }}
               onChangeStyle={steps.some((s) => s.key === 'style') ? () => setStepKey('style') : undefined}
+              onChangeCreative={() => setStepKey('creative')}
             />
           )}
         </div>

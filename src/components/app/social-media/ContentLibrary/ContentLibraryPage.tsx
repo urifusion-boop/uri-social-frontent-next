@@ -20,6 +20,7 @@ import {
 import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
 import { MdChevronLeft, MdChevronRight, MdMoreVert, MdSearch } from 'react-icons/md';
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import type { PublishedPostCreative } from '@/src/api/CampaignService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { failedPublish, PUBLISH_FAILURE_TOAST_MS, queuedNotice } from '@/src/utils/publishJobMessage.util';
@@ -142,7 +143,23 @@ function titleAndExcerpt(content: string): { title: string; excerpt: string } {
   return { title, excerpt: excerpt + (excerpt.length >= 80 ? '…' : '') };
 }
 
-export default function ContentLibraryPage() {
+// A published TikTok post whose own media a TikTok ad can run: its video, or 2+ photos
+// as a carousel (the same minimum the ad flow enforces). null for anything else.
+function tiktokAdCreative(d: ContentDraft): PublishedPostCreative | null {
+  const draftId = d.id ?? d.draft_id;
+  if (!draftId || d.platform !== 'tiktok' || categorize(d) !== 'published') return null;
+  const base = { draft_id: draftId, caption: d.content ?? '' };
+  if (d.video_url) return { ...base, video_url: d.video_url };
+  const photos = (d.slides ?? []).map((s) => s.image_url).filter((u): u is string => !!u);
+  return photos.length >= 2 ? { ...base, photo_urls: photos } : null;
+}
+
+export default function ContentLibraryPage({
+  onRunAsTikTokAd,
+}: {
+  /** Hands a published TikTok post to the campaign wizard. Omit to hide the action. */
+  onRunAsTikTokAd?: (post: PublishedPostCreative) => void;
+}) {
   const isMobile = useIsMobile();
   const [items, setItems] = useState<ContentDraft[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1012,6 +1029,22 @@ export default function ContentLibraryPage() {
                 }}
               >
                 Move Logo
+              </MenuItem>
+            ) : null;
+          })()}
+        {menuFor &&
+          onRunAsTikTokAd &&
+          (() => {
+            const d = items.find((x) => (x.id ?? x.draft_id) === menuFor.id);
+            const creative = d ? tiktokAdCreative(d) : null;
+            return creative ? (
+              <MenuItem
+                onClick={() => {
+                  setMenuFor(null);
+                  onRunAsTikTokAd(creative);
+                }}
+              >
+                Run as TikTok ad
               </MenuItem>
             ) : null;
           })()}

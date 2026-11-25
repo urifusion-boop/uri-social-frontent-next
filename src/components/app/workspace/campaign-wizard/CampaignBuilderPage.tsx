@@ -20,7 +20,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { CampaignCard, PLATFORM_CHOICES, uid } from '../CampaignsPage';
-import { CampaignRow, CampaignService, DraftSummary, ExistingPost } from '@/src/api/CampaignService';
+import {
+  CampaignRow,
+  CampaignService,
+  DraftSummary,
+  ExistingPost,
+  PublishedPostCreative,
+} from '@/src/api/CampaignService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import CampaignWizard from './CampaignWizard';
@@ -92,6 +98,8 @@ export default function CampaignBuilderPage({
   onDraftConsumed,
   pendingPost,
   onPostConsumed,
+  pendingPublished,
+  onPublishedConsumed,
   pendingResumeDraft,
   onResumeDraftConsumed,
   focusCampaignId,
@@ -104,6 +112,9 @@ export default function CampaignBuilderPage({
   /** A post from the owner's own account, picked on the Creatives page. */
   pendingPost?: ExistingPost | null;
   onPostConsumed?: () => void;
+  /** A TikTok post URI published, picked in the Content Library — its media becomes the ad. */
+  pendingPublished?: PublishedPostCreative | null;
+  onPublishedConsumed?: () => void;
   /** "Resume" clicked from the Overview page — same hand-off shape as pendingDraft
    *  above, so it lands straight in the wizard on THIS exact draft instead of on
    *  the list (live-reported: Overview's Resume used to just open the list, making
@@ -116,7 +127,7 @@ export default function CampaignBuilderPage({
   onFocusConsumed?: () => void;
 }) {
   const [mode, setMode] = useState<'list' | 'wizard'>(
-    pendingDraft || pendingPost || pendingResumeDraft ? 'wizard' : 'list'
+    pendingDraft || pendingPost || pendingPublished || pendingResumeDraft ? 'wizard' : 'list'
   );
   // Forces a fresh CampaignWizard mount every time "+ New Campaign" is clicked —
   // without this, clicking it twice in a row (list -> wizard -> list -> wizard)
@@ -245,6 +256,8 @@ export default function CampaignBuilderPage({
         onDraftConsumed={onDraftConsumed}
         pendingPost={pendingPost}
         onPostConsumed={onPostConsumed}
+        pendingPublished={pendingPublished}
+        onPublishedConsumed={onPublishedConsumed}
         pendingDuplicate={pendingDuplicate}
         onDuplicateConsumed={() => setPendingDuplicate(null)}
         pendingResume={pendingResume}

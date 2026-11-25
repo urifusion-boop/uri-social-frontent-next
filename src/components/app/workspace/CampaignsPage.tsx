@@ -3014,6 +3014,56 @@ function JaneBubble({ children }: { children: React.ReactNode }) {
   );
 }
 
+// A typed answer to one of Jane's open questions ("which cities?"). The chat page has its
+// composer for this; the campaign wizard has none, so without it that question is a dead end.
+function FreeTextReply({ onSend }: { onSend: (text: string) => void }) {
+  const [text, setText] = useState('');
+  const send = () => {
+    const answer = text.trim();
+    if (!answer) return;
+    setText('');
+    onSend(answer);
+  };
+  return (
+    <div className="camp-indent" style={{ display: 'flex', gap: 8, marginTop: 10, marginLeft: 40 }}>
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && send()}
+        placeholder="Type your answer…"
+        style={{
+          flex: 1,
+          minWidth: 0,
+          border: '1.5px solid #ece8e6',
+          borderRadius: 10,
+          padding: '9px 12px',
+          fontSize: 13,
+          fontFamily: 'inherit',
+          outline: 'none',
+        }}
+      />
+      <button
+        type="button"
+        onClick={send}
+        disabled={!text.trim()}
+        style={{
+          background: PINK,
+          color: '#fff',
+          border: 'none',
+          borderRadius: 10,
+          padding: '9px 18px',
+          fontSize: 13,
+          fontWeight: 700,
+          cursor: text.trim() ? 'pointer' : 'default',
+          opacity: text.trim() ? 1 : 0.5,
+        }}
+      >
+        Send
+      </button>
+    </div>
+  );
+}
+
 export function QuickReplyChips({ chips, onPick }: { chips: string[]; onPick: (text: string) => void }) {
   return (
     <div className="camp-indent" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, marginLeft: 40 }}>
@@ -4055,6 +4105,19 @@ function PromptCard({ stale, children }: { stale?: boolean; children: React.Reac
   );
 }
 
+/** Where a plan stands for a launch started from outside its card (the wizard's
+ *  "Launch all"): reported by the card, since only it knows about unsaved edits,
+ *  blocking plan checks and a launch already in flight. */
+export interface ResultCardLaunchState {
+  ready: boolean;
+  busy: boolean;
+  launched: boolean;
+  error: string;
+  dueNgn: number | null;
+  balanceNgn: number | null;
+}
+export type ResultCardLaunchOutcome = 'launched' | 'following' | 'failed' | 'skipped';
+
 export function ResultCard({
   result,
   adFormats,
@@ -4063,6 +4126,7 @@ export function ResultCard({
   onResultChange,
   onLaunched,
   onQuickReply,
+  onFreeTextReply,
   onTopUp,
   onSubmitWhatsapp,
   onSubmitMetaConnectionWhatsapp,
@@ -4080,6 +4144,8 @@ export function ResultCard({
   stale,
   busy,
   onPickPlatform,
+  onLaunchState,
+  registerLaunch,
 }: {
   result: LaunchFromMessageResult;
   adFormats: AdFormat[];
@@ -4093,6 +4159,9 @@ export function ResultCard({
   onResultChange: (result: LaunchFromMessageResult) => void;
   onLaunched: () => void;
   onQuickReply: (text: string) => void;
+  /** Passed only where there is no chat composer to answer in (the campaign wizard): shows
+   *  a text box under Jane's open questions. */
+  onFreeTextReply?: (text: string) => void;
   onTopUp: () => void;
   onSubmitWhatsapp: (number: string) => void;
   onSubmitMetaConnectionWhatsapp: (number: string) => void;
@@ -4124,6 +4193,11 @@ export function ResultCard({
   // nothing to click. Sets the same preferred-platform state the composer's
   // own PLATFORM chips use, then resends the brief so Jane replans with it.
   onPickPlatform?: (platform: '' | 'meta' | 'tiktok' | 'google') => void;
+  /** Reports whether this plan could launch right now — see ResultCardLaunchState. */
+  onLaunchState?: (state: ResultCardLaunchState) => void;
+  /** Hands the parent this card's own launch (the exact same path as its Launch
+   *  button, checks and all), or null on unmount. */
+  registerLaunch?: (launch: (() => Promise<ResultCardLaunchOutcome>) | null) => void;
 }) {
   const [launching, setLaunching] = useState(false);
   const [planChecks, setPlanChecks] = useState<PlanChecksState>({
@@ -4222,6 +4296,61 @@ export function ResultCard({
   // further down. Gathered into one function so a superseded one can be rendered
   // inert in a single place (PromptCard) instead of each card growing its own
   // disabled state — and so a new prompt stage gets that behaviour for free.
+  const confirmLaunch = async (): Promise<ResultCardLaunchOutcome> => {
+    if (launching || followingLaunch || unsavedEdits || !result.plan_id || launchBlocked) return 'skipped';
+    setLaunchError('');
+    setLaunching(true);
+    try {
+      const launched = await CampaignService.launchPlan(result.plan_id, planChecks.allowOutOfArea);
+      // Launching debits the ad wallet in full, so the header badge is now stale.
+      window.dispatchEvent(new Event('ad-wallet-changed'));
+      onResultChange(launched);
+      onLaunched();
+      return 'launched';
+    } catch (e) {
+      if (launchStillRunning(e)) {
+        followLaunch(result.plan_id);
+        return 'following';
+      }
+      const msg = extractErrorMessage(e, 'Could not launch this campaign, please try again.');
+      setLaunchError(msg);
+      // Meta's own pre-flight rejection when the number Jane has on file isn't actually
+      // linked to the Page yet (a real, live-validated error, not guessed) — offer the
+      // fix right here instead of a dead error the client can only retry blindly.
+      setFixingWhatsapp(isWhatsappNumberError(msg));
+      return 'failed';
+    } finally {
+      setLaunching(false);
+    }
+  };
+  // "Launch all" (the wizard) runs this card's own launch, so every check above applies.
+  // Declared before the early returns below: hooks can't follow them.
+  const confirmLaunchRef = useRef(confirmLaunch);
+  useEffect(() => {
+    confirmLaunchRef.current = confirmLaunch;
+  });
+  useEffect(() => {
+    if (!registerLaunch) return;
+    registerLaunch(() => confirmLaunchRef.current());
+    return () => registerLaunch(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const launchReady =
+    result.stage === 'planned' && !!result.plan_id && !launchBlocked && !unsavedEdits && !launching && !followingLaunch;
+  const dueNgn = result.wallet ? (result.wallet.total_due_ngn ?? result.wallet.budget_ngn ?? null) : null;
+  const balanceNgn = result.wallet?.balance_ngn ?? null;
+  useEffect(() => {
+    onLaunchState?.({
+      ready: launchReady,
+      busy: launching || followingLaunch,
+      launched: result.stage === 'launched',
+      error: launchError,
+      dueNgn,
+      balanceNgn,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [launchReady, launching, followingLaunch, result.stage, launchError, dueNgn, balanceNgn]);
+
   const renderPrompt = (): React.ReactNode => {
     if (result.stage === 'need_whatsapp') {
       return <NeedWhatsapp question={result.question} onSubmit={onSubmitWhatsapp} />;
@@ -4292,6 +4421,7 @@ export function ResultCard({
           <JaneBubble>{result.question || 'Could you tell me a bit more, especially your budget?'}</JaneBubble>
           {asksForObjective && <QuickReplyChips chips={OBJECTIVE_REPLY_CHIPS} onPick={onQuickReply} />}
           {asksForBudget && <QuickReplyChips chips={BUDGET_REPLY_CHIPS} onPick={onQuickReply} />}
+          {onFreeTextReply && <FreeTextReply onSend={onFreeTextReply} />}
         </div>
       );
     }
@@ -4454,32 +4584,6 @@ export function ResultCard({
 
   const prompt = renderPrompt();
   if (prompt) return <PromptCard stale={stale}>{prompt}</PromptCard>;
-
-  const confirmLaunch = async () => {
-    if (launching || followingLaunch || !result.plan_id || launchBlocked) return;
-    setLaunchError('');
-    setLaunching(true);
-    try {
-      const launched = await CampaignService.launchPlan(result.plan_id, planChecks.allowOutOfArea);
-      // Launching debits the ad wallet in full, so the header badge is now stale.
-      window.dispatchEvent(new Event('ad-wallet-changed'));
-      onResultChange(launched);
-      onLaunched();
-    } catch (e) {
-      if (launchStillRunning(e)) {
-        followLaunch(result.plan_id);
-        return;
-      }
-      const msg = extractErrorMessage(e, 'Could not launch this campaign, please try again.');
-      setLaunchError(msg);
-      // Meta's own pre-flight rejection when the number Jane has on file isn't actually
-      // linked to the Page yet (a real, live-validated error, not guessed) — offer the
-      // fix right here instead of a dead error the client can only retry blindly.
-      setFixingWhatsapp(isWhatsappNumberError(msg));
-    } finally {
-      setLaunching(false);
-    }
-  };
 
   const submitWhatsappFixAndRetry = async () => {
     const clean = whatsappFix.trim();

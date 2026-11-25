@@ -40,7 +40,14 @@ import {
   SocialConnectionService,
 } from '@/src/api/SocialConnectionService';
 import { SocialAccountService } from '@/src/api/SocialAccountService';
-import { AdFormat, CampaignService, DraftSummary, ExistingPost, PlanVariant } from '@/src/api/CampaignService';
+import {
+  AdFormat,
+  CampaignService,
+  DraftSummary,
+  ExistingPost,
+  PlanVariant,
+  PublishedPostCreative,
+} from '@/src/api/CampaignService';
 import { AdFormatGalleryCard } from '@/src/components/app/workspace/AdFormatGallery';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -864,10 +871,13 @@ const ContentManagerPage = ({
   onReturnToCampaignFromPolish,
   initialTab,
   onOpenSectionNav,
+  onRunAsTikTokAd,
 }: {
   onJane: () => void;
   isMobile?: boolean;
   requireEmailVerification: (callback?: () => void) => boolean;
+  /** Content Library → "Run as TikTok ad": opens the campaign wizard on that post's media. */
+  onRunAsTikTokAd?: (post: PublishedPostCreative) => void;
   janeMessage: JaneFirstMessageResponse | null;
   janeGenerating: boolean;
   onAcceptJaneMessage: () => void;
@@ -1908,7 +1918,7 @@ const ContentManagerPage = ({
           </>
         )}
 
-        {activeTab === 'library' && <ContentLibraryPage />}
+        {activeTab === 'library' && <ContentLibraryPage onRunAsTikTokAd={onRunAsTikTokAd} />}
 
         {activeTab === 'drafts' && (
           <>
@@ -11829,6 +11839,15 @@ export default function WorkspaceDashboard() {
     },
     [goTo]
   );
+  // And for a TikTok post URI published, from the Content Library.
+  const [pendingWizardPublished, setPendingWizardPublished] = useState<PublishedPostCreative | null>(null);
+  const handleRunAsTikTokAd = useCallback(
+    (post: PublishedPostCreative) => {
+      setPendingWizardPublished(post);
+      goTo('campaign-wizard');
+    },
+    [goTo]
+  );
   const handleUseDraftInWizard = useCallback(
     (draft: DraftSummary) => {
       setPendingWizardDraft(draft);
@@ -12273,6 +12292,7 @@ export default function WorkspaceDashboard() {
         onReturnToCampaignFromPolish={handleReturnToCampaignFromPolish}
         initialTab={contentStudioNav}
         onOpenSectionNav={() => setSectionNavOpen(true)}
+        onRunAsTikTokAd={handleRunAsTikTokAd}
       />
     ),
     connections: (
@@ -12304,6 +12324,8 @@ export default function WorkspaceDashboard() {
         onDraftConsumed={() => setPendingWizardDraft(null)}
         pendingPost={pendingWizardPost}
         onPostConsumed={() => setPendingWizardPost(null)}
+        pendingPublished={pendingWizardPublished}
+        onPublishedConsumed={() => setPendingWizardPublished(null)}
         pendingResumeDraft={pendingWizardResumeDraft}
         onResumeDraftConsumed={() => setPendingWizardResumeDraft(null)}
         focusCampaignId={focusCampaignId}
