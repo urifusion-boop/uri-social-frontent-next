@@ -8,6 +8,7 @@ import {
   type InboxConversationDTO,
   type InboxKnowledgeEntry,
 } from '@/src/api/InboxService';
+import { AutomationRules } from './AutomationRules';
 import { MSG_MUTED } from './MessagingHeader';
 import { Box, Btn, Col, Field, Label, Muted, Pane, Pill, Title, Toggle, apiError } from './ui';
 
@@ -638,6 +639,7 @@ export default function AutomationsPage({ isMobile }: { isMobile: boolean }) {
           </div>
         ))}
       </div>
+      <AutomationRules />
     </>
   );
 

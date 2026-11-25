@@ -153,6 +153,57 @@ const sendReply = async (
   return r.data;
 };
 
+export type AutomationRuleKind = 'comment' | 'dm' | 'comment_to_dm';
+
+export interface AutomationRule {
+  id: string;
+  kind: AutomationRuleKind;
+  name: string;
+  enabled: boolean;
+  match: { keywords: string[]; examples: string[]; any: boolean };
+  public_reply: string;
+  dm: string;
+  ad_ids: string[];
+  platforms: string[];
+  fired_count: number;
+  last_fired_at: string | null;
+}
+
+export type AutomationRuleInput = Pick<
+  AutomationRule,
+  'kind' | 'name' | 'enabled' | 'match' | 'public_reply' | 'dm' | 'ad_ids' | 'platforms'
+>;
+
+export interface RuleAdCampaign {
+  id: string;
+  name: string;
+  ad_ids: string[];
+}
+
+const listRules = async (): Promise<AutomationRule[]> => {
+  const r = await UriHttpClient.getClient().get('/inbox/rules');
+  return r.data.rules;
+};
+
+const listRuleAds = async (): Promise<RuleAdCampaign[]> => {
+  const r = await UriHttpClient.getClient().get('/inbox/rules/ads');
+  return r.data.campaigns;
+};
+
+const createRule = async (rule: AutomationRuleInput): Promise<AutomationRule> => {
+  const r = await UriHttpClient.getClient().post('/inbox/rules', rule);
+  return r.data.rule;
+};
+
+const updateRule = async (id: string, rule: Partial<AutomationRuleInput>): Promise<AutomationRule> => {
+  const r = await UriHttpClient.getClient().put(`/inbox/rules/${id}`, rule);
+  return r.data.rule;
+};
+
+const deleteRule = async (id: string): Promise<void> => {
+  await UriHttpClient.getClient().delete(`/inbox/rules/${id}`);
+};
+
 const regenerateSuggestion = async (conversationId: string): Promise<InboxAgentView> => {
   const r = await UriHttpClient.getClient().post(`/inbox/conversations/${conversationId}/suggestion`, {});
   return r.data;
@@ -438,6 +489,11 @@ export const InboxService = {
   handBack,
   regenerateSuggestion,
   correctClassification,
+  listRules,
+  listRuleAds,
+  createRule,
+  updateRule,
+  deleteRule,
   getAgentSettings,
   saveAgentSettings,
   listKnowledge,
