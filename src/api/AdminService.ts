@@ -323,6 +323,20 @@ export class AdminService {
     return response.data;
   }
 
+  /** Take money out of one of the user's brand ad wallets (a correction; refused below ₦0). */
+  static async debitBrandAdWallet(
+    userId: string,
+    brandId: string,
+    amountNgn: number,
+    reason?: string
+  ): Promise<{ brand_id: string; ad_wallet_ngn: number }> {
+    const response = await UriHttpClient.getClient().post(
+      `/api/admin/users/${userId}/brands/${brandId}/ad-wallet/debit`,
+      { amount_ngn: amountNgn, reason }
+    );
+    return response.data;
+  }
+
   /**
    * Adjust a user's remaining trial credits by a signed amount. Floored at 0 server-side.
    */

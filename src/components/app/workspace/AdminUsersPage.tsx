@@ -654,7 +654,6 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
                 </div>
               </div>
             </div>
-
           </div>
         )}
 
@@ -2643,7 +2642,7 @@ function AdminAccessManagement({
   );
 }
 
-// Ad Wallet — add money to one of the user's brand ad wallets (what campaigns are paid
+// Ad Wallet — add money to, or take it from, one of the user's brand ad wallets (what campaigns are paid
 // from), instead of crediting it by hand on the backend.
 function AdWalletManagement({
   user,
@@ -2670,28 +2669,45 @@ function AdWalletManagement({
     outline: 'none',
   };
 
-  const handleAdd = async () => {
+  const change = async (kind: 'add' | 'remove') => {
     const value = Number(amount);
     if (!value || value <= 0) return;
     setBusy(true);
     setMessage(null);
     try {
-      const res = await AdminService.creditBrandAdWallet(user.id, selected.brand_id, value, reason || undefined);
+      const apply = kind === 'add' ? AdminService.creditBrandAdWallet : AdminService.debitBrandAdWallet;
+      const res = await apply(user.id, selected.brand_id, value, reason || undefined);
       const details = await AdminService.getUserDetails(user.id);
       onUserUpdated(user.id, details);
       setMessage({
         type: 'ok',
-        text: `Added ₦${value.toLocaleString()} to ${selected.name}. Balance: ₦${res.ad_wallet_ngn.toLocaleString()}.`,
+        text: `${kind === 'add' ? 'Added' : 'Removed'} ₦${value.toLocaleString()} ${kind === 'add' ? 'to' : 'from'} ${selected.name}. Balance: ₦${res.ad_wallet_ngn.toLocaleString()}.`,
       });
       setAmount('');
       setReason('');
     } catch (error) {
-      console.error('Failed to credit ad wallet:', error);
-      setMessage({ type: 'err', text: 'Failed to add to the ad wallet.' });
+      const detail = (error as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+      setMessage({
+        type: 'err',
+        text: detail || `Failed to ${kind} money ${kind === 'add' ? 'to' : 'from'} the ad wallet.`,
+      });
     } finally {
       setBusy(false);
     }
   };
+  const disabled = busy || !(Number(amount) > 0);
+  const actionStyle = (color: string): React.CSSProperties => ({
+    padding: '8px 14px',
+    fontSize: 12,
+    fontWeight: 700,
+    color: 'white',
+    background: color,
+    border: 'none',
+    borderRadius: 8,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    opacity: disabled ? 0.6 : 1,
+  });
 
   return (
     <div style={{ marginBottom: 24 }}>
@@ -2725,7 +2741,7 @@ function AdWalletManagement({
           </span>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: '#666', minWidth: 100 }}>Add money</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#666', minWidth: 100 }}>Add / remove</span>
           <input
             type="number"
             min={1}
@@ -2741,23 +2757,11 @@ function AdWalletManagement({
             placeholder="Reason (optional)"
             style={{ ...inputStyle, flex: 1, minWidth: 140 }}
           />
-          <button
-            onClick={handleAdd}
-            disabled={busy || !(Number(amount) > 0)}
-            style={{
-              padding: '8px 14px',
-              fontSize: 12,
-              fontWeight: 700,
-              color: 'white',
-              background: '#AD1457',
-              border: 'none',
-              borderRadius: 8,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              opacity: busy || !(Number(amount) > 0) ? 0.6 : 1,
-            }}
-          >
-            {busy ? 'Adding…' : 'Add'}
+          <button onClick={() => change('add')} disabled={disabled} style={actionStyle('#AD1457')}>
+            {busy ? 'Working…' : 'Add'}
+          </button>
+          <button onClick={() => change('remove')} disabled={disabled} style={actionStyle('#555')}>
+            Remove
           </button>
         </div>
         {message && (
