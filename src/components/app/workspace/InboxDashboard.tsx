@@ -19,7 +19,7 @@ import { GrowthService } from '@/src/api/GrowthService';
 import { WhatsAppTemplatePicker } from './WhatsAppTemplates';
 import type { Notification } from '@/src/api/NotificationService';
 import EmptyState from '@/src/components/app/atoms/EmptyState';
-import MessagingHeader, { MSG_BG, type MessagingSection } from './messaging/MessagingHeader';
+import MessagingHeader, { MSG_BG, QUICK_REPLIES_ENABLED, type MessagingSection } from './messaging/MessagingHeader';
 import SettingsPage, { type SettingsSection } from './messaging/SettingsPage';
 import AutomationsPage from './messaging/AutomationsPage';
 import QuickRepliesPage, { replyWithButtons } from './messaging/QuickRepliesPage';
@@ -715,8 +715,9 @@ export function resolveView(view: string): { section: MessagingSection; settings
       return { section: 'settings' };
     case 'inbox-settings':
       return { section: 'automations' };
-    case 'automations':
     case 'quick':
+      return { section: QUICK_REPLIES_ENABLED ? 'quick' : 'inbox' };
+    case 'automations':
     case 'audience':
     case 'voice':
     case 'insights':
@@ -1579,7 +1580,10 @@ export default function InboxDashboard({
   // Typing a quick reply's shortcut ("/hi") followed by a space puts the reply in.
   function onComposerChange(value: string) {
     const m = /^(\/[a-z0-9_-]+) $/i.exec(value);
-    const hit = m && savedReplies.find((r) => r.shortcut && r.shortcut.toLowerCase() === m[1].toLowerCase());
+    const hit =
+      QUICK_REPLIES_ENABLED &&
+      m &&
+      savedReplies.find((r) => r.shortcut && r.shortcut.toLowerCase() === m[1].toLowerCase());
     if (hit) {
       insertSavedReply(hit);
       return;
@@ -2248,99 +2252,103 @@ export default function InboxDashboard({
         >
           <I n="paperclip" s={16} />
         </button>
-        <div style={{ position: 'relative', flex: '0 0 auto' }}>
-          <button
-            type="button"
-            aria-label="Saved replies"
-            title="Saved replies"
-            onClick={() => setSavedRepliesOpen((o) => !o)}
-            style={{
-              width: 28,
-              height: 28,
-              border: 'none',
-              background: 'transparent',
-              color: '#888',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            <I n="zap" s={16} />
-          </button>
-          {savedRepliesOpen && (
-            <>
-              <div onClick={() => setSavedRepliesOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: '120%',
-                  left: 0,
-                  zIndex: 999,
-                  background: '#fff',
-                  borderRadius: 10,
-                  boxShadow: '0 8px 24px rgba(0,0,0,.15)',
-                  border: '1px solid rgba(0,0,0,.06)',
-                  minWidth: 240,
-                  maxWidth: '80vw',
-                  padding: 6,
-                }}
-              >
+        {QUICK_REPLIES_ENABLED && (
+          <div style={{ position: 'relative', flex: '0 0 auto' }}>
+            <button
+              type="button"
+              aria-label="Saved replies"
+              title="Saved replies"
+              onClick={() => setSavedRepliesOpen((o) => !o)}
+              style={{
+                width: 28,
+                height: 28,
+                border: 'none',
+                background: 'transparent',
+                color: '#888',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <I n="zap" s={16} />
+            </button>
+            {savedRepliesOpen && (
+              <>
+                <div onClick={() => setSavedRepliesOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
                 <div
                   style={{
-                    fontSize: 11,
-                    fontWeight: 800,
-                    letterSpacing: '.04em',
-                    textTransform: 'uppercase',
-                    color: '#999',
-                    padding: '6px 8px',
+                    position: 'absolute',
+                    bottom: '120%',
+                    left: 0,
+                    zIndex: 999,
+                    background: '#fff',
+                    borderRadius: 10,
+                    boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                    border: '1px solid rgba(0,0,0,.06)',
+                    minWidth: 240,
+                    maxWidth: '80vw',
+                    padding: 6,
                   }}
                 >
-                  Saved replies
-                </div>
-                {savedReplies.length === 0 && (
-                  <div style={{ padding: '6px 8px 8px', fontSize: 12.5, color: '#888', lineHeight: 1.5 }}>
-                    None yet. Add them under Quick Replies.
-                  </div>
-                )}
-                {savedReplies.map((r) => (
-                  <button
-                    key={r.label}
-                    type="button"
-                    onClick={() => insertSavedReply(r)}
+                  <div
                     style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      padding: '8px',
-                      border: 'none',
-                      background: 'transparent',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      fontFamily: FONT,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      letterSpacing: '.04em',
+                      textTransform: 'uppercase',
+                      color: '#999',
+                      padding: '6px 8px',
                     }}
                   >
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: '#333' }}>{r.label}</div>
-                    <div
+                    Saved replies
+                  </div>
+                  {savedReplies.length === 0 && (
+                    <div style={{ padding: '6px 8px 8px', fontSize: 12.5, color: '#888', lineHeight: 1.5 }}>
+                      None yet. Add them under Quick Replies.
+                    </div>
+                  )}
+                  {savedReplies.map((r) => (
+                    <button
+                      key={r.label}
+                      type="button"
+                      onClick={() => insertSavedReply(r)}
                       style={{
-                        fontSize: 11,
-                        color: '#999',
-                        marginTop: 1,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '8px',
+                        border: 'none',
+                        background: 'transparent',
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                        fontFamily: FONT,
                       }}
                     >
-                      {r.text}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: '#333' }}>{r.label}</div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: '#999',
+                          marginTop: 1,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {r.text}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
         <textarea
           aria-label="Reply message"
-          placeholder={isMobile ? 'Write a reply…' : 'Write a reply… (type / for a quick reply)'}
+          placeholder={
+            isMobile || !QUICK_REPLIES_ENABLED ? 'Write a reply…' : 'Write a reply… (type / for a quick reply)'
+          }
           rows={1}
           value={draft}
           onChange={(e) => onComposerChange(e.target.value)}

@@ -24,7 +24,11 @@ export const MSG_LINE = '#F1EBEE';
  *  the gear in the header (channels, AI usage, tags, alerts), not a tab. */
 export type MessagingSection = 'inbox' | 'automations' | 'quick' | 'audience' | 'voice' | 'insights' | 'settings';
 
-export const MESSAGING_TABS: { id: Exclude<MessagingSection, 'settings'>; label: string; icon: LucideIcon }[] = [
+/** Quick Replies is hidden for now: no tab, no sidebar entry, and the chat box has no saved
+ *  replies button or "/" shortcut. The page and the saved replies stay; flip this to bring it back. */
+export const QUICK_REPLIES_ENABLED = false;
+
+const ALL_MESSAGING_TABS: { id: Exclude<MessagingSection, 'settings'>; label: string; icon: LucideIcon }[] = [
   { id: 'inbox', label: 'Inbox', icon: Mail },
   { id: 'automations', label: 'Automations', icon: SlidersHorizontal },
   { id: 'quick', label: 'Quick Replies', icon: MessagesSquare },
@@ -32,6 +36,8 @@ export const MESSAGING_TABS: { id: Exclude<MessagingSection, 'settings'>; label:
   { id: 'voice', label: 'Brand Voice', icon: AudioLines },
   { id: 'insights', label: 'Insights', icon: ChartLine },
 ];
+
+export const MESSAGING_TABS = ALL_MESSAGING_TABS.filter((t) => QUICK_REPLIES_ENABLED || t.id !== 'quick');
 
 export interface ConnectionsSummary {
   label: string;
