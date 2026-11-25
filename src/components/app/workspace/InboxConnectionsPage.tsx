@@ -250,8 +250,8 @@ const TROUBLESHOOTING: Record<string, { title: string; detail: string }[]> = {
   ],
 };
 
-function TroubleshootPanel({ channelId, defaultOpen }: { channelId: string; defaultOpen: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
+function TroubleshootPanel({ channelId }: { channelId: string }) {
+  const [open, setOpen] = useState(false);
   const steps = TROUBLESHOOTING[channelId];
   if (!steps) return null;
   return (
@@ -829,9 +829,7 @@ export default function InboxConnectionsPage({
                     {soon ? 'Coming soon' : c.connected ? `Reconnect ${c.label}` : `Connect ${c.label}`}
                   </button>
 
-                  {!soon && c.connected && (
-                    <TroubleshootPanel channelId={c.id} defaultOpen={c.lastEvent === 'No events yet'} />
-                  )}
+                  {!soon && c.connected && <TroubleshootPanel channelId={c.id} />}
                 </div>
               );
             })}

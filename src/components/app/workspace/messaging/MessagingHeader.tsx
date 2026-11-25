@@ -1,16 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import {
-  AudioLines,
-  ChartLine,
-  Mail,
-  MessagesSquare,
-  Settings,
-  SlidersHorizontal,
-  Users,
-  type LucideIcon,
-} from 'lucide-react';
+import { AudioLines, ChartLine, Mail, Settings, SlidersHorizontal, Users, type LucideIcon } from 'lucide-react';
 
 export const MSG_FONT = "'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 export const MSG_PINK = '#E0156B';
@@ -27,7 +18,6 @@ export type MessagingSection = 'inbox' | 'automations' | 'quick' | 'audience' | 
 export const MESSAGING_TABS: { id: Exclude<MessagingSection, 'settings'>; label: string; icon: LucideIcon }[] = [
   { id: 'inbox', label: 'Inbox', icon: Mail },
   { id: 'automations', label: 'Automations', icon: SlidersHorizontal },
-  { id: 'quick', label: 'Quick Replies', icon: MessagesSquare },
   { id: 'audience', label: 'Audience', icon: Users },
   { id: 'voice', label: 'Brand Voice', icon: AudioLines },
   { id: 'insights', label: 'Insights', icon: ChartLine },

@@ -11664,7 +11664,6 @@ export default function WorkspaceDashboard() {
     [
       ['inbox', 'inbox', 'Inbox'],
       ['automations', 'sliders', 'Automations'],
-      ['quick', 'replies', 'Quick Replies'],
       ['audience', 'users', 'Audience'],
       ['voice', 'mic', 'Brand Voice'],
       ['insights', 'chart', 'Insights'],
