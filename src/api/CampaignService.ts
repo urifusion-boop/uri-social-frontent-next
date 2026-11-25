@@ -513,7 +513,29 @@ export interface DraftSummary {
   created_at: string;
 }
 
-export type CreativeSource = 'generate' | 'upload' | 'draft' | 'ask' | 'recomposite' | 'existing_post';
+export type CreativeSource = 'generate' | 'upload' | 'draft' | 'ask' | 'recomposite' | 'existing_post' | 'preview';
+
+/** One ad Jane made on the campaign wizard's Ads step, before the plan. */
+export interface PreviewAd {
+  image_url: string;
+  headline: string;
+  primary_text: string;
+  cta: string;
+  /** The way in this ad takes when several are tested ('' for a single ad). */
+  angle: string;
+  draft_id: string;
+  /** Being made again right now. */
+  redoing: boolean;
+}
+
+/** The ads Jane is making (or made) for the wizard's Ads step. */
+export interface AdPreview {
+  id: string;
+  count: number;
+  status: 'running' | 'done' | 'failed';
+  error: string;
+  results: PreviewAd[];
+}
 
 export interface ExistingPost {
   platform: 'instagram' | 'facebook';
@@ -848,6 +870,8 @@ export class CampaignService {
     reference_image_url?: string;
     is_video?: boolean;
     draft_id?: string;
+    /** creative_source: 'preview' — the ads already made and approved on the wizard's Ads step. */
+    preview_id?: string;
     // creative_source: 'existing_post' — a post already published on the brand's own account.
     // reference_image_url is its picture (preview only).
     existing_post_platform?: 'instagram' | 'facebook';
@@ -1219,6 +1243,49 @@ export class CampaignService {
   static async getBudgetSuggestions(platform: string, days: number): Promise<BudgetSuggestions> {
     const res = await UriHttpClient.getClient().get('/jane-ads/budget-suggestions', { params: { platform, days } });
     return res.data as BudgetSuggestions;
+  }
+
+  // ── The wizard's Ads step: the ads before the plan ──────────────────────────
+  /** Jane starts making the campaign's ads; poll getAdPreview to see each as it arrives. */
+  static async startAdPreview(body: {
+    count: number;
+    description: string;
+    city?: string;
+    objective?: string;
+    destination_type?: string;
+    budget_ngn?: number;
+    vsg01_format_id?: string;
+    platform?: 'meta' | 'tiktok';
+  }): Promise<AdPreview> {
+    return (await UriHttpClient.getClient().post('/jane-ads/ad-previews', body)).data as AdPreview;
+  }
+
+  static async getAdPreview(previewId: string): Promise<AdPreview> {
+    return (await UriHttpClient.getClient().get(`/jane-ads/ad-previews/${previewId}`)).data as AdPreview;
+  }
+
+  static async editPreviewAd(
+    previewId: string,
+    index: number,
+    headline: string,
+    primaryText: string
+  ): Promise<PreviewAd> {
+    return (
+      await UriHttpClient.getClient().patch(`/jane-ads/ad-previews/${previewId}/ads/${index}`, {
+        headline,
+        primary_text: primaryText,
+      })
+    ).data as PreviewAd;
+  }
+
+  static async removePreviewAd(previewId: string, index: number): Promise<AdPreview> {
+    return (await UriHttpClient.getClient().delete(`/jane-ads/ad-previews/${previewId}/ads/${index}`))
+      .data as AdPreview;
+  }
+
+  static async redoPreviewAd(previewId: string, index: number): Promise<AdPreview> {
+    return (await UriHttpClient.getClient().post(`/jane-ads/ad-previews/${previewId}/ads/${index}/redo`))
+      .data as AdPreview;
   }
 
   static async getAdFormats(): Promise<{ formats: AdFormat[] }> {
