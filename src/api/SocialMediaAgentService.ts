@@ -488,6 +488,7 @@ export interface SocialConnection {
   connected_via?: string;
   needs_reconnect?: boolean;
   reconnect_reason?: string;
+  connected_by?: string;
 }
 
 export interface LogoPlacement {
