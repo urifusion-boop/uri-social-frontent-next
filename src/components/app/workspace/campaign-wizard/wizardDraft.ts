@@ -18,6 +18,7 @@
  * regenerating a possibly-different ad from the same inputs.
  */
 import { CampaignService, LaunchFromMessageResult, PlanVariant } from '@/src/api/CampaignService';
+import type { WizardAdPreviewRef } from './WizardAdsStep';
 import { currentUserId, getActiveBrandIdForUser, userStorage } from '@/src/utils/userStorage.util';
 import type { GooglePlacement } from '../GooglePlacementPreview';
 import type { WizardAudienceValue } from './WizardAudienceStep';
@@ -71,6 +72,8 @@ export interface WizardDraft {
   audience: WizardAudienceValue;
   budget: WizardBudgetValue;
   creative: WizardCreativeChoice | null;
+  /** The ads made on the Ads step (WizardAdsStep), if this run got that far. */
+  adPreview?: WizardAdPreviewRef | null;
   results?: WizardReviewSnapshot;
   savedAt: number;
   /** Who this browser copy belongs to. A copy without it, or with someone

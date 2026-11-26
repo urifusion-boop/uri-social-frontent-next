@@ -70,7 +70,20 @@ function extractErrorMessage(e: unknown, fallback: string): string {
   return fallback;
 }
 
-function creativePayload(creative: WizardCreativeChoice): Partial<PlanFromMessagePayload> {
+/** The ads already made and approved on the Ads step run on Instagram & Facebook as they are:
+ *  nothing is made or charged again. Other platforms' ads are still made with the plan. */
+function usesPreview(creative: WizardCreativeChoice, onPlatform: string, adPreviewId?: string): boolean {
+  return Boolean(adPreviewId) && creative.creative_source === 'generate' && onPlatform === 'meta';
+}
+
+function creativePayload(
+  creative: WizardCreativeChoice,
+  onPlatform = '',
+  adPreviewId?: string
+): Partial<PlanFromMessagePayload> {
+  if (usesPreview(creative, onPlatform, adPreviewId)) {
+    return { creative_source: 'preview', preview_id: adPreviewId };
+  }
   if (creative.creative_source === 'upload') {
     // TikTok Carousel Ads — base photo is slide 1, same as CampaignsPage.tsx's own
     // carouselImageUrls composition; only sent once there's a real carousel (2+
@@ -90,6 +103,9 @@ function creativePayload(creative: WizardCreativeChoice): Partial<PlanFromMessag
         : {}),
       ...(creative.asset_attestation ? { asset_attestation: creative.asset_attestation } : {}),
       ...(creative.vsg01_format_id ? { vsg01_format_id: creative.vsg01_format_id } : {}),
+      // Google video ads: a video already on YouTube, and the picture shown beside a video.
+      ...(creative.youtube_video_id ? { youtube_video_id: creative.youtube_video_id } : {}),
+      ...(creative.video_still_url ? { video_still_url: creative.video_still_url } : {}),
     };
   }
   if (creative.creative_source === 'draft') {
@@ -338,6 +354,7 @@ export default function WizardReviewStep({
   audience,
   budget,
   creative,
+  adPreviewId,
   platform,
   googlePlacement,
   onCreateAnother,
@@ -352,6 +369,8 @@ export default function WizardReviewStep({
   audience: WizardAudienceValue;
   budget: WizardBudgetValue;
   creative: WizardCreativeChoice;
+  /** The ads made on the Ads step; Instagram & Facebook plans run exactly these. */
+  adPreviewId?: string;
   platform: WizardPlatformValue;
   /** Where on Google, set on the dedicated Google placement step (shown only when
    *  Google's in play) — mirrors the chat flow's googlePlacementRef exactly. */
@@ -473,7 +492,7 @@ export default function WizardReviewStep({
         // This ad's share of the total — one platform of several, or one audience plan of several.
         ...(run.share != null ? { budget_ngn_override: run.share, days_override: budget.days } : {}),
         ...(isMulti ? { campaign_group_id: campaignGroupId.current } : {}),
-        ...creativePayload(creative),
+        ...creativePayload(creative, onPlatform, adPreviewId),
         ...(run.choice
           ? { selected_plan_variant: run.choice.variant, variant_group_id: run.choice.variantGroupId }
           : {}),
@@ -482,7 +501,9 @@ export default function WizardReviewStep({
       } as PlanFromMessagePayload);
       patchSlot(key, { result: res, loading: false, working: false, error: '' });
       // A finished plan carries an ad Jane made (a credit) — let the header badge re-read.
-      if (res.stage === 'planned') EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'ad_plan' });
+      // Not for ads made on the Ads step: those were paid for there.
+      if (res.stage === 'planned' && !usesPreview(creative, onPlatform, adPreviewId))
+        EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'ad_plan' });
     } catch (e) {
       const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
       patchSlot(key, { loading: false, working: false, error: msg });

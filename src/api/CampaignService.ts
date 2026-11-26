@@ -367,6 +367,9 @@ export interface LaunchFromMessageResult {
     // plain generic generation, no format was used.
     vsg01_format_id?: string;
     vsg01_format_attributes?: Record<string, unknown>;
+    /** Google video ads: a video already on YouTube, and the picture shown beside a video. */
+    youtube_video_id?: string;
+    video_still_url?: string;
     concept?: string;
   };
   /** The other ads tested beside `creative` in the same campaign. */
@@ -513,7 +516,59 @@ export interface DraftSummary {
   created_at: string;
 }
 
-export type CreativeSource = 'generate' | 'upload' | 'draft' | 'ask' | 'recomposite' | 'existing_post';
+export type CreativeSource = 'generate' | 'upload' | 'draft' | 'ask' | 'recomposite' | 'existing_post' | 'preview';
+
+/** One ad Jane made on the campaign wizard's Ads step, before the plan. */
+export interface PreviewAd {
+  image_url: string;
+  headline: string;
+  primary_text: string;
+  cta: string;
+  /** The way in this ad takes when several are tested ('' for a single ad). */
+  angle: string;
+  draft_id: string;
+  /** Being made again right now. */
+  redoing: boolean;
+  /** The ad style it was drawn in (an ad format id); '' when no style was used. */
+  style?: string;
+}
+
+/** One line about a video, for the person choosing it: fine, fine with a limit, or can't run. */
+export interface AdVideoFact {
+  tone: 'ok' | 'warn' | 'block';
+  text: string;
+}
+
+/** What Google will make of a video (POST /jane-ads/video/check). */
+export interface AdVideoCheck {
+  ok: boolean;
+  facts: AdVideoFact[];
+  upright: boolean;
+  duration: number;
+  /** Pictures taken from the video, for placements that show one beside it. */
+  stills: string[];
+  /** A video already on YouTube. */
+  video_id?: string;
+  title?: string;
+  thumbnail_url?: string;
+}
+
+/** One of several ads on the Style step: what it says (an angle) and its style ('' = Jane picks). */
+export interface PlannedAd {
+  angle: string;
+  vsg01_format_id: string;
+}
+
+/** The ads Jane is making (or made) for the wizard's Ads step. */
+export interface AdPreview {
+  id: string;
+  count: number;
+  status: 'running' | 'done' | 'failed';
+  error: string;
+  results: PreviewAd[];
+  /** Several ads: what each says and its style, in order. Empty for a single ad. */
+  ads?: PlannedAd[];
+}
 
 export interface ExistingPost {
   platform: 'instagram' | 'facebook';
@@ -847,7 +902,12 @@ export class CampaignService {
     creative_source?: CreativeSource;
     reference_image_url?: string;
     is_video?: boolean;
+    /** Google video ads: a video already on YouTube, and the picture shown beside a video. */
+    youtube_video_id?: string;
+    video_still_url?: string;
     draft_id?: string;
+    /** creative_source: 'preview' — the ads already made and approved on the wizard's Ads step. */
+    preview_id?: string;
     // creative_source: 'existing_post' — a post already published on the brand's own account.
     // reference_image_url is its picture (preview only).
     existing_post_platform?: 'instagram' | 'facebook';
@@ -1221,6 +1281,67 @@ export class CampaignService {
     return res.data as BudgetSuggestions;
   }
 
+  // ── The wizard's Ads step: the ads before the plan ──────────────────────────
+  /** Jane starts making the campaign's ads; poll getAdPreview to see each as it arrives. */
+  static async startAdPreview(body: {
+    count: number;
+    description: string;
+    city?: string;
+    objective?: string;
+    destination_type?: string;
+    budget_ngn?: number;
+    vsg01_format_id?: string;
+    platform?: 'meta' | 'tiktok';
+    /** Several ads: what each says and its style. Sets the count. */
+    ads?: PlannedAd[];
+  }): Promise<AdPreview> {
+    return (await UriHttpClient.getClient().post('/jane-ads/ad-previews', body)).data as AdPreview;
+  }
+
+  static async getAdPreview(previewId: string): Promise<AdPreview> {
+    return (await UriHttpClient.getClient().get(`/jane-ads/ad-previews/${previewId}`)).data as AdPreview;
+  }
+
+  static async editPreviewAd(
+    previewId: string,
+    index: number,
+    headline: string,
+    primaryText: string
+  ): Promise<PreviewAd> {
+    return (
+      await UriHttpClient.getClient().patch(`/jane-ads/ad-previews/${previewId}/ads/${index}`, {
+        headline,
+        primary_text: primaryText,
+      })
+    ).data as PreviewAd;
+  }
+
+  static async removePreviewAd(previewId: string, index: number): Promise<AdPreview> {
+    return (await UriHttpClient.getClient().delete(`/jane-ads/ad-previews/${previewId}/ads/${index}`))
+      .data as AdPreview;
+  }
+
+  /** Make one ad again; with a style, in that style ("Change style"). */
+  static async redoPreviewAd(previewId: string, index: number, vsg01FormatId?: string): Promise<AdPreview> {
+    return (
+      await UriHttpClient.getClient().post(
+        `/jane-ads/ad-previews/${previewId}/ads/${index}/redo`,
+        vsg01FormatId ? { vsg01_format_id: vsg01FormatId } : {}
+      )
+    ).data as AdPreview;
+  }
+
+  /** What Google will make of a video before it's used: an uploaded/saved video (video_url) or a
+   *  video already on YouTube (youtube_link). Throws with a plain message when it can't run. */
+  static async checkAdVideo(body: {
+    video_url?: string;
+    youtube_link?: string;
+    placement: string;
+  }): Promise<AdVideoCheck> {
+    return (await UriHttpClient.getClient().post('/jane-ads/video/check', body, { timeout: 90000 }))
+      .data as AdVideoCheck;
+  }
+
   static async getAdFormats(): Promise<{ formats: AdFormat[] }> {
     const res = await UriHttpClient.getClient().get('/jane-ads/ad-formats');
     return res.data as { formats: AdFormat[] };
@@ -1246,6 +1367,8 @@ export class CampaignService {
     needs_in_brief?: Record<string, string>;
     credits?: Record<string, number>;
     billing_mode?: 'off' | 'shadow' | 'on';
+    /** Several ads: for each angle, the styles that carry it best, best first (only ones this brief supports). */
+    for_angles?: Record<string, string[]>;
   }> {
     const res = await UriHttpClient.getClient().post('/jane-ads/creative/suggest-format', params);
     // needs_in_brief: the fact-led styles this brief can't support, with why ("Needs an event with a date
@@ -1254,6 +1377,9 @@ export class CampaignService {
       suggested: AdFormat | null;
       alternatives: AdFormat[];
       needs_in_brief?: Record<string, string>;
+      credits?: Record<string, number>;
+      billing_mode?: 'off' | 'shadow' | 'on';
+      for_angles?: Record<string, string[]>;
     };
   }
 

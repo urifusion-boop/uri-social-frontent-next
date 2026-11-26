@@ -21,11 +21,32 @@ import { useFeatures } from '@/src/hooks/useFeatures';
 import WizardCreativeStep, { creativeFitsTikTok, WizardCreativeChoice } from './WizardCreativeStep';
 import WizardStyleStep, { styleApplies } from './WizardStyleStep';
 import WizardReviewStep from './WizardReviewStep';
+import WizardAdsStep, { WizardAdPreviewRef } from './WizardAdsStep';
+import { plannedAds } from './StyleLibrary';
+import { GoogleVideoPlacement, googleVideoBlocked } from './GoogleVideo';
 import { deleteWizardDraft, saveWizardDraft, WizardDraft, WizardReviewSnapshot } from './wizardDraft';
 
 const PINK = '#C2185B';
 
-type StepKey = 'objective' | 'platform' | 'googlePlacement' | 'audience' | 'budget' | 'creative' | 'style' | 'review';
+type StepKey =
+  | 'objective'
+  | 'platform'
+  | 'googlePlacement'
+  | 'audience'
+  | 'budget'
+  | 'creative'
+  | 'style'
+  | 'ads'
+  | 'review';
+
+/** The Ads step (see the ads before the plan) is for ads Jane makes for Instagram & Facebook. Your
+ *  own photo or video is already seen; TikTok needs video; a Google Search ad has no picture. */
+function adsStepApplies(platform: WizardPlatformValue, creative: WizardCreativeChoice | null): boolean {
+  if (creative?.creative_source !== 'generate') return false;
+  return platform.mode === 'single' ? platform.single === 'meta' : platform.multi.includes('meta');
+}
+
+const PLATFORM_NAME: Record<string, string> = { tiktok: 'TikTok', google: 'Google' };
 
 const usesGoogle = (platform: WizardPlatformValue) =>
   platform.mode === 'single' ? platform.single === 'google' : platform.multi.includes('google');
@@ -51,9 +72,13 @@ function buildSteps(
     { key: 'creative', label: 'Creative' }
   );
   // Style — how the ad looks — once there's a picture to style (Jane makes it, or one photo she
-  // builds on). Not for a past draft, a video, a several-ads test, or Google Search text ads.
+  // builds on). Not for a past draft, a video, or Google Search text ads.
   const googleSearchOnly = platform.mode === 'single' && platform.single === 'google' && googlePlacement === 'search';
-  if (styleApplies(creative) && !googleSearchOnly) steps.push({ key: 'style', label: 'Style' });
+  // Several ads are styled on their way to the Ads step, which is where they are made.
+  const severalAds = creative?.creative_source === 'generate' && (creative.concepts ?? 1) >= 2;
+  if (styleApplies(creative) && !googleSearchOnly && (!severalAds || adsStepApplies(platform, creative)))
+    steps.push({ key: 'style', label: 'Style' });
+  if (adsStepApplies(platform, creative)) steps.push({ key: 'ads', label: 'Ads' });
   steps.push(
     // Label flips from "Finalize" to "Review" once there's nothing left to decide —
     // see reviewReady below. Review is meant to be the stage where you look things
@@ -134,6 +159,9 @@ export default function CampaignWizard({
   const [audience, setAudience] = useState<WizardAudienceValue>({ description: '', city: '' });
   const [budget, setBudget] = useState<WizardBudgetValue>({ amountNgn: '', days: 7 });
   const [creative, setCreative] = useState<WizardCreativeChoice | null>(null);
+  // The ads Jane made on the Ads step, and whether they're finished (Next waits for them).
+  const [adPreview, setAdPreview] = useState<WizardAdPreviewRef | null>(null);
+  const [adsReady, setAdsReady] = useState(false);
   const [prefilledFromLibrary, setPrefilledFromLibrary] = useState(false);
   const [prefilledFromPublished, setPrefilledFromPublished] = useState(false);
   // Flips once every selected platform has a finished, launch-ready plan with no
@@ -148,6 +176,11 @@ export default function CampaignWizard({
   }, [stepKey]);
 
   const steps = buildSteps(platform, creative, googlePlacement);
+  // A Google campaign on a placement that runs video (Display, YouTube & Discover, Everywhere).
+  const googleVideoPlacement: GoogleVideoPlacement | null =
+    platform.mode === 'single' && platform.single === 'google' && googlePlacement !== 'search'
+      ? (googlePlacement as GoogleVideoPlacement)
+      : null;
   // Live-reported bug: changing platform on the way back through (say Meta ->
   // Google) inserts a new, never-visited "Google placement" step ahead of
   // Audience/Budget/Creative/Review — steps that WERE already visited under the
@@ -257,6 +290,7 @@ export default function CampaignWizard({
     setAudience(pendingResume.audience);
     setBudget(pendingResume.budget);
     setCreative(pendingResume.creative);
+    setAdPreview(pendingResume.adPreview ?? null);
     setResults(withoutConnectionBlockers(pendingResume.results));
     // The invalidation effect below must not see this as "the fields changed
     // out from under the saved plan" — it's the plan's own fields arriving.
@@ -267,6 +301,7 @@ export default function CampaignWizard({
       audience: pendingResume.audience,
       budget: pendingResume.budget,
       creative: pendingResume.creative,
+      adPreviewId: pendingResume.adPreview?.id ?? null,
     });
     skipNextInvalidationRef.current = true;
     // Landed on Finalize/Review before and built something there — go straight
@@ -296,7 +331,17 @@ export default function CampaignWizard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingResume]);
 
-  const resultsKey = JSON.stringify({ objective, platform, googlePlacement, audience, budget, creative });
+  // Ads used by the plan: only while the Ads step is part of this run.
+  const planPreviewId = adsStepApplies(platform, creative) ? (adPreview?.id ?? null) : null;
+  const resultsKey = JSON.stringify({
+    objective,
+    platform,
+    googlePlacement,
+    audience,
+    budget,
+    creative,
+    adPreviewId: planPreviewId,
+  });
   useEffect(() => {
     if (skipNextInvalidationRef.current) {
       // The resume effect just set both `results` and this same key together —
@@ -320,8 +365,8 @@ export default function CampaignWizard({
   const finishedRef = useRef(false);
   useEffect(() => {
     if (!objective || finishedRef.current) return;
-    saveWizardDraft(draftId, { objective, platform, googlePlacement, audience, budget, creative, results });
-  }, [draftId, objective, platform, googlePlacement, audience, budget, creative, results]);
+    saveWizardDraft(draftId, { objective, platform, googlePlacement, audience, budget, creative, adPreview, results });
+  }, [draftId, objective, platform, googlePlacement, audience, budget, creative, adPreview, results]);
 
   const canAdvance = (): boolean => {
     if (step === 'objective') return objectiveComplete(objective);
@@ -331,8 +376,11 @@ export default function CampaignWizard({
     if (step === 'creative') {
       // TikTok alone can't run Jane's images or a single photo (see creativeFitsTikTok).
       if (platform.mode === 'single' && platform.single === 'tiktok') return creativeFitsTikTok(creative);
+      // A Google video still being checked, or one that can't run on this placement.
+      if (googleVideoBlocked(creative, googleVideoPlacement)) return false;
       return Boolean(creative);
     }
+    if (step === 'ads') return adsReady;
     return true;
   };
 
@@ -573,6 +621,7 @@ export default function CampaignWizard({
               value={creative}
               onChange={setCreative}
               isTikTok={platform.mode === 'single' && platform.single === 'tiktok'}
+              googleVideo={googleVideoPlacement}
               isMeta={platform.mode === 'single' ? platform.single === 'meta' : platform.multi.includes('meta')}
               metaBudget={
                 typeof budget.amountNgn === 'number' && budget.amountNgn > 0
@@ -598,6 +647,34 @@ export default function CampaignWizard({
               adAlreadyBuilt={Boolean(results?.single || Object.keys(results?.multi ?? {}).length)}
             />
           )}
+          {step === 'ads' && creative?.creative_source === 'generate' && (
+            <WizardAdsStep
+              inputs={{
+                count: Math.max(1, creative.concepts ?? 1),
+                description: audience.description,
+                city: audience.city,
+                objective: objective?.value ?? '',
+                destination_type: objective?.destination_type ?? '',
+                // Several platforms split the budget evenly (WizardReviewStep): Meta's share.
+                budget_ngn:
+                  typeof budget.amountNgn === 'number'
+                    ? budget.amountNgn / (platform.mode === 'multi' ? Math.max(1, platform.multi.length) : 1)
+                    : 0,
+                vsg01_format_id: creative.vsg01_format_id ?? '',
+                ...((creative.concepts ?? 1) >= 2
+                  ? { ads: plannedAds(creative.concepts ?? 2, creative.ads), style_mode: creative.style_mode ?? 'jane' }
+                  : {}),
+              }}
+              value={adPreview}
+              onChange={setAdPreview}
+              onReadyChange={setAdsReady}
+              otherPlatforms={
+                platform.mode === 'multi'
+                  ? platform.multi.filter((p) => p !== 'meta').map((p) => PLATFORM_NAME[p] ?? p)
+                  : []
+              }
+            />
+          )}
           {step === 'review' && objective && creative && (
             <WizardReviewStep
               // Remounts (and re-asks Jane from scratch) whenever anything the plan is
@@ -605,11 +682,20 @@ export default function CampaignWizard({
               // switched Meta to Google. Visiting this step again with nothing changed
               // keeps the same key, so it does NOT needlessly redo Jane's work or lose
               // an in-progress plan just because you looked at an earlier step.
-              key={JSON.stringify({ objective, platform, googlePlacement, audience, budget, creative })}
+              key={JSON.stringify({
+                objective,
+                platform,
+                googlePlacement,
+                audience,
+                budget,
+                creative,
+                adPreviewId: planPreviewId,
+              })}
               objective={objective}
               audience={audience}
               budget={{ ...budget, amountNgn: typeof budget.amountNgn === 'number' ? budget.amountNgn : 0 }}
               creative={creative}
+              adPreviewId={planPreviewId ?? undefined}
               platform={platform}
               googlePlacement={googlePlacement}
               // CampaignBuilderPage unmounts this whole wizard and mounts a fresh

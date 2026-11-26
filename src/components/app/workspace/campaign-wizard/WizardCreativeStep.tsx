@@ -12,14 +12,17 @@ import { useEffect, useRef, useState } from 'react';
 import { useFeatures } from '@/src/hooks/useFeatures';
 import MakeFromPicture from '@/src/components/app/competitors/MakeFromPicture';
 import {
+  AdVideoCheck,
   AssetAttestation,
   CampaignService,
   CreativeProvenanceInput,
   DraftSummary,
   ExistingPost,
+  PlannedAd,
 } from '@/src/api/CampaignService';
 import { useCreativePaths, VideoWhoPrompt } from '../CreativePathControls';
 import WizardAssetAttestation from './WizardAssetAttestation';
+import { GoogleVideoPlacement, VideoCheckPanel, VideoLibraryPanel, YouTubeLinkPanel } from './GoogleVideo';
 
 const PINK = '#C2185B';
 // Meta tests at most this many ads in one campaign (backend concepts.MAX_ADS).
@@ -35,6 +38,10 @@ export type WizardCreativeChoice =
       concepts?: number;
       /** The Style step's pick (an ad format id); '' = "Let Jane choose for me". */
       vsg01_format_id?: string;
+      /** Several ads: what each says and its style ('' = Jane's pick), from the Style step. */
+      ads?: PlannedAd[];
+      /** Several ads: how their styles were chosen on the Style step. */
+      style_mode?: 'jane' | 'same' | 'mine';
     }
   | ({
       creative_source: 'upload';
@@ -51,6 +58,17 @@ export type WizardCreativeChoice =
       asset_attestation?: AssetAttestation;
       /** The Style step's pick (an ad format id); '' = "Let Jane choose for me". */
       vsg01_format_id?: string;
+      /** Google video ads: where the video came from. 'youtube' is a pasted link (reference_image_url
+       *  is then its thumbnail); 'library' is one saved in Uri's Video studio. */
+      video_source?: 'upload' | 'youtube' | 'library';
+      youtube_video_id?: string;
+      video_title?: string;
+      /** What Google will make of the video; undefined while Jane is still checking it. */
+      video_check?: AdVideoCheck;
+      /** The placement that check was made for (each has its own length rules). */
+      video_checked_for?: string;
+      /** The picture shown beside the video on Display and Everywhere. */
+      video_still_url?: string;
     } & Partial<CreativeProvenanceInput>) // "who's in this video" — video uploads only
   | { creative_source: 'draft'; draft_id: string; previewUrl: string }
   | {
@@ -74,6 +92,7 @@ const TIKTOK_IMAGE_ONLY = 'TikTok runs a video or 2+ photos, so this one can’t
 
 function OptionCard({
   title,
+  tag,
   subtitle,
   isOn,
   onClick,
@@ -81,6 +100,8 @@ function OptionCard({
   disabledReason,
 }: {
   title: string;
+  /** A small word beside the title ("New"). */
+  tag?: string;
   subtitle: string;
   isOn: boolean;
   onClick: () => void;
@@ -108,7 +129,10 @@ function OptionCard({
         width: '100%',
       }}
     >
-      <span style={{ fontSize: 13.5, fontWeight: 800, color: isOn ? PINK : '#1a0a12' }}>{title}</span>
+      <span style={{ fontSize: 13.5, fontWeight: 800, color: isOn ? PINK : '#1a0a12' }}>
+        {title}
+        {tag && <span style={{ fontSize: 10.5, fontWeight: 700, color: PINK, marginLeft: 6 }}>{tag}</span>}
+      </span>
       <span style={{ fontSize: 12, color: '#7a7270', lineHeight: 1.45 }}>{subtitle}</span>
       {disabledReason && (
         <span style={{ fontSize: 11.5, color: '#a15c00', fontWeight: 600, lineHeight: 1.45 }}>{disabledReason}</span>
@@ -124,6 +148,7 @@ export default function WizardCreativeStep({
   isTikTok = false,
   isMeta = false,
   metaBudget = null,
+  googleVideo = null,
 }: {
   value: WizardCreativeChoice | null;
   onChange: (next: WizardCreativeChoice) => void;
@@ -138,6 +163,9 @@ export default function WizardCreativeStep({
   /** The Meta share of the budget, so "Make several ads" can say what the budget table
    *  (PRD WS5) recommends for it. */
   metaBudget?: { amountNgn: number; days: number } | null;
+  /** A Google placement that runs video (Display, YouTube & Discover, Everywhere): videos are
+   *  checked here, and a YouTube link or a video saved in Uri can be used too (GoogleVideo.tsx). */
+  googleVideo?: GoogleVideoPlacement | null;
 }) {
   const [uploading, setUploading] = useState(false);
   const [postsOpen, setPostsOpen] = useState(false);
@@ -181,6 +209,15 @@ export default function WizardCreativeStep({
   }, [isMeta, budgetKey]);
 
   const mode = value?.creative_source ?? null;
+  // Google video: an upload, a pasted YouTube link and a saved Uri video are all 'upload' choices.
+  const uploadKind = value?.creative_source === 'upload' ? (value.video_source ?? 'upload') : null;
+  const [videoPick, setVideoPick] = useState<'youtube' | 'library' | null>(null);
+  useEffect(() => {
+    if (videoPick && uploadKind !== videoPick) setVideoPick(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  const googleUploadedVideo =
+    Boolean(googleVideo) && value?.creative_source === 'upload' && uploadKind === 'upload' && value.is_video;
   const isTestMode = value?.creative_source === 'generate' && typeof value.concepts === 'number' && value.concepts >= 2;
 
   const loadPosts = (platform: 'instagram' | 'facebook') => {
@@ -461,7 +498,16 @@ export default function WizardCreativeStep({
                       type="button"
                       aria-label={`Make ${n} ads`}
                       aria-pressed={picked}
-                      onClick={() => onChange({ creative_source: 'generate', concepts: n })}
+                      onClick={() =>
+                        onChange({
+                          creative_source: 'generate',
+                          concepts: n,
+                          // Keep the Style step's choices for the ads that remain.
+                          ...(value?.creative_source === 'generate' && value.ads
+                            ? { ads: value.ads, style_mode: value.style_mode }
+                            : {}),
+                        })
+                      }
                       style={{
                         minWidth: 36,
                         padding: '6px 10px',
@@ -489,8 +535,8 @@ export default function WizardCreativeStep({
         )}
         <OptionCard
           title="Upload my own"
-          subtitle="Use a photo or video you already have."
-          isOn={mode === 'upload'}
+          subtitle={googleVideo ? 'Use a video or photo you already have.' : 'Use a photo or video you already have.'}
+          isOn={mode === 'upload' && uploadKind === 'upload'}
           onClick={() => document.getElementById('wizard-creative-upload-input')?.click()}
         >
           <input
@@ -505,12 +551,17 @@ export default function WizardCreativeStep({
               handleFiles(files);
             }}
           />
+          {googleVideo && !(mode === 'upload' && uploadKind === 'upload') && (
+            <span style={{ fontSize: 11.5, color: '#9a9290' }}>
+              Videos run on YouTube. Jane checks them before you continue.
+            </span>
+          )}
           {allowsSeveral && mode !== 'upload' && (
             <span style={{ fontSize: 11.5, color: '#9a9290' }}>You can pick several photos at once.</span>
           )}
           {uploading && <span style={{ fontSize: 12, color: '#7a7270' }}>Uploading…</span>}
           {uploadError && <span style={{ fontSize: 12, color: '#b91c1c' }}>{uploadError}</span>}
-          {mode === 'upload' && value?.creative_source === 'upload' && !uploading && (
+          {mode === 'upload' && uploadKind === 'upload' && value?.creative_source === 'upload' && !uploading && (
             <span style={{ fontSize: 12, color: PINK, fontWeight: 700 }}>
               {value.is_video
                 ? 'Video uploaded ✓'
@@ -526,110 +577,132 @@ export default function WizardCreativeStep({
         {/* The chosen media itself — every photo (or the video), so the person sees exactly
             what will run. A sibling of the card above, which is a <button> and can't hold
             the remove/add buttons. TikTok keeps its own carousel strip below. */}
-        {mode === 'upload' && value?.creative_source === 'upload' && !isTikTok && (
-          <div style={{ marginTop: -2 }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {(value.is_video
-                ? [value.reference_image_url]
-                : [value.reference_image_url, ...(value.carouselExtraUrls ?? [])]
-              ).map((url, i) => (
-                <div
-                  key={url + i}
-                  style={{
-                    position: 'relative',
-                    width: 76,
-                    height: 76,
-                    borderRadius: 10,
-                    overflow: 'hidden',
-                    border: '1px solid #ece8e6',
-                    background: '#f6f5f3',
-                  }}
-                >
-                  {value.is_video ? (
-                    <video src={url} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={url}
-                      alt={`Photo ${i + 1}`}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                  )}
-                  {!value.is_video && (value.carouselExtraUrls?.length ?? 0) > 0 && (
-                    <span
-                      style={{
-                        position: 'absolute',
-                        left: 4,
-                        bottom: 4,
-                        background: 'rgba(26,10,18,.72)',
-                        color: '#fff',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        borderRadius: 6,
-                        padding: '1px 5px',
-                      }}
-                    >
-                      Ad {i + 1}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    aria-label={`Remove ${value.is_video ? 'video' : `photo ${i + 1}`}`}
-                    onClick={() => removePhoto(i)}
+        {googleVideo && googleUploadedVideo && value?.creative_source === 'upload' && (
+          <VideoCheckPanel
+            value={value}
+            placement={googleVideo}
+            onChange={onChange}
+            onReplace={
+              value.video_source === 'library'
+                ? undefined
+                : () => document.getElementById('wizard-creative-upload-input')?.click()
+            }
+            onRemove={() => onChange({ creative_source: 'generate' })}
+          />
+        )}
+        {mode === 'upload' &&
+          uploadKind === 'upload' &&
+          value?.creative_source === 'upload' &&
+          !isTikTok &&
+          !googleUploadedVideo && (
+            <div style={{ marginTop: -2 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {(value.is_video
+                  ? [value.reference_image_url]
+                  : [value.reference_image_url, ...(value.carouselExtraUrls ?? [])]
+                ).map((url, i) => (
+                  <div
+                    key={url + i}
                     style={{
-                      position: 'absolute',
-                      top: 4,
-                      right: 4,
-                      width: 20,
-                      height: 20,
-                      borderRadius: '50%',
-                      border: 'none',
-                      background: 'rgba(255,255,255,.92)',
-                      color: PINK,
-                      fontSize: 13,
-                      lineHeight: '20px',
-                      padding: 0,
-                      cursor: 'pointer',
+                      position: 'relative',
+                      width: 76,
+                      height: 76,
+                      borderRadius: 10,
+                      overflow: 'hidden',
+                      border: '1px solid #ece8e6',
+                      background: '#f6f5f3',
                     }}
                   >
-                    ×
+                    {value.is_video ? (
+                      <video
+                        src={url}
+                        muted
+                        playsInline
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={url}
+                        alt={`Photo ${i + 1}`}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    )}
+                    {!value.is_video && (value.carouselExtraUrls?.length ?? 0) > 0 && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          left: 4,
+                          bottom: 4,
+                          background: 'rgba(26,10,18,.72)',
+                          color: '#fff',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          borderRadius: 6,
+                          padding: '1px 5px',
+                        }}
+                      >
+                        Ad {i + 1}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${value.is_video ? 'video' : `photo ${i + 1}`}`}
+                      onClick={() => removePhoto(i)}
+                      style={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        border: 'none',
+                        background: 'rgba(255,255,255,.92)',
+                        color: PINK,
+                        fontSize: 13,
+                        lineHeight: '20px',
+                        padding: 0,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                {allowsSeveral && !value.is_video && 1 + (value.carouselExtraUrls?.length ?? 0) < maxPhotos && (
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('wizard-creative-upload-input')?.click()}
+                    disabled={uploading}
+                    style={{
+                      width: 76,
+                      height: 76,
+                      borderRadius: 10,
+                      border: '1.5px dashed #e0b8c9',
+                      background: '#fff',
+                      color: PINK,
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      cursor: uploading ? 'default' : 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 2,
+                    }}
+                  >
+                    <span style={{ fontSize: 20, lineHeight: 1 }}>+</span>
+                    {uploading ? 'Uploading…' : 'Add photos'}
                   </button>
-                </div>
-              ))}
-              {allowsSeveral && !value.is_video && 1 + (value.carouselExtraUrls?.length ?? 0) < maxPhotos && (
-                <button
-                  type="button"
-                  onClick={() => document.getElementById('wizard-creative-upload-input')?.click()}
-                  disabled={uploading}
-                  style={{
-                    width: 76,
-                    height: 76,
-                    borderRadius: 10,
-                    border: '1.5px dashed #e0b8c9',
-                    background: '#fff',
-                    color: PINK,
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    cursor: uploading ? 'default' : 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 2,
-                  }}
-                >
-                  <span style={{ fontSize: 20, lineHeight: 1 }}>+</span>
-                  {uploading ? 'Uploading…' : 'Add photos'}
-                </button>
+                )}
+              </div>
+              {isMeta && !value.is_video && (value.carouselExtraUrls?.length ?? 0) > 0 && (
+                <p style={{ margin: '6px 0 0', fontSize: 11.5, color: '#7a7270' }}>
+                  Each photo runs as its own ad in this campaign — Meta shows people the one that works best.
+                </p>
               )}
             </div>
-            {isMeta && !value.is_video && (value.carouselExtraUrls?.length ?? 0) > 0 && (
-              <p style={{ margin: '6px 0 0', fontSize: 11.5, color: '#7a7270' }}>
-                Each photo runs as its own ad in this campaign — Meta shows people the one that works best.
-              </p>
-            )}
-          </div>
-        )}
+          )}
         {pendingVideoWho && (
           <div
             style={{
@@ -726,6 +799,47 @@ export default function WizardCreativeStep({
               </div>
             ))}
           </div>
+        )}
+        {googleVideo && (
+          <>
+            <OptionCard
+              title="Use a YouTube video"
+              tag="New"
+              subtitle="Paste the link to a video that's already on YouTube."
+              isOn={uploadKind === 'youtube'}
+              onClick={() => setVideoPick('youtube')}
+            />
+            {(uploadKind === 'youtube' || videoPick === 'youtube') && (
+              <YouTubeLinkPanel
+                value={value?.creative_source === 'upload' && uploadKind === 'youtube' ? value : null}
+                placement={googleVideo}
+                onChange={onChange}
+              />
+            )}
+            <OptionCard
+              title="Use a video you made in Uri"
+              tag="New"
+              subtitle="Pick one of your saved videos from the Video studio."
+              isOn={uploadKind === 'library'}
+              onClick={() => setVideoPick('library')}
+            />
+            {(uploadKind === 'library' || videoPick === 'library') && (
+              <>
+                <VideoLibraryPanel
+                  value={value?.creative_source === 'upload' && uploadKind === 'library' ? value : null}
+                  onChange={onChange}
+                />
+                {uploadKind === 'library' && value?.creative_source === 'upload' && (
+                  <VideoCheckPanel
+                    value={value}
+                    placement={googleVideo}
+                    onChange={onChange}
+                    onRemove={() => onChange({ creative_source: 'generate' })}
+                  />
+                )}
+              </>
+            )}
+          </>
         )}
         {flags.competitors && (
           <OptionCard
