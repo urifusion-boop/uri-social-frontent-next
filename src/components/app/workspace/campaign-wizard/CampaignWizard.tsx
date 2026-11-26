@@ -23,6 +23,7 @@ import WizardStyleStep, { styleApplies } from './WizardStyleStep';
 import WizardReviewStep from './WizardReviewStep';
 import WizardAdsStep, { WizardAdPreviewRef } from './WizardAdsStep';
 import { plannedAds } from './StyleLibrary';
+import { GoogleVideoPlacement, googleVideoBlocked } from './GoogleVideo';
 import { deleteWizardDraft, saveWizardDraft, WizardDraft, WizardReviewSnapshot } from './wizardDraft';
 
 const PINK = '#C2185B';
@@ -175,6 +176,11 @@ export default function CampaignWizard({
   }, [stepKey]);
 
   const steps = buildSteps(platform, creative, googlePlacement);
+  // A Google campaign on a placement that runs video (Display, YouTube & Discover, Everywhere).
+  const googleVideoPlacement: GoogleVideoPlacement | null =
+    platform.mode === 'single' && platform.single === 'google' && googlePlacement !== 'search'
+      ? (googlePlacement as GoogleVideoPlacement)
+      : null;
   // Live-reported bug: changing platform on the way back through (say Meta ->
   // Google) inserts a new, never-visited "Google placement" step ahead of
   // Audience/Budget/Creative/Review — steps that WERE already visited under the
@@ -370,6 +376,8 @@ export default function CampaignWizard({
     if (step === 'creative') {
       // TikTok alone can't run Jane's images or a single photo (see creativeFitsTikTok).
       if (platform.mode === 'single' && platform.single === 'tiktok') return creativeFitsTikTok(creative);
+      // A Google video still being checked, or one that can't run on this placement.
+      if (googleVideoBlocked(creative, googleVideoPlacement)) return false;
       return Boolean(creative);
     }
     if (step === 'ads') return adsReady;
@@ -613,6 +621,7 @@ export default function CampaignWizard({
               value={creative}
               onChange={setCreative}
               isTikTok={platform.mode === 'single' && platform.single === 'tiktok'}
+              googleVideo={googleVideoPlacement}
               isMeta={platform.mode === 'single' ? platform.single === 'meta' : platform.multi.includes('meta')}
               metaBudget={
                 typeof budget.amountNgn === 'number' && budget.amountNgn > 0

@@ -25,19 +25,19 @@ export const GOOGLE_PLACEMENTS: {
     value: 'display',
     label: 'Display',
     where: 'Picture ads on millions of websites and apps people already use.',
-    needs: 'Picture',
+    needs: 'Picture or video',
   },
   {
     value: 'demand_gen',
     label: 'YouTube & Discover',
     where: 'In YouTube feeds and Shorts, the Google Discover feed and Gmail.',
-    needs: 'Picture · from ₦8,000/day',
+    needs: 'Video or picture · from ₦8,000/day',
   },
   {
     value: 'pmax',
     label: 'Everywhere',
     where: 'All of the above — Google puts it wherever it works best.',
-    needs: 'Picture',
+    needs: 'Video and picture',
   },
 ];
 
@@ -48,7 +48,66 @@ export const placementLabel = (p?: string) => {
   return 'Google Search';
 };
 
-type Ad = { headline?: string; text?: string; imageUrl?: string; business?: string; link?: string };
+type Ad = {
+  headline?: string;
+  text?: string;
+  imageUrl?: string;
+  business?: string;
+  link?: string;
+  /** A video ad: imageUrl is its picture (a still or YouTube's thumbnail), else videoUrl plays. */
+  isVideo?: boolean;
+  videoUrl?: string;
+};
+
+/** A round play button over a video's picture. */
+const Play = ({ size = 30 }: { size?: number }) => (
+  <span
+    aria-hidden
+    style={{
+      position: 'absolute',
+      left: '50%',
+      top: '50%',
+      transform: 'translate(-50%,-50%)',
+      width: size,
+      height: size,
+      borderRadius: '50%',
+      background: 'rgba(255,255,255,.94)',
+      boxShadow: '0 1px 4px rgba(0,0,0,.25)',
+      display: 'grid',
+      placeItems: 'center',
+    }}
+  >
+    <span
+      style={{
+        borderLeft: `${size * 0.32}px solid #0f0f0f`,
+        borderTop: `${size * 0.2}px solid transparent`,
+        borderBottom: `${size * 0.2}px solid transparent`,
+        marginLeft: size * 0.08,
+      }}
+    />
+  </span>
+);
+
+/** The ad's picture, or for a video ad its picture (or the video itself) with a play button. */
+const Media = ({ ad, ratio, radius = 0 }: { ad: Ad; ratio: string; radius?: number }) =>
+  ad.isVideo ? (
+    <div style={{ position: 'relative', borderRadius: radius, overflow: 'hidden', background: '#1c1c1c' }}>
+      {ad.imageUrl || !ad.videoUrl ? (
+        <Img src={ad.imageUrl} ratio={ratio} radius={0} />
+      ) : (
+        <video
+          src={ad.videoUrl}
+          muted
+          playsInline
+          preload="metadata"
+          style={{ width: '100%', aspectRatio: ratio, objectFit: 'cover', display: 'block' }}
+        />
+      )}
+      <Play />
+    </div>
+  ) : (
+    <Img src={ad.imageUrl} ratio={ratio} radius={radius} />
+  );
 
 const ink = '#202124';
 const grey = '#5f6368';
@@ -171,7 +230,7 @@ function YouTubeAd({ ad }: { ad: Ad }) {
   return (
     <div style={{ background: '#0f0f0f', borderRadius: 10, padding: 10, color: '#fff' }}>
       <div style={{ fontSize: 10, color: '#aaa', marginBottom: 6 }}>In the YouTube feed</div>
-      <Img src={ad.imageUrl} ratio="16 / 9" radius={8} />
+      <Media ad={ad} ratio="16 / 9" radius={8} />
       <div style={{ display: 'flex', gap: 9, marginTop: 8 }}>
         <Initial name={ad.business} size={30} />
         <div style={{ minWidth: 0 }}>
@@ -199,12 +258,52 @@ function YouTubeAd({ ad }: { ad: Ad }) {
   );
 }
 
+function ShortsAd({ ad }: { ad: Ad }) {
+  return (
+    <div style={{ background: '#0f0f0f', borderRadius: 10, padding: 10, color: '#fff' }}>
+      <div style={{ fontSize: 10, color: '#aaa', marginBottom: 6 }}>In YouTube Shorts</div>
+      <div style={{ position: 'relative', maxWidth: 170, margin: '0 auto', borderRadius: 10, overflow: 'hidden' }}>
+        <Media ad={ad} ratio="9 / 16" />
+        <div
+          style={{
+            position: 'absolute',
+            left: 8,
+            right: 8,
+            bottom: 8,
+            display: 'grid',
+            gap: 5,
+            fontSize: 10.5,
+            textShadow: '0 1px 3px rgba(0,0,0,.6)',
+          }}
+        >
+          <span style={{ fontWeight: 700 }}>{ad.business} · Sponsored</span>
+          <span style={{ lineHeight: 1.3 }}>{ad.headline}</span>
+          <span
+            style={{
+              background: '#3ea6ff',
+              color: '#0f0f0f',
+              textAlign: 'center',
+              borderRadius: 14,
+              padding: '5px 0',
+              fontSize: 11,
+              fontWeight: 700,
+              textShadow: 'none',
+            }}
+          >
+            Learn more
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DiscoverAd({ ad }: { ad: Ad }) {
   return (
     <div style={{ background: '#fff', borderRadius: 10, overflow: 'hidden', border: '1px solid #eceff1' }}>
       <div style={{ fontSize: 10, color: grey, padding: '8px 10px 0' }}>In Google Discover & Gmail</div>
       <div style={{ padding: 10 }}>
-        <Img src={ad.imageUrl} ratio="1.91 / 1" radius={10} />
+        <Media ad={ad} ratio="1.91 / 1" radius={10} />
         <div style={{ fontSize: 13.5, color: ink, fontWeight: 600, margin: '8px 0 4px', lineHeight: 1.3 }}>
           {ad.headline}
         </div>
@@ -230,6 +329,7 @@ export function GooglePlacementPreview({ placement, ad }: { placement: GooglePla
       {placement === 'demand_gen' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
           <YouTubeAd ad={ad} />
+          {ad.isVideo && <ShortsAd ad={ad} />}
           <DiscoverAd ad={ad} />
         </div>
       )}
@@ -238,13 +338,16 @@ export function GooglePlacementPreview({ placement, ad }: { placement: GooglePla
           <SearchAd ad={ad} />
           <DisplayAd ad={ad} />
           <YouTubeAd ad={ad} />
+          {ad.isVideo && <ShortsAd ad={ad} />}
           <DiscoverAd ad={ad} />
         </div>
       )}
       <div style={{ fontSize: 11, color: grey, marginTop: 8, lineHeight: 1.45 }}>
         {placement === 'search'
           ? 'Text only — no picture needed. Google mixes in extra headlines from your keywords.'
-          : 'Google fits your picture and words to each spot, so the exact look varies a little.'}
+          : ad.isVideo
+            ? 'Google fits your video, picture and words to each spot, so the exact look varies a little.'
+            : 'Google fits your picture and words to each spot, so the exact look varies a little.'}
       </div>
     </div>
   );
@@ -294,7 +397,7 @@ export function GooglePlacementPicker({
               <div style={{ transform: 'scale(0.42)', transformOrigin: 'top left', width: '238%' }}>
                 {p.value === 'search' && <SearchAd ad={ad} />}
                 {p.value === 'display' && <DisplayAd ad={ad} />}
-                {p.value === 'demand_gen' && <YouTubeAd ad={ad} />}
+                {p.value === 'demand_gen' && <YouTubeAd ad={{ ...ad, isVideo: true }} />}
                 {p.value === 'pmax' && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     <SearchAd ad={ad} />

@@ -4210,6 +4210,15 @@ export function ResultCard({
   // now would run Jane's original ad while the screen shows the client's version.
   const [unsavedEdits, setUnsavedEdits] = useState(false);
   const [launchError, setLaunchError] = useState('');
+  // Google video ads: YouTube is still processing the video. The launch is tried again on its own.
+  const [videoWait, setVideoWait] = useState('');
+  const videoRetry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (videoRetry.current) clearTimeout(videoRetry.current);
+    },
+    []
+  );
   // A launch still being worked on server-side (a video ad is prepared first and can
   // take minutes — longer than the connection lasts). While true the card says so and
   // follows the plan's real status, instead of calling it failed / "already launched".
@@ -4304,6 +4313,7 @@ export function ResultCard({
       const launched = await CampaignService.launchPlan(result.plan_id, planChecks.allowOutOfArea);
       // Launching debits the ad wallet in full, so the header badge is now stale.
       window.dispatchEvent(new Event('ad-wallet-changed'));
+      setVideoWait('');
       onResultChange(launched);
       onLaunched();
       return 'launched';
@@ -4313,6 +4323,13 @@ export function ResultCard({
         return 'following';
       }
       const msg = extractErrorMessage(e, 'Could not launch this campaign, please try again.');
+      if (/Getting your video ready on YouTube/.test(msg)) {
+        setVideoWait(msg);
+        if (videoRetry.current) clearTimeout(videoRetry.current);
+        videoRetry.current = setTimeout(() => void confirmLaunchRef.current(), 20000);
+        return 'following';
+      }
+      setVideoWait('');
       setLaunchError(msg);
       // Meta's own pre-flight rejection when the number Jane has on file isn't actually
       // linked to the Page yet (a real, live-validated error, not guessed) — offer the
@@ -4705,7 +4722,12 @@ export function ResultCard({
             ad={{
               headline: creative?.headline,
               text: creative?.primary_text,
-              imageUrl: creative?.image_url && !creative.is_video ? creative.image_url : undefined,
+              imageUrl:
+                creative?.video_still_url ||
+                (creative?.image_url && !creative.is_video ? creative.image_url : undefined),
+              // A video ad: a pasted YouTube video, or the owner's own (plays until a still exists).
+              isVideo: Boolean(creative?.is_video || creative?.youtube_video_id),
+              videoUrl: creative?.is_video ? creative.image_url : undefined,
               business: plan.google_keyword_context?.business_name,
             }}
           />
@@ -4959,6 +4981,40 @@ export function ResultCard({
                   </>
                 )}
               </button>
+              {videoWait && (
+                <div
+                  role="status"
+                  style={{
+                    marginTop: 8,
+                    display: 'flex',
+                    gap: 9,
+                    alignItems: 'flex-start',
+                    background: 'rgba(194,24,91,.05)',
+                    border: '1px solid #f6c9db',
+                    borderRadius: 10,
+                    padding: '9px 11px',
+                    fontSize: 12.5,
+                    color: '#4a4245',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 14,
+                      height: 14,
+                      marginTop: 2,
+                      flexShrink: 0,
+                      borderRadius: '50%',
+                      border: '2px solid #f3c6d8',
+                      borderTopColor: '#C2185B',
+                      animation: 'wzVidSpin 0.9s linear infinite',
+                    }}
+                  />
+                  <style>{`@keyframes wzVidSpin{to{transform:rotate(360deg)}}`}</style>
+                  <span>{videoWait} Keep this page open.</span>
+                </div>
+              )}
               {launchError && (
                 <p style={{ margin: '8px 0 0', fontSize: 12, color: '#c62828', whiteSpace: 'pre-line' }}>
                   {launchError}
