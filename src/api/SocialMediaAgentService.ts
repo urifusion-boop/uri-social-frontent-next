@@ -484,6 +484,7 @@ export interface SocialConnection {
   outstand_account_id?: string;
   ig_user_id?: string;
   connected_via?: string;
+  connected_by?: string;
 }
 
 export interface LogoPlacement {
