@@ -10,8 +10,6 @@ export interface ConnectedAccountEntry {
   username?: string;
   account_name?: string;
   connected_via?: string;
-  // The Facebook person a Facebook/Instagram connection came through ("Connected by …").
-  connected_by?: string;
   profile_picture_url?: string;
   // False when the account can't publish until it is reconnected (see needs_reconnect).
   is_active?: boolean | null;
@@ -30,7 +28,6 @@ export interface PlatformStatus {
   linked_at?: string;
   ig_user_id?: string;
   connected_via?: string;
-  connected_by?: string;
   active_author_urn?: string;
   pages?: LinkedInPage[];
   // Every connected page/account for this platform — the single fields above
