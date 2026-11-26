@@ -2989,7 +2989,6 @@ const ConnectionsPage = ({
           linked: !!conns.facebook?.length,
           account_name: fbConn?.account_name || fbConn?.page_name || fbConn?.username,
           connected_via: fbConn?.connected_via,
-          connected_by: fbConn?.connected_by,
           accounts: conns.facebook ?? [],
         };
         next.instagram = {
@@ -2997,7 +2996,6 @@ const ConnectionsPage = ({
           account_name: igConn?.account_name || igConn?.page_name || igConn?.username,
           ig_user_id: igConn?.ig_user_id,
           connected_via: igConn?.connected_via,
-          connected_by: igConn?.connected_by,
           accounts: conns.instagram ?? [],
         };
         next.tiktok = {
@@ -3346,10 +3344,7 @@ const ConnectionsPage = ({
     window.location.href = url;
   };
 
-  // switchAccount: "Use a different account" — Facebook asks for the password, where the person
-  // can switch accounts. A plain Connect carries on as whoever is signed in to Facebook.
-  const handleConnect = async (id: string, flow: string, switchAccount = false) => {
-    const switchParam = switchAccount ? '&switch=1' : '';
+  const handleConnect = async (id: string, flow: string) => {
     if (flow === 'instagram_direct') {
       setConnecting(id);
       // Recorded so the connected=false error-redirect handler (see the
@@ -3358,7 +3353,7 @@ const ConnectionsPage = ({
       localStorage.setItem('uri_connect_platform', id);
       // Redirect to the Meta/Facebook Login flow for Instagram Business Account connection
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
-      redirectOrWarn(keepInBrowser(`${apiBase}/social-media/connect/instagram-direct/initiate?source=settings${switchParam}`), id);
+      redirectOrWarn(keepInBrowser(`${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`), id);
       return;
     }
     if (flow === 'facebook_direct_oauth') {
@@ -3368,7 +3363,7 @@ const ConnectionsPage = ({
       // finishes the connection.
       localStorage.setItem('uri_connect_platform', id);
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
-      window.location.href = keepInBrowser(`${apiBase}/social-media/connect/facebook-direct/initiate?source=settings${switchParam}`);
+      window.location.href = keepInBrowser(`${apiBase}/social-media/connect/facebook-direct/initiate?source=settings`);
       return;
     }
     if (flow === 'tiktok_direct_oauth') {
@@ -4017,9 +4012,6 @@ const ConnectionsPage = ({
                       {linked ? (
                         <div style={{ fontSize: 11.5, color: '#555', marginTop: 1 }}>
                           {s?.account_name || s?.username || s?.phone || 'Connected'}
-                          {(p.id === 'facebook' || p.id === 'instagram') && s?.connected_by && (
-                            <span style={{ color: '#999' }}> · Connected by {s.connected_by}</span>
-                          )}
                           {p.id === 'facebook_ads' && s?.meta_connection_state === 'ads_no_whatsapp' && (
                             <span style={{ color: '#a15c00' }}> — WhatsApp not linked yet</span>
                           )}
@@ -4087,29 +4079,6 @@ const ConnectionsPage = ({
                                 : 'Google ads run by URI are being set up'
                               : 'Not connected'}
                         </div>
-                      )}
-                      {(p.id === 'facebook' || p.id === 'instagram') && !p.comingSoon && (
-                        <button
-                          type="button"
-                          onClick={() => handleConnect(p.id, p.flow, true)}
-                          disabled={isBusy}
-                          title="Facebook will ask for the password, where you can log in as someone else."
-                          style={{
-                            marginTop: 3,
-                            padding: 0,
-                            border: 'none',
-                            background: 'none',
-                            fontSize: 11.5,
-                            color: '#888',
-                            textDecoration: 'underline',
-                            textUnderlineOffset: 2,
-                            cursor: isBusy ? 'default' : 'pointer',
-                            fontFamily: 'var(--wf)',
-                            opacity: isBusy ? 0.5 : 1,
-                          }}
-                        >
-                          Use a different Facebook account
-                        </button>
                       )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -4432,11 +4401,6 @@ const ConnectionsPage = ({
                             >
                               <span style={{ fontSize: 12.5, color: '#333', fontWeight: 500, minWidth: 0 }}>
                                 {account.account_name || account.username || 'Connected page'}
-                                {account.connected_by && (
-                                  <span style={{ display: 'block', color: '#999', fontWeight: 400, fontSize: 11.5 }}>
-                                    Connected by {account.connected_by}
-                                  </span>
-                                )}
 
                                 {needsReconnect && (
                                   <span
