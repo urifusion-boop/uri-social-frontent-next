@@ -367,6 +367,9 @@ export interface LaunchFromMessageResult {
     // plain generic generation, no format was used.
     vsg01_format_id?: string;
     vsg01_format_attributes?: Record<string, unknown>;
+    /** Google video ads: a video already on YouTube, and the picture shown beside a video. */
+    youtube_video_id?: string;
+    video_still_url?: string;
     concept?: string;
   };
   /** The other ads tested beside `creative` in the same campaign. */
@@ -528,6 +531,26 @@ export interface PreviewAd {
   redoing: boolean;
   /** The ad style it was drawn in (an ad format id); '' when no style was used. */
   style?: string;
+}
+
+/** One line about a video, for the person choosing it: fine, fine with a limit, or can't run. */
+export interface AdVideoFact {
+  tone: 'ok' | 'warn' | 'block';
+  text: string;
+}
+
+/** What Google will make of a video (POST /jane-ads/video/check). */
+export interface AdVideoCheck {
+  ok: boolean;
+  facts: AdVideoFact[];
+  upright: boolean;
+  duration: number;
+  /** Pictures taken from the video, for placements that show one beside it. */
+  stills: string[];
+  /** A video already on YouTube. */
+  video_id?: string;
+  title?: string;
+  thumbnail_url?: string;
 }
 
 /** One of several ads on the Style step: what it says (an angle) and its style ('' = Jane picks). */
@@ -879,6 +902,9 @@ export class CampaignService {
     creative_source?: CreativeSource;
     reference_image_url?: string;
     is_video?: boolean;
+    /** Google video ads: a video already on YouTube, and the picture shown beside a video. */
+    youtube_video_id?: string;
+    video_still_url?: string;
     draft_id?: string;
     /** creative_source: 'preview' — the ads already made and approved on the wizard's Ads step. */
     preview_id?: string;
@@ -1303,6 +1329,17 @@ export class CampaignService {
         vsg01FormatId ? { vsg01_format_id: vsg01FormatId } : {}
       )
     ).data as AdPreview;
+  }
+
+  /** What Google will make of a video before it's used: an uploaded/saved video (video_url) or a
+   *  video already on YouTube (youtube_link). Throws with a plain message when it can't run. */
+  static async checkAdVideo(body: {
+    video_url?: string;
+    youtube_link?: string;
+    placement: string;
+  }): Promise<AdVideoCheck> {
+    return (await UriHttpClient.getClient().post('/jane-ads/video/check', body, { timeout: 90000 }))
+      .data as AdVideoCheck;
   }
 
   static async getAdFormats(): Promise<{ formats: AdFormat[] }> {

@@ -60,7 +60,8 @@ const GROUPS: { key: 'all' | Group; label: string }[] = [
 export function styleApplies(creative: WizardCreativeChoice | null): boolean {
   if (!creative) return false;
   if (creative.creative_source === 'generate') return true;
-  if (creative.creative_source === 'upload') return !creative.is_video;
+  // A video (uploaded, or already on YouTube) runs as it is: nothing to style.
+  if (creative.creative_source === 'upload') return !creative.is_video && !creative.youtube_video_id;
   return false;
 }
 

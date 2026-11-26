@@ -103,6 +103,9 @@ function creativePayload(
         : {}),
       ...(creative.asset_attestation ? { asset_attestation: creative.asset_attestation } : {}),
       ...(creative.vsg01_format_id ? { vsg01_format_id: creative.vsg01_format_id } : {}),
+      // Google video ads: a video already on YouTube, and the picture shown beside a video.
+      ...(creative.youtube_video_id ? { youtube_video_id: creative.youtube_video_id } : {}),
+      ...(creative.video_still_url ? { video_still_url: creative.video_still_url } : {}),
     };
   }
   if (creative.creative_source === 'draft') {
