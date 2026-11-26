@@ -92,6 +92,18 @@ function StockPanel({ item, reload }: { item: CatalogItem; reload: () => void })
     <Section title="Stock">
       {variants.length > 0 ? (
         <Table head={['Option', 'SKU', 'Price', 'In stock', 'Held', 'Available']}>
+          {item.stock && item.stock.on_hand > 0 && (
+            <tr>
+              <td style={cell}>No option chosen</td>
+              <td style={cell}>—</td>
+              <td style={cell}>Same</td>
+              <td style={cell}>{item.stock.on_hand}</td>
+              <td style={cell}>{item.stock.reserved}</td>
+              <td style={cell}>
+                <b>{item.stock.available}</b>
+              </td>
+            </tr>
+          )}
           {variants.map((v) => (
             <tr key={v.id}>
               <td style={cell}>{v.name}</td>
@@ -308,7 +320,7 @@ function ManualPanel({ item, reload }: { item: CatalogItem; reload: () => void }
   );
 }
 
-function CheckPanel({ item }: { item: CatalogItem }) {
+function CheckPanel({ item, reload }: { item: CatalogItem; reload: () => void }) {
   const [qty, setQty] = useState('1');
   const [variant, setVariant] = useState('');
   const [slot, setSlot] = useState('');
@@ -342,6 +354,7 @@ function CheckPanel({ item }: { item: CatalogItem }) {
           r.status === 'awaiting_confirmation' ? 'Request sent for your approval.' : 'Held. See it under Reservations.',
       });
       setResult(null);
+      reload();
     } catch (e) {
       setMsg({ text: apiError(e, 'Could not hold that.'), bad: true });
     }
@@ -478,7 +491,7 @@ export function CatalogDetail({
               </Muted>
             </Section>
           )}
-          <CheckPanel item={item} />
+          <CheckPanel item={item} reload={reload} />
         </div>
       )}
     </Modal>
