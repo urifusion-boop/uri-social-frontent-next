@@ -22,6 +22,7 @@ import WizardCreativeStep, { creativeFitsTikTok, WizardCreativeChoice } from './
 import WizardStyleStep, { styleApplies } from './WizardStyleStep';
 import WizardReviewStep from './WizardReviewStep';
 import WizardAdsStep, { WizardAdPreviewRef } from './WizardAdsStep';
+import { plannedAds } from './StyleLibrary';
 import { deleteWizardDraft, saveWizardDraft, WizardDraft, WizardReviewSnapshot } from './wizardDraft';
 
 const PINK = '#C2185B';
@@ -70,9 +71,12 @@ function buildSteps(
     { key: 'creative', label: 'Creative' }
   );
   // Style — how the ad looks — once there's a picture to style (Jane makes it, or one photo she
-  // builds on). Not for a past draft, a video, a several-ads test, or Google Search text ads.
+  // builds on). Not for a past draft, a video, or Google Search text ads.
   const googleSearchOnly = platform.mode === 'single' && platform.single === 'google' && googlePlacement === 'search';
-  if (styleApplies(creative) && !googleSearchOnly) steps.push({ key: 'style', label: 'Style' });
+  // Several ads are styled on their way to the Ads step, which is where they are made.
+  const severalAds = creative?.creative_source === 'generate' && (creative.concepts ?? 1) >= 2;
+  if (styleApplies(creative) && !googleSearchOnly && (!severalAds || adsStepApplies(platform, creative)))
+    steps.push({ key: 'style', label: 'Style' });
   if (adsStepApplies(platform, creative)) steps.push({ key: 'ads', label: 'Ads' });
   steps.push(
     // Label flips from "Finalize" to "Review" once there's nothing left to decide —
@@ -648,6 +652,9 @@ export default function CampaignWizard({
                     ? budget.amountNgn / (platform.mode === 'multi' ? Math.max(1, platform.multi.length) : 1)
                     : 0,
                 vsg01_format_id: creative.vsg01_format_id ?? '',
+                ...((creative.concepts ?? 1) >= 2
+                  ? { ads: plannedAds(creative.concepts ?? 2, creative.ads), style_mode: creative.style_mode ?? 'jane' }
+                  : {}),
               }}
               value={adPreview}
               onChange={setAdPreview}

@@ -13,7 +13,8 @@
  */
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { AdPreview, CampaignService, PreviewAd } from '@/src/api/CampaignService';
+import { AdPreview, CampaignService, PlannedAd, PreviewAd } from '@/src/api/CampaignService';
+import StyleLibrary, { resolvedStyles, styleName, useAdStyles } from './StyleLibrary';
 import ZoomableImage from '@/src/components/app/atoms/ZoomableImage';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 
@@ -38,6 +39,9 @@ export interface WizardAdsInputs {
   destination_type: string;
   budget_ngn: number;
   vsg01_format_id: string;
+  /** Several ads: what each says and its style ('' = Jane's pick), from the Style step. */
+  ads?: PlannedAd[];
+  style_mode?: string;
 }
 
 /** Everything the ads are made from. When it changes, the ads may no longer fit. */
@@ -49,6 +53,8 @@ export function adPreviewKey(i: WizardAdsInputs): string {
     i.objective,
     i.destination_type,
     i.vsg01_format_id,
+    // Older saved keys had no styles: only add them when there are several ads, so those still match.
+    ...(i.ads?.length ? [i.ads, i.style_mode ?? 'jane'] : []),
   ]);
 }
 
@@ -88,12 +94,26 @@ export default function WizardAdsStep({
   const [busy, setBusy] = useState<number | null>(null);
   const [editing, setEditing] = useState<{ index: number; headline: string; text: string; error: string } | null>(null);
   const startedRef = useRef(false);
+  const [restyling, setRestyling] = useState<number | null>(null);
+  // The style library: to send each ad's style as it was shown on the Style step (Jane's picks
+  // included), and for "Change style" on an ad.
+  const { styles, failed: stylesFailed } = useAdStyles(inputs.description);
+  const stylesSettled = Boolean(styles || stylesFailed);
 
   const start = async () => {
     setStarting(true);
     setError('');
     try {
-      const p = await CampaignService.startAdPreview({ ...inputs, platform: 'meta' });
+      const { style_mode: _mode, ads: planned, ...rest } = inputs;
+      void _mode;
+      const shown = planned?.length ? resolvedStyles(planned, styles) : [];
+      const p = await CampaignService.startAdPreview({
+        ...rest,
+        platform: 'meta',
+        ...(planned?.length
+          ? { count: planned.length, ads: planned.map((a, i) => ({ angle: a.angle, vsg01_format_id: shown[i] || '' })) }
+          : {}),
+      });
       setPreview(p);
       onChange({ id: p.id, key });
     } catch (e) {
@@ -103,13 +123,15 @@ export default function WizardAdsStep({
     }
   };
 
-  // First visit: Jane starts on her own. After that, never without the owner asking.
+  // First visit: Jane starts on her own (once the styles are known, for several ads). After that,
+  // never without the owner asking.
   useEffect(() => {
     if (value || startedRef.current) return;
+    if (inputs.ads?.length && !stylesSettled) return;
     startedRef.current = true;
     void start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [stylesSettled]);
 
   // Load the saved ads, then follow them while Jane works.
   const running = preview?.status === 'running';
@@ -389,6 +411,67 @@ export default function WizardAdsStep({
                       </span>
                     )}
                   </div>
+                  {(ad.style || ad.angle || inputs.vsg01_format_id) && styles && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 8,
+                        background: '#f7f5f8',
+                        borderRadius: 8,
+                        padding: '6px 8px',
+                        fontSize: 12,
+                        color: MUTED,
+                      }}
+                    >
+                      <span style={{ minWidth: 0 }}>
+                        Style: {ad.style ? styleName(ad.style, styles.formats) : 'Jane’s choice'}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={working || running}
+                        title="Make this ad again in another style · uses credits like Make again"
+                        onClick={() => setRestyling(i)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          color: working || running ? '#c9a7b6' : PINK,
+                          fontWeight: 700,
+                          fontSize: 12,
+                          cursor: working || running ? 'default' : 'pointer',
+                          fontFamily: 'inherit',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Change style
+                      </button>
+                    </div>
+                  )}
+                  {restyling === i && styles && value && (
+                    <StyleLibrary
+                      styles={styles}
+                      title={`Change the style of Ad ${i + 1}`}
+                      subtitle="Jane makes this ad again in the style you pick. The others stay as they are."
+                      angle={ad.angle || undefined}
+                      current={ad.style}
+                      usedBy={results.reduce<Record<string, number[]>>((m, r, k) => {
+                        if (r.style) m[r.style] = [...(m[r.style] ?? []), k];
+                        return m;
+                      }, {})}
+                      useOneLabel={`Make it in this style${styles.prices ? '' : ' · 1 credit'}`}
+                      onUseOne={(id) => {
+                        setRestyling(null);
+                        void act(
+                          i,
+                          () => CampaignService.redoPreviewAd(value.id, i, id),
+                          "Jane couldn't make that one again just now."
+                        );
+                      }}
+                      onClose={() => setRestyling(null)}
+                    />
+                  )}
                   {isEditing ? (
                     <>
                       <input
@@ -576,7 +659,9 @@ export default function WizardAdsStep({
 
       {preview && (
         <p style={{ margin: '12px 0 0', fontSize: 11.5, color: MUTED }}>
-          Each ad uses 1 credit and is also kept in Creatives. Making one again uses 1 more.
+          {styles?.prices
+            ? 'Each ad uses the credits its style costs and is also kept in Creatives. Making one again, or in another style, costs the same again.'
+            : 'Each ad uses 1 credit and is also kept in Creatives. Making one again uses 1 more.'}
         </p>
       )}
     </div>

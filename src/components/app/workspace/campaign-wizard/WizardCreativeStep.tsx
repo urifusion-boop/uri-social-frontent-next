@@ -17,6 +17,7 @@ import {
   CreativeProvenanceInput,
   DraftSummary,
   ExistingPost,
+  PlannedAd,
 } from '@/src/api/CampaignService';
 import { useCreativePaths, VideoWhoPrompt } from '../CreativePathControls';
 import WizardAssetAttestation from './WizardAssetAttestation';
@@ -35,6 +36,10 @@ export type WizardCreativeChoice =
       concepts?: number;
       /** The Style step's pick (an ad format id); '' = "Let Jane choose for me". */
       vsg01_format_id?: string;
+      /** Several ads: what each says and its style ('' = Jane's pick), from the Style step. */
+      ads?: PlannedAd[];
+      /** Several ads: how their styles were chosen on the Style step. */
+      style_mode?: 'jane' | 'same' | 'mine';
     }
   | ({
       creative_source: 'upload';
@@ -461,7 +466,16 @@ export default function WizardCreativeStep({
                       type="button"
                       aria-label={`Make ${n} ads`}
                       aria-pressed={picked}
-                      onClick={() => onChange({ creative_source: 'generate', concepts: n })}
+                      onClick={() =>
+                        onChange({
+                          creative_source: 'generate',
+                          concepts: n,
+                          // Keep the Style step's choices for the ads that remain.
+                          ...(value?.creative_source === 'generate' && value.ads
+                            ? { ads: value.ads, style_mode: value.style_mode }
+                            : {}),
+                        })
+                      }
                       style={{
                         minWidth: 36,
                         padding: '6px 10px',

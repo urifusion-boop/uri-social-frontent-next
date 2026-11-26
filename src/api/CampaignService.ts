@@ -526,6 +526,14 @@ export interface PreviewAd {
   draft_id: string;
   /** Being made again right now. */
   redoing: boolean;
+  /** The ad style it was drawn in (an ad format id); '' when no style was used. */
+  style?: string;
+}
+
+/** One of several ads on the Style step: what it says (an angle) and its style ('' = Jane picks). */
+export interface PlannedAd {
+  angle: string;
+  vsg01_format_id: string;
 }
 
 /** The ads Jane is making (or made) for the wizard's Ads step. */
@@ -535,6 +543,8 @@ export interface AdPreview {
   status: 'running' | 'done' | 'failed';
   error: string;
   results: PreviewAd[];
+  /** Several ads: what each says and its style, in order. Empty for a single ad. */
+  ads?: PlannedAd[];
 }
 
 export interface ExistingPost {
@@ -1256,6 +1266,8 @@ export class CampaignService {
     budget_ngn?: number;
     vsg01_format_id?: string;
     platform?: 'meta' | 'tiktok';
+    /** Several ads: what each says and its style. Sets the count. */
+    ads?: PlannedAd[];
   }): Promise<AdPreview> {
     return (await UriHttpClient.getClient().post('/jane-ads/ad-previews', body)).data as AdPreview;
   }
@@ -1283,9 +1295,14 @@ export class CampaignService {
       .data as AdPreview;
   }
 
-  static async redoPreviewAd(previewId: string, index: number): Promise<AdPreview> {
-    return (await UriHttpClient.getClient().post(`/jane-ads/ad-previews/${previewId}/ads/${index}/redo`))
-      .data as AdPreview;
+  /** Make one ad again; with a style, in that style ("Change style"). */
+  static async redoPreviewAd(previewId: string, index: number, vsg01FormatId?: string): Promise<AdPreview> {
+    return (
+      await UriHttpClient.getClient().post(
+        `/jane-ads/ad-previews/${previewId}/ads/${index}/redo`,
+        vsg01FormatId ? { vsg01_format_id: vsg01FormatId } : {}
+      )
+    ).data as AdPreview;
   }
 
   static async getAdFormats(): Promise<{ formats: AdFormat[] }> {
@@ -1313,6 +1330,8 @@ export class CampaignService {
     needs_in_brief?: Record<string, string>;
     credits?: Record<string, number>;
     billing_mode?: 'off' | 'shadow' | 'on';
+    /** Several ads: for each angle, the styles that carry it best, best first (only ones this brief supports). */
+    for_angles?: Record<string, string[]>;
   }> {
     const res = await UriHttpClient.getClient().post('/jane-ads/creative/suggest-format', params);
     // needs_in_brief: the fact-led styles this brief can't support, with why ("Needs an event with a date
@@ -1321,6 +1340,9 @@ export class CampaignService {
       suggested: AdFormat | null;
       alternatives: AdFormat[];
       needs_in_brief?: Record<string, string>;
+      credits?: Record<string, number>;
+      billing_mode?: 'off' | 'shadow' | 'on';
+      for_angles?: Record<string, string[]>;
     };
   }
 
