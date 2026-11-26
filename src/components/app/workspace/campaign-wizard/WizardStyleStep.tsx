@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CampaignService, type AdFormat } from '@/src/api/CampaignService';
 import type { WizardCreativeChoice } from './WizardCreativeStep';
+import MultiAdStyles from './MultiAdStyles';
 
 const PINK = '#C2185B';
 
@@ -54,11 +55,11 @@ const GROUPS: { key: 'all' | Group; label: string }[] = [
 ];
 
 /** Whether the Style step applies to this creative choice at all: it shapes a picture
- *  Jane makes or one photo she builds on. A past draft, a video or a multi-ad test
- *  (where Jane deliberately uses a different style per ad) has nothing to style. */
+ *  Jane makes (one ad, or each of several: MultiAdStyles) or one photo she builds on.
+ *  A past draft or a video has nothing to style. */
 export function styleApplies(creative: WizardCreativeChoice | null): boolean {
   if (!creative) return false;
-  if (creative.creative_source === 'generate') return !(creative.concepts && creative.concepts >= 2);
+  if (creative.creative_source === 'generate') return true;
   if (creative.creative_source === 'upload') return !creative.is_video;
   return false;
 }
@@ -70,7 +71,14 @@ function reasonFor(format: AdFormat, creative: WizardCreativeChoice): string {
   return "Doesn't fit this ad";
 }
 
-export default function WizardStyleStep({
+export default function WizardStyleStep(props: Parameters<typeof SingleAdStyle>[0]) {
+  const { creative } = props;
+  if (creative.creative_source === 'generate' && (creative.concepts ?? 1) >= 2)
+    return <MultiAdStyles creative={creative} description={props.description} onChange={props.onChange} />;
+  return <SingleAdStyle {...props} />;
+}
+
+function SingleAdStyle({
   creative,
   description,
   onChange,
