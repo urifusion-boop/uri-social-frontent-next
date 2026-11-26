@@ -24,6 +24,7 @@ import SettingsPage, { type SettingsSection } from './messaging/SettingsPage';
 import AutomationsPage from './messaging/AutomationsPage';
 import QuickRepliesPage, { replyWithButtons } from './messaging/QuickRepliesPage';
 import AudiencePage from './messaging/AudiencePage';
+import CatalogPage from './messaging/CatalogPage';
 import InsightsPage from './messaging/InsightsPage';
 import { NavRow } from './messaging/ui';
 import { PlatformBadge, PLATFORM_LABEL } from './messaging/platform';
@@ -719,6 +720,7 @@ export function resolveView(view: string): { section: MessagingSection; settings
       return { section: QUICK_REPLIES_ENABLED ? 'quick' : 'inbox' };
     case 'automations':
     case 'audience':
+    case 'catalog':
     case 'voice':
     case 'insights':
       return { section: view };
@@ -1303,6 +1305,8 @@ export default function InboxDashboard({
                 if (isMobile) setMobileScreen('thread');
               }}
             />
+          ) : subView === 'catalog' ? (
+            <CatalogPage isMobile={isMobile} />
           ) : subView === 'insights' ? (
             <InsightsPage isMobile={isMobile} />
           ) : (

@@ -1,7 +1,16 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { AudioLines, ChartLine, Mail, Settings, SlidersHorizontal, Users, type LucideIcon } from 'lucide-react';
+import {
+  AudioLines,
+  ChartLine,
+  Mail,
+  Package,
+  Settings,
+  SlidersHorizontal,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 
 export const MSG_FONT = "'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 export const MSG_PINK = '#E0156B';
@@ -13,7 +22,15 @@ export const MSG_LINE = '#F1EBEE';
 
 /** The Messaging sections, in the order the tabs and the sidebar show them. "settings" is
  *  the gear in the header (channels, AI usage, tags, alerts), not a tab. */
-export type MessagingSection = 'inbox' | 'automations' | 'quick' | 'audience' | 'voice' | 'insights' | 'settings';
+export type MessagingSection =
+  | 'inbox'
+  | 'automations'
+  | 'quick'
+  | 'audience'
+  | 'catalog'
+  | 'voice'
+  | 'insights'
+  | 'settings';
 
 /** Quick Replies is hidden for now: its tab and sidebar entry are gone, and with this off the chat
  *  box has no saved-replies button or "/" shortcut, and an old link opens the Inbox. The page and
@@ -24,6 +41,7 @@ export const MESSAGING_TABS: { id: Exclude<MessagingSection, 'settings'>; label:
   { id: 'inbox', label: 'Inbox', icon: Mail },
   { id: 'automations', label: 'Automations', icon: SlidersHorizontal },
   { id: 'audience', label: 'Audience', icon: Users },
+  { id: 'catalog', label: 'Products & Services', icon: Package },
   { id: 'voice', label: 'Brand Voice', icon: AudioLines },
   { id: 'insights', label: 'Insights', icon: ChartLine },
 ];
