@@ -280,6 +280,9 @@ const reservationAction = async (
   body: Record<string, unknown> = {}
 ): Promise<Reservation> => (await http().post(`/catalog/reservations/${id}/${action}`, body)).data;
 
+const uploadImage = async (dataUrl: string): Promise<string> =>
+  (await http().post('/catalog/images', { data_url: dataUrl })).data.url;
+
 const alerts = async (): Promise<CatalogAlert[]> => (await http().get('/catalog/alerts')).data.alerts;
 const report = async (days = 30): Promise<CatalogReport> =>
   (await http().get('/catalog/reports/summary', { params: { days } })).data;
@@ -307,6 +310,7 @@ export const CatalogService = {
   listReservations,
   reserve,
   reservationAction,
+  uploadImage,
   alerts,
   report,
   importCsv,

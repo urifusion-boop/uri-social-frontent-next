@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   CatalogService,
   type AvailabilityType,
@@ -61,7 +61,7 @@ interface Form {
   sales_notes: string;
   cost_price: string;
   cancellation_policy: string;
-  images: string;
+  images: string[];
   low_stock_threshold: string;
   initial_quantity: string;
   billing_interval: string;
@@ -111,7 +111,7 @@ function initial(item: CatalogItem | null | undefined): Form {
     sales_notes: item?.sales_notes ?? '',
     cost_price: str(item?.cost_price),
     cancellation_policy: item?.cancellation_policy ?? '',
-    images: (item?.images ?? []).join('\n'),
+    images: item?.images ?? [],
     low_stock_threshold: str(item?.low_stock_threshold),
     initial_quantity: '',
     billing_interval: item?.billing_interval || 'one_time',
@@ -203,7 +203,7 @@ function inputOf(f: Form, isNew: boolean, showCost: boolean): CatalogItemInput {
     reservation_minutes: Number(f.reservation_minutes),
     sales_notes: f.sales_notes,
     cancellation_policy: f.cancellation_policy,
-    images: lines(f.images),
+    images: f.images,
     low_stock_threshold: num(f.low_stock_threshold),
   };
   if (showCost) body.cost_price = num(f.cost_price);
@@ -214,6 +214,119 @@ function inputOf(f: Form, isNew: boolean, showCost: boolean): CatalogItemInput {
   }
   if (isNew && f.availability_type === 'quantity') body.initial_quantity = num(f.initial_quantity) ?? 0;
   return body;
+}
+
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+const readAsDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('read'));
+    reader.readAsDataURL(file);
+  });
+
+function ImagePicker({ images, onChange }: { images: string[]; onChange: (v: string[]) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [link, setLink] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const upload = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setBusy(true);
+    setError('');
+    const added: string[] = [];
+    for (const file of Array.from(files)) {
+      if (file.size > MAX_IMAGE_BYTES) {
+        setError(`${file.name} is over 10MB.`);
+        continue;
+      }
+      try {
+        added.push(await CatalogService.uploadImage(await readAsDataUrl(file)));
+      } catch (e) {
+        setError(apiError(e, `Could not upload ${file.name}.`));
+      }
+    }
+    if (added.length) onChange([...images, ...added]);
+    setBusy(false);
+    if (input.current) input.current.value = '';
+  };
+
+  const addLink = () => {
+    const url = link.trim();
+    if (!/^https?:\/\//i.test(url)) return setError('Paste a link that starts with https://');
+    setError('');
+    onChange([...images, url]);
+    setLink('');
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {images.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {images.map((url, i) => (
+            <div key={url} style={{ position: 'relative', width: 72, height: 72 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={url}
+                alt=""
+                style={{
+                  width: 72,
+                  height: 72,
+                  objectFit: 'cover',
+                  borderRadius: 9,
+                  border: i === 0 ? '2px solid #E0156B' : '1px solid #ECE6EA',
+                }}
+              />
+              <button
+                type="button"
+                aria-label="Remove photo"
+                onClick={() => onChange(images.filter((_, j) => j !== i))}
+                style={{
+                  position: 'absolute',
+                  top: -6,
+                  right: -6,
+                  width: 20,
+                  height: 20,
+                  borderRadius: 10,
+                  border: 'none',
+                  background: '#1B1520',
+                  color: '#fff',
+                  fontSize: 13,
+                  lineHeight: '20px',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input
+          ref={input}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          multiple
+          hidden
+          onChange={(e) => upload(e.target.files)}
+        />
+        <Btn kind="outline" disabled={busy} onClick={() => input.current?.click()}>
+          {busy ? 'Uploading…' : 'Upload photos'}
+        </Btn>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <Field value={link} onChange={setLink} placeholder="or paste an image link" onEnter={addLink} />
+        </div>
+        <Btn kind="outline" disabled={!link.trim()} onClick={addLink}>
+          Add link
+        </Btn>
+      </div>
+      {error && <div style={{ color: '#C62828', fontSize: 12 }}>{error}</div>}
+    </div>
+  );
 }
 
 export function CatalogEditor({
@@ -536,8 +649,8 @@ export function CatalogEditor({
               </Row>
             )}
           </Grid>
-          <Row label="Image links (one per line)">
-            <Field multiline value={f.images} onChange={(v) => set('images', v)} style={{ minHeight: 56 }} />
+          <Row label="Photos" hint="PNG, JPG or WEBP, up to 10MB each. The first one is the main photo.">
+            <ImagePicker images={f.images} onChange={(v) => set('images', v)} />
           </Row>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Toggle
