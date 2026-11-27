@@ -11175,7 +11175,8 @@ const PRIMARY_NAV = [
 
 // Pages hidden on prod only (dev keeps them all): Customer Messages / Onebox,
 // Market Intelligence (+ the Performance page's intel view), and Blog.
-const PROD_HIDDEN_NAV = new Set(['messages', 'market-intelligence', 'intel', 'blog', 'visual-engine-v2']);
+// Messaging (Onebox) is live on prod since 2026-11-27; the rest stay hidden there.
+const PROD_HIDDEN_NAV = new Set(['market-intelligence', 'intel', 'blog', 'visual-engine-v2']);
 const isHiddenOnProd = (id: string) => IS_PRODUCTION && PROD_HIDDEN_NAV.has(id);
 const VISIBLE_PRIMARY_NAV = PRIMARY_NAV.filter((n) => !isHiddenOnProd(n.id));
 
