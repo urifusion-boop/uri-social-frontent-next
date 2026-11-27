@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { InboxService } from '@/src/api/InboxService';
 import { SocialAccountService } from '@/src/api/SocialAccountService';
@@ -308,6 +308,25 @@ type SwappablePlatform = 'instagram' | 'facebook';
 type IgCandidate = { ig_user_id: string; page_name?: string; username?: string };
 
 const INBOX_CONNECTIONS_URL = '/workspace/?tab=messages&view=connections';
+const META_RETURN_KEY = '@URI@INBOX_META_RETURN';
+
+function readMetaReturn(): Record<string, string> | null {
+  try {
+    const raw = sessionStorage.getItem(META_RETURN_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeMetaReturn(value: Record<string, string> | null) {
+  try {
+    if (value) sessionStorage.setItem(META_RETURN_KEY, JSON.stringify(value));
+    else sessionStorage.removeItem(META_RETURN_KEY);
+  } catch {
+    /* private mode: the link itself is still read on this render */
+  }
+}
 
 // Each channel's real brand mark and colour, and what kind of account it takes.
 const CHANNEL_LOOK: Record<string, { icon: React.ReactNode; bg: string; sub: string }> = {
@@ -341,10 +360,19 @@ export default function InboxConnectionsPage({
   const searchParams = useSearchParams();
   const [whatsAppOpen, setWhatsAppOpen] = useState(false);
   const [igPendingToken, setIgPendingToken] = useState<string | null>(null);
+  // The account picker serves both Meta returns that need a choice: several Instagram accounts,
+  // or a Facebook login that manages several Pages.
+  const [pickerPlatform, setPickerPlatform] = useState<SwappablePlatform>('instagram');
   const [igCandidates, setIgCandidates] = useState<IgCandidate[]>([]);
   const [igSelected, setIgSelected] = useState<Set<string>>(new Set());
   const [finishing, setFinishing] = useState(false);
   const [replaceFor, setReplaceFor] = useState<ChannelConnection | null>(null);
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+  const loadedPickerToken = useRef<string | null>(null);
+  // On a phone the picker opens below the fold of a scrolled Settings page; bring it into view once.
+  useEffect(() => {
+    if (igPendingToken) pickerRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [igPendingToken]);
 
   // Subscribing the Page is what makes Meta deliver messages, and Meta can refuse it
   // (no full control of the Page, a permission left off) — say so right away.
@@ -381,11 +409,30 @@ export default function InboxConnectionsPage({
     }
   };
 
+  // Meta's return is kept in the tab's session until it has been handled, not only in this component:
+  // on a phone the page first renders the desktop layout and then swaps to the phone one, which
+  // rebuilds this page. The copy that read the link was thrown away with the account picker in it,
+  // and the new copy found the link already cleared, so the picked accounts were never connected.
   useEffect(() => {
-    const connected = searchParams?.get('connected');
-    if (!connected) return;
-    const param = (key: string) => searchParams?.get(key) ?? '';
-    router.replace(INBOX_CONNECTIONS_URL);
+    let fromLink: Record<string, string> | null = null;
+    if (searchParams?.get('connected')) {
+      const link: Record<string, string> = {};
+      searchParams.forEach((value, key) => {
+        link[key] = value;
+      });
+      fromLink = link;
+      writeMetaReturn(link);
+      router.replace(INBOX_CONNECTIONS_URL);
+    }
+    const saved = readMetaReturn() ?? fromLink;
+    const connected = saved?.connected;
+    if (!saved || !connected) return;
+    const param = (key: string) => saved[key] ?? '';
+    // The picker stays saved until it is finished or cancelled, so every copy of the page can show it;
+    // everything else is handled once.
+    if (connected !== 'instagram_pending' && connected !== 'facebook_pending') writeMetaReturn(null);
+    else if (loadedPickerToken.current === param('token')) return; // this page already shows it
+    else loadedPickerToken.current = param('token');
     if (connected === 'instagram_direct' && param('ig_user_id')) {
       finish(
         () => SocialAccountService.finalizeInstagramDirect(param('ig_user_id')),
@@ -404,13 +451,31 @@ export default function InboxConnectionsPage({
         .then((res) => {
           const candidates = res.responseData?.candidates ?? [];
           if (!res.status || candidates.length === 0) throw new Error();
+          setPickerPlatform('instagram');
           setIgPendingToken(token);
           setIgCandidates(candidates);
           setIgSelected(new Set(candidates.map((c) => c.ig_user_id)));
         })
-        .catch(() =>
-          ToastService.showToast('Could not load your Instagram accounts. Please try again.', ToastTypeEnum.Error)
-        );
+        .catch(() => {
+          writeMetaReturn(null);
+          ToastService.showToast('Could not load your Instagram accounts. Please try again.', ToastTypeEnum.Error);
+        });
+    } else if (connected === 'facebook_pending' && param('token')) {
+      const token = param('token');
+      SocialMediaAgentService.getFacebookDirectPending(token)
+        .then((res) => {
+          const pages = res.responseData?.pages ?? [];
+          if (!res.status || pages.length === 0) throw new Error();
+          setPickerPlatform('facebook');
+          setIgPendingToken(token);
+          setIgCandidates(pages.map((pg) => ({ ig_user_id: pg.page_id, page_name: pg.page_name })));
+          // The inbox answers for the Pages chosen here, so none is ticked for the owner.
+          setIgSelected(new Set());
+        })
+        .catch(() => {
+          writeMetaReturn(null);
+          ToastService.showToast('Could not load your Facebook Pages. Please try again.', ToastTypeEnum.Error);
+        });
     } else if (connected === 'false') {
       ToastService.showToast(
         `Meta didn't finish connecting${param('error') ? `: ${param('error')}` : ''}. Please try again.`,
@@ -422,11 +487,22 @@ export default function InboxConnectionsPage({
   const connectPickedInstagram = async () => {
     if (!igPendingToken || igSelected.size === 0) return;
     const ids = Array.from(igSelected);
-    await finish(
-      () => SocialMediaAgentService.finalizeInstagramDirectPending(igPendingToken, ids),
-      ids.length > 1 ? `${ids.length} Instagram accounts` : 'Instagram account',
-      'instagram'
-    );
+    writeMetaReturn(null);
+    if (pickerPlatform === 'facebook') {
+      await finish(
+        () => SocialMediaAgentService.finalizeFacebookDirectPending(igPendingToken, ids),
+        ids.length > 1
+          ? `${ids.length} Facebook Pages`
+          : igCandidates.find((c) => c.ig_user_id === ids[0])?.page_name || 'Facebook Page',
+        'facebook'
+      );
+    } else {
+      await finish(
+        () => SocialMediaAgentService.finalizeInstagramDirectPending(igPendingToken, ids),
+        ids.length > 1 ? `${ids.length} Instagram accounts` : 'Instagram account',
+        'instagram'
+      );
+    }
     setIgPendingToken(null);
     setIgCandidates([]);
   };
@@ -520,6 +596,7 @@ export default function InboxConnectionsPage({
 
       {igPendingToken && (
         <div
+          ref={pickerRef}
           style={{
             background: '#fff',
             border: '1px solid rgba(194,24,91,.3)',
@@ -531,10 +608,14 @@ export default function InboxConnectionsPage({
           }}
         >
           <div style={{ fontSize: 14.5, fontWeight: 800, color: '#1a1a1a' }}>
-            Choose which Instagram accounts to connect
+            {pickerPlatform === 'facebook'
+              ? 'Choose which Facebook Pages to connect'
+              : 'Choose which Instagram accounts to connect'}
           </div>
           <div style={{ fontSize: 12.5, color: '#666' }}>
-            More than one of your Facebook Pages has an Instagram account linked to it.
+            {pickerPlatform === 'facebook'
+              ? 'Your Facebook login manages more than one Page. Messages and comments from the Pages you pick come into this inbox.'
+              : 'More than one of your Facebook Pages has an Instagram account linked to it.'}
           </div>
           {igCandidates.map((cand) => {
             const on = igSelected.has(cand.ig_user_id);
@@ -564,8 +645,14 @@ export default function InboxConnectionsPage({
                     })
                   }
                 />
-                <span style={{ fontWeight: 700, color: '#333' }}>@{cand.username || cand.ig_user_id}</span>
-                {cand.page_name && <span style={{ color: '#999' }}>via {cand.page_name}</span>}
+                {pickerPlatform === 'facebook' ? (
+                  <span style={{ fontWeight: 700, color: '#333' }}>{cand.page_name || cand.ig_user_id}</span>
+                ) : (
+                  <>
+                    <span style={{ fontWeight: 700, color: '#333' }}>@{cand.username || cand.ig_user_id}</span>
+                    {cand.page_name && <span style={{ color: '#999' }}>via {cand.page_name}</span>}
+                  </>
+                )}
               </label>
             );
           })}
@@ -587,11 +674,18 @@ export default function InboxConnectionsPage({
                 fontFamily: FONT,
               }}
             >
-              {finishing ? 'Connecting…' : `Connect ${igSelected.size} account${igSelected.size === 1 ? '' : 's'}`}
+              {finishing
+                ? 'Connecting…'
+                : pickerPlatform === 'facebook'
+                  ? `Connect ${igSelected.size} Page${igSelected.size === 1 ? '' : 's'}`
+                  : `Connect ${igSelected.size} account${igSelected.size === 1 ? '' : 's'}`}
             </button>
             <button
               type="button"
-              onClick={() => setIgPendingToken(null)}
+              onClick={() => {
+                writeMetaReturn(null);
+                setIgPendingToken(null);
+              }}
               style={{
                 border: 'none',
                 background: 'none',
