@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect, useState } from 'react';
 import { InboxKnowledgeEntry, InboxService } from '@/src/api/InboxService';
+import { card, gradient, iconTile, INK, MUTED, PINK, primaryPill } from './messaging/look';
 
 /*
  * Inbox settings — per PRD §4.3: business hours, the automation policy for
@@ -79,22 +80,36 @@ interface SavedReply {
   text: string;
 }
 
+// Each section's icon tile — the same tinted-tile language as the rest of the dashboard.
+const SECTION_ICONS: Record<string, [string, string]> = {
+  'Business hours': ['🕘', '#E6F0FF'],
+  'Auto-reply policy': ['🤖', '#FCE4EE'],
+  'FAQ answers': ['📚', '#EEE7FB'],
+  'Saved replies': ['💬', '#E7F6EE'],
+  'Escalation alerts': ['📣', '#FFF1DE'],
+  'Always excluded — never automated': ['🔒', '#F4EEF0'],
+};
+
 function SectionCard({ title, desc, children }: { title: string; desc?: string; children: ReactNode }) {
+  const icon = SECTION_ICONS[title] ?? ['⚙️', '#F4EEF0'];
   return (
     <div
       style={{
-        background: '#fff',
-        border: '1px solid rgba(0,0,0,.08)',
-        borderRadius: 14,
-        padding: '18px 20px',
+        ...card,
+        padding: '20px 22px',
         display: 'flex',
         flexDirection: 'column',
         gap: 14,
       }}
     >
-      <div>
-        <div style={{ fontSize: 14.5, fontWeight: 800, color: '#1a1a1a' }}>{title}</div>
-        {desc && <div style={{ fontSize: 12, color: '#888', marginTop: 3, lineHeight: 1.5 }}>{desc}</div>}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <span aria-hidden style={iconTile(icon[1], 38)}>
+          {icon[0]}
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 900, color: INK }}>{title}</div>
+          {desc && <div style={{ fontSize: 12.5, color: MUTED, marginTop: 3, lineHeight: 1.5 }}>{desc}</div>}
+        </div>
       </div>
       {children}
     </div>
@@ -109,11 +124,11 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
       aria-checked={on}
       onClick={onClick}
       style={{
-        width: 40,
-        height: 22,
-        borderRadius: 11,
+        width: 42,
+        height: 24,
+        borderRadius: 999,
         border: 'none',
-        background: on ? '#AD1457' : 'rgba(0,0,0,.15)',
+        background: on ? gradient : '#EADDE2',
         position: 'relative',
         cursor: 'pointer',
         flex: '0 0 auto',
@@ -123,8 +138,8 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
       <span
         style={{
           position: 'absolute',
-          top: 2,
-          left: on ? 20 : 2,
+          top: 3,
+          left: on ? 21 : 3,
           width: 18,
           height: 18,
           borderRadius: '50%',
@@ -312,248 +327,252 @@ export default function InboxSettingsPage({
   }
 
   const inputStyle: React.CSSProperties = {
-    border: '1px solid rgba(0,0,0,.12)',
-    borderRadius: 8,
-    padding: '8px 10px',
+    border: '1.5px solid #F1E4EA',
+    borderRadius: 12,
+    padding: '8px 12px',
     fontSize: 13,
     fontFamily: FONT,
     outline: 'none',
+    background: '#fff',
   };
 
   return (
     <div
       style={{
-        padding: isMobile ? 14 : 24,
+        padding: isMobile ? 14 : '22px 28px 32px',
         display: 'flex',
         flexDirection: 'column',
         gap: 16,
-        maxWidth: 720,
-        margin: '0 auto',
         boxSizing: 'border-box',
       }}
     >
-      <SectionCard
-        title="Business hours"
-        desc={`Auto-replies only fire inside these hours (${timezone.replace('_', ' ')} time) — outside them, everything waits for a human.`}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+          gap: 16,
+          alignItems: 'stretch',
+        }}
       >
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {DAYS.map((d) => (
-            <button
-              key={d}
-              type="button"
-              onClick={() => setOpenDays((prev) => ({ ...prev, [d]: !prev[d] }))}
-              style={{
-                padding: '7px 12px',
-                borderRadius: 8,
-                border: openDays[d] ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
-                background: openDays[d] ? 'rgba(194,24,91,.08)' : '#fff',
-                color: openDays[d] ? '#AD1457' : '#999',
-                fontSize: 12.5,
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: FONT,
-              }}
+        <SectionCard
+          title="Business hours"
+          desc={`Auto-replies only fire inside these hours (${timezone.replace('_', ' ')} time) — outside them, everything waits for a human.`}
+        >
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {DAYS.map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setOpenDays((prev) => ({ ...prev, [d]: !prev[d] }))}
+                style={{
+                  minWidth: 48,
+                  padding: '8px 10px',
+                  borderRadius: 12,
+                  border: openDays[d] ? '1.5px solid #F3B7CD' : '1.5px solid #F1E4EA',
+                  background: openDays[d] ? '#FCE4EE' : '#fff',
+                  color: openDays[d] ? PINK : '#9A9090',
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <label
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#444', fontWeight: 600 }}
             >
-              {d}
-            </button>
-          ))}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <label
-            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#444', fontWeight: 600 }}
-          >
-            Open
-            <input type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} style={inputStyle} />
-          </label>
-          <label
-            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#444', fontWeight: 600 }}
-          >
-            Close
-            <input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} style={inputStyle} />
-          </label>
-        </div>
-      </SectionCard>
-
-      <SectionCard
-        title="Auto-reply policy"
-        desc="When on, URI replies to every message itself: questions, interest, greetings, thanks and complaints. Facts come only from your approved FAQs and Brand Playbook. Anything below the confidence threshold, or in an excluded category, goes to a person instead."
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>Enable opt-in auto-replies</div>
-            <div style={{ fontSize: 11.5, color: '#999', marginTop: 2 }}>
-              Off by default — nothing sends itself until you turn this on.
-            </div>
+              Open
+              <input type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} style={inputStyle} />
+            </label>
+            <label
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#444', fontWeight: 600 }}
+            >
+              Close
+              <input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} style={inputStyle} />
+            </label>
           </div>
-          <Toggle on={autoReplyEnabled} onClick={() => setAutoReplyEnabled((v) => !v)} />
-        </div>
+        </SectionCard>
 
-        <div style={{ opacity: autoReplyEnabled ? 1 : 0.5 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#444' }}>Confidence threshold</span>
-            <span style={{ fontSize: 12.5, fontWeight: 800, color: '#AD1457' }}>{confidenceThreshold}%</span>
-          </div>
-          <input
-            type="range"
-            min={50}
-            max={99}
-            value={confidenceThreshold}
-            disabled={!autoReplyEnabled}
-            onChange={(e) => setConfidenceThreshold(Number(e.target.value))}
-            style={{ width: '100%', accentColor: '#AD1457' }}
-          />
-          <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
-            Below this, a suggestion is drafted for review instead of sent automatically.
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, opacity: autoReplyEnabled ? 1 : 0.5 }}>
-          {[
-            {
-              label: 'Direct messages',
-              hint: 'Instagram and Messenger DMs, inside the 24-hour reply window.',
-              on: autoDm,
-              toggle: () => setAutoDm((v) => !v),
-            },
-            {
-              label: 'Public comments',
-              hint: 'Everyone on the post sees these replies, so this is off by default.',
-              on: autoComments,
-              toggle: () => setAutoComments((v) => !v),
-            },
-          ].map((row) => (
-            <div key={row.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#444' }}>{row.label}</div>
-                <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{row.hint}</div>
+        <SectionCard
+          title="Auto-reply policy"
+          desc="URI only sends a reply itself when it's sure; everything else is drafted for you. Facts come only from your approved FAQs and Brand Playbook."
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>Enable opt-in auto-replies</div>
+              <div style={{ fontSize: 11.5, color: '#999', marginTop: 2 }}>
+                Off by default — nothing sends itself until you turn this on.
               </div>
-              <Toggle on={row.on} onClick={() => autoReplyEnabled && row.toggle()} />
             </div>
-          ))}
-        </div>
-
-        <div>
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: '#444' }}>Also email escalations to</div>
-          <div style={{ fontSize: 11, color: '#999', marginTop: 2, marginBottom: 6 }}>
-            When a customer is waiting for a person, the account owner is emailed and sent a WhatsApp. Add up to 5 more
-            addresses, separated by commas.
+            <Toggle on={autoReplyEnabled} onClick={() => setAutoReplyEnabled((v) => !v)} />
           </div>
+
+          <div style={{ opacity: autoReplyEnabled ? 1 : 0.5, paddingTop: 10, borderTop: '1px solid #F7F0F3' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: '#444' }}>Confidence threshold</span>
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: '#AD1457' }}>{confidenceThreshold}%</span>
+            </div>
+            <input
+              type="range"
+              min={50}
+              max={99}
+              value={confidenceThreshold}
+              disabled={!autoReplyEnabled}
+              onChange={(e) => setConfidenceThreshold(Number(e.target.value))}
+              style={{ width: '100%', accentColor: '#AD1457' }}
+            />
+            <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+              Below this, a suggestion is drafted for review instead of sent automatically.
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, opacity: autoReplyEnabled ? 1 : 0.5 }}>
+            {[
+              {
+                label: 'Direct messages',
+                hint: 'Instagram and Messenger DMs, inside the 24-hour reply window.',
+                on: autoDm,
+                toggle: () => setAutoDm((v) => !v),
+              },
+              {
+                label: 'Public comments',
+                hint: 'Everyone on the post sees these replies, so this is off by default.',
+                on: autoComments,
+                toggle: () => setAutoComments((v) => !v),
+              },
+            ].map((row) => (
+              <div
+                key={row.label}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingTop: 10,
+                  borderTop: '1px solid #F7F0F3',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: '#444' }}>{row.label}</div>
+                  <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{row.hint}</div>
+                </div>
+                <Toggle on={row.on} onClick={() => autoReplyEnabled && row.toggle()} />
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Escalation alerts"
+          desc="When a customer is waiting for a person, the account owner is emailed and sent a WhatsApp. Add up to 5 more addresses, separated by commas."
+        >
           <input
             type="text"
             value={alertEmails}
             onChange={(e) => setAlertEmails(e.target.value)}
             placeholder="e.g. support@yourbusiness.com, manager@yourbusiness.com"
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              border: '1px solid rgba(0,0,0,.12)',
-              borderRadius: 8,
-              padding: '8px 10px',
-              fontSize: 13,
-              fontFamily: 'inherit',
-            }}
+            aria-label="Also email escalations to"
+            style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
           />
-        </div>
+        </SectionCard>
 
-        <div
-          style={{
-            fontSize: 11.5,
-            color: '#7A4B00',
-            lineHeight: 1.55,
-            background: '#FFF7E6',
-            border: '1px solid #F5D9A8',
-            borderRadius: 10,
-            padding: '10px 12px',
-          }}
+        <SectionCard
+          title="Always excluded — never automated"
+          desc="These always go to a person, whatever the settings."
         >
-          <div style={{ fontWeight: 700, marginBottom: 4 }}>Why some messages still ask you to send</div>
-          Turning auto-replies on doesn&apos;t mean every message sends itself. URI only sends a reply it&apos;s sure is
-          right, and drafts the rest for you to check, with the reason shown in the conversation. That happens when:
-          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-            <li>
-              the customer asks something no approved FAQ below answers, or URI is less sure than your confidence
-              threshold
-            </li>
-            <li>it looks like spam</li>
-            <li>it&apos;s about a refund, payment dispute, safety, a legal threat or an unclear price or stock</li>
-            <li>someone on your team has been assigned, or replied in the last 24 hours</li>
-            <li>it&apos;s outside your business hours, or past Meta&apos;s 24-hour reply window</li>
-            <li>10 auto-replies have gone out in this conversation in the last hour, which looks like another bot</li>
-          </ul>
-          <div style={{ marginTop: 6 }}>
-            Adding FAQs for the questions you get most is the quickest way to auto-reply to more of them.
-          </div>
-        </div>
-
-        <div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 11,
-              fontWeight: 800,
-              letterSpacing: '.04em',
-              textTransform: 'uppercase',
-              color: '#999',
-              marginBottom: 8,
-            }}
-          >
-            <I n="lock" s={12} c="#999" />
-            Always excluded — never automated
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {ALWAYS_EXCLUDED.map((cat) => (
-              <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#666' }}>
-                <div
-                  style={{
-                    width: 16,
-                    height: 16,
-                    borderRadius: 4,
-                    background: '#e8e8ea',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <I n="check" s={11} c="#999" />
-                </div>
+              <span
+                key={cat}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 800,
+                  borderRadius: 999,
+                  padding: '5px 11px',
+                  background: '#F4EEF0',
+                  color: '#6B5F64',
+                }}
+              >
                 {cat}
-              </div>
+              </span>
             ))}
           </div>
-        </div>
-      </SectionCard>
+        </SectionCard>
+      </div>
 
-      {
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-end' }}>
-          <span style={{ fontSize: 12, color: saveState === 'error' ? '#C62828' : '#2E7D32' }}>
-            {saveState === 'saved'
-              ? 'Saved'
-              : saveState === 'error'
-                ? "Couldn't load or save these settings. Try again."
-                : ''}
-          </span>
-          <button
-            type="button"
-            onClick={saveAgentSettings}
-            disabled={!settingsLoaded || saveState === 'saving'}
-            style={{
-              padding: '9px 18px',
-              borderRadius: 8,
-              border: 'none',
-              background: settingsLoaded ? '#AD1457' : 'rgba(0,0,0,.15)',
-              color: '#fff',
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: settingsLoaded ? 'pointer' : 'default',
-              fontFamily: FONT,
-            }}
-          >
-            {saveState === 'saving' ? 'Saving…' : 'Save hours and auto-reply policy'}
-          </button>
+      <div
+        style={{
+          fontSize: 12.5,
+          color: '#7A4B00',
+          lineHeight: 1.55,
+          background: '#FFF7EC',
+          border: '1px solid #F6DFB8',
+          borderRadius: 16,
+          padding: '14px 16px',
+        }}
+      >
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>Why some messages still ask you to send</div>
+        Turning auto-replies on doesn&apos;t mean every message sends itself. URI only sends a reply it&apos;s sure is
+        right, and drafts the rest for you to check, with the reason shown in the conversation. That happens when:
+        <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+          <li>
+            the customer asks something no approved FAQ below answers, or URI is less sure than your confidence
+            threshold
+          </li>
+          <li>it looks like spam</li>
+          <li>it&apos;s about a refund, payment dispute, safety, a legal threat or an unclear price or stock</li>
+          <li>someone on your team has been assigned, or replied in the last 24 hours</li>
+          <li>it&apos;s outside your business hours, or past Meta&apos;s 24-hour reply window</li>
+          <li>10 auto-replies have gone out in this conversation in the last hour, which looks like another bot</li>
+        </ul>
+        <div style={{ marginTop: 6 }}>
+          Adding FAQs for the questions you get most is the quickest way to auto-reply to more of them.
         </div>
-      }
+      </div>
+
+      <div
+        style={{
+          ...card,
+          padding: '12px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <span
+          style={{
+            fontSize: 12.5,
+            color: saveState === 'error' ? '#C62828' : saveState === 'saved' ? '#2E7D32' : MUTED,
+          }}
+        >
+          {saveState === 'saved'
+            ? 'Saved'
+            : saveState === 'error'
+              ? "Couldn't load or save these settings. Try again."
+              : 'Changes to hours and the auto-reply policy apply when you save.'}
+        </span>
+        <button
+          type="button"
+          onClick={saveAgentSettings}
+          disabled={!settingsLoaded || saveState === 'saving'}
+          style={{
+            ...(settingsLoaded ? primaryPill : { border: 'none', borderRadius: 999, background: 'rgba(0,0,0,.15)' }),
+            padding: '10px 20px',
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: settingsLoaded ? 'pointer' : 'default',
+            fontFamily: FONT,
+          }}
+        >
+          {saveState === 'saving' ? 'Saving…' : 'Save hours and auto-reply policy'}
+        </button>
+      </div>
 
       {
         <SectionCard

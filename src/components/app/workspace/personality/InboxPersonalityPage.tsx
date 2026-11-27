@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode, useCallback, useEffect, useState } from 'react';
+import { FaTrashAlt } from 'react-icons/fa';
 import {
   BrandVoiceService,
   VoiceAuditEntry,
@@ -14,6 +15,7 @@ import { PersonalityAssessment } from './PersonalityAssessment';
 import { PersonalityLearn } from './PersonalityLearn';
 import { PersonalityPlayground } from './PersonalityPlayground';
 import { Btn, Card, Chip, FONT, PINK, PINK_SOFT, TRAIT_NAMES, errorText, statusOf, when } from './ui';
+import { gradient, iconTile, INK, MUTED } from '../messaging/look';
 
 /*
  * Brand Voice (Personality PRD): how the inbox agent sounds. Three ways in (a
@@ -75,6 +77,8 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
   }, [load]);
 
   const profile = profiles.find((p) => p.id === activeId);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  useEffect(() => setConfirmDelete(false), [activeId]);
 
   function upsert(p: VoiceProfile) {
     setProfiles((prev) => {
@@ -113,6 +117,21 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
     setBusy('');
   }
 
+  async function removeProfile() {
+    if (!profile) return;
+    setBusy('delete');
+    setError('');
+    try {
+      await BrandVoiceService.archiveProfile(profile.id);
+      setConfirmDelete(false);
+      setNotice(`${profile.name} deleted.`);
+      await load();
+    } catch (e) {
+      setError(errorText(e, "Couldn't delete that profile."));
+    }
+    setBusy('');
+  }
+
   async function publish() {
     if (!profile) return;
     setBusy('publish');
@@ -138,23 +157,62 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
   return (
     <div
       style={{
-        padding: isMobile ? 14 : 24,
+        padding: isMobile ? 14 : '22px 28px 32px',
         display: 'flex',
         flexDirection: 'column',
         gap: 16,
-        maxWidth: 820,
-        margin: '0 auto',
         boxSizing: 'border-box',
         fontFamily: FONT,
       }}
     >
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-        {(['overview', 'history'] as Tab[]).map((t) => (
-          <Chip key={t} active={tab === t} onClick={t === 'history' && !profile ? undefined : () => go(t)}>
-            {t === 'overview' ? 'Overview' : 'History'}
-          </Chip>
-        ))}
-        <div style={{ flex: 1 }} />
+      <div
+        style={{
+          display: 'flex',
+          gap: 10,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          justifyContent: 'flex-end',
+        }}
+      >
+        <div
+          role="tablist"
+          style={{
+            display: 'inline-flex',
+            background: '#fff',
+            borderRadius: 999,
+            padding: 4,
+            boxShadow: '0 0 0 1px #F1E4EA',
+          }}
+        >
+          {(['overview', 'history'] as Tab[]).map((t) => {
+            const disabled = t === 'history' && !profile;
+            const on = tab === t;
+            return (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                disabled={disabled}
+                onClick={disabled ? undefined : () => go(t)}
+                style={{
+                  border: 0,
+                  borderRadius: 999,
+                  padding: '7px 16px',
+                  fontFamily: FONT,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: disabled ? 'not-allowed' : 'pointer',
+                  opacity: disabled ? 0.5 : 1,
+                  color: on ? '#fff' : MUTED,
+                  background: on ? gradient : 'transparent',
+                }}
+              >
+                {t === 'overview' ? 'Overview' : 'History'}
+              </button>
+            );
+          })}
+        </div>
         {stepIndex(tab) < 0 && (
           <Btn
             small
@@ -170,13 +228,67 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
       {profiles.length > 1 && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 12.5, color: '#666' }}>
           Editing:
-          {profiles.map((p) => (
-            <Chip key={p.id} active={p.id === activeId} onClick={() => setActiveId(p.id)}>
-              {p.name}
-              {p.is_default ? ' · default' : ''}
-              {p.departments.length ? ` · ${p.departments.join(', ')}` : ''}
-            </Chip>
-          ))}
+          {profiles.map((p) => {
+            const deletable = canPublish && !p.is_default && p.id === activeId;
+            return (
+              <span key={p.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <Chip active={p.id === activeId} onClick={() => setActiveId(p.id)}>
+                  {p.name}
+                  {p.is_default ? ' · default' : ''}
+                  {p.departments.length ? ` · ${p.departments.join(', ')}` : ''}
+                </Chip>
+                {deletable && (
+                  <button
+                    type="button"
+                    title="Delete this profile"
+                    aria-label={`Delete ${p.name}`}
+                    onClick={() => setConfirmDelete(true)}
+                    disabled={busy !== ''}
+                    style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: 999,
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#9a9090',
+                      cursor: 'pointer',
+                      display: 'grid',
+                      placeItems: 'center',
+                    }}
+                  >
+                    <FaTrashAlt size={12} />
+                  </button>
+                )}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {confirmDelete && profile && !profile.is_default && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+            background: '#FDECEC',
+            border: '1px solid #F5C2C2',
+            borderRadius: 10,
+            padding: '10px 14px',
+            fontSize: 13,
+            color: '#7A1F1F',
+          }}
+        >
+          <span style={{ flex: 1, minWidth: 200 }}>
+            Delete <b>{profile.name}</b>? It stops being available here. Customers keep hearing your default voice.
+          </span>
+          <Btn small kind="danger" onClick={removeProfile} disabled={busy !== ''}>
+            {busy === 'delete' ? 'Deleting…' : 'Delete'}
+          </Btn>
+          <Btn small kind="ghost" onClick={() => setConfirmDelete(false)} disabled={busy !== ''}>
+            Cancel
+          </Btn>
         </div>
       )}
 
@@ -210,7 +322,7 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
           title="Start from a template"
           desc={
             profile
-              ? 'Applying a template resets the traits and language of your draft. Everything else you set stays.'
+              ? 'Apply to draft restyles the profile you are editing (its traits and language reset; everything else stays). New profile adds a separate voice alongside it, for example one for sales and one for support.'
               : 'Pick the closest style; every setting stays editable.'
           }
         >
@@ -243,11 +355,22 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
                   &ldquo;{t.example}&rdquo;
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 'auto' }}>
-                  <Btn small onClick={() => applyTemplate(t.id)} disabled={busy !== ''}>
+                  <Btn
+                    small
+                    title="Restyle the profile you are editing with this template"
+                    onClick={() => applyTemplate(t.id)}
+                    disabled={busy !== ''}
+                  >
                     {busy === t.id ? 'Applying…' : profile ? 'Apply to draft' : 'Use this'}
                   </Btn>
                   {profile && canPublish && (
-                    <Btn small kind="ghost" onClick={() => newProfile(t.id)} disabled={busy !== ''}>
+                    <Btn
+                      small
+                      kind="ghost"
+                      title="Create an extra profile from this template, alongside the one you are editing"
+                      onClick={() => newProfile(t.id)}
+                      disabled={busy !== ''}
+                    >
                       New profile
                     </Btn>
                   )}
@@ -512,18 +635,32 @@ function Overview({
         title="Give your inbox agent a voice"
         desc="Choose how URI sounds when it replies to your customers. Facts still come only from your FAQs and Brand Playbook."
       >
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
           {[
-            { tab: 'templates' as Tab, title: 'Choose a template', text: 'Eight ready-made styles. Two minutes.' },
+            {
+              tab: 'templates' as Tab,
+              title: 'Choose a template',
+              text: 'Eight ready-made styles. Two minutes.',
+              emoji: '🎨',
+              tint: '#FCE4EE',
+              tag: 'Quickest',
+              go: 'Browse styles',
+            },
             {
               tab: 'assessment' as Tab,
               title: 'Discover my brand voice',
               text: 'Answer questions about how you talk to customers.',
+              emoji: '💭',
+              tint: '#EEE7FB',
+              go: 'Start',
             },
             {
               tab: 'templates' as Tab,
               title: 'Learn from my conversations',
               text: 'Start from a template, then teach URI from replies you have sent.',
+              emoji: '📚',
+              tint: '#E6F0FF',
+              go: 'Start',
             },
           ].map((o) => (
             <button
@@ -531,17 +668,39 @@ function Overview({
               type="button"
               onClick={() => onGo(o.tab)}
               style={{
+                position: 'relative',
                 textAlign: 'left',
-                border: '1px solid rgba(0,0,0,.1)',
-                borderRadius: 12,
-                padding: 14,
-                background: '#fff',
+                border: o.tag ? '1.5px solid transparent' : '1.5px solid #F1E4EA',
+                background: o.tag ? `linear-gradient(#fff,#fff) padding-box, ${gradient} border-box` : '#fff',
+                borderRadius: 18,
+                padding: 18,
                 cursor: 'pointer',
                 fontFamily: FONT,
               }}
             >
-              <div style={{ fontWeight: 800, fontSize: 14, color: PINK }}>{o.title}</div>
-              <div style={{ fontSize: 12.5, color: '#666', marginTop: 4 }}>{o.text}</div>
+              {o.tag && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 14,
+                    right: 14,
+                    fontSize: 10.5,
+                    fontWeight: 900,
+                    color: '#fff',
+                    background: gradient,
+                    borderRadius: 999,
+                    padding: '3px 8px',
+                  }}
+                >
+                  {o.tag}
+                </span>
+              )}
+              <span aria-hidden style={{ ...iconTile(o.tint, 42), marginBottom: 12 }}>
+                {o.emoji}
+              </span>
+              <div style={{ fontWeight: 800, fontSize: 15.5, color: INK }}>{o.title}</div>
+              <div style={{ fontSize: 13, color: MUTED, marginTop: 4, lineHeight: 1.45 }}>{o.text}</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: PINK, marginTop: 12 }}>{o.go} →</div>
             </button>
           ))}
         </div>
@@ -575,12 +734,6 @@ function Overview({
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Btn kind="secondary" onClick={() => onGo('playground')}>
             Test
-          </Btn>
-          <Btn kind="ghost" onClick={() => onGo('advanced')}>
-            Edit
-          </Btn>
-          <Btn kind="ghost" onClick={() => onGo('history')}>
-            History
           </Btn>
           <div style={{ flex: 1 }} />
           {canPublish ? (

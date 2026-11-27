@@ -10,6 +10,8 @@ import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { WhatsAppConnect } from './WhatsAppConnect';
 import { IS_PRODUCTION } from '@/src/configs/env.config';
 import { keepInBrowser } from '@/src/utils/keepInBrowser.util';
+import { card, ghostPill, INK, MUTED, primaryPill } from './messaging/look';
+import { FaFacebookF, FaInstagram, FaWhatsapp } from 'react-icons/fa';
 
 /*
  * Channel Connections — per FR01 of the Unified Social Inbox PRD: connection
@@ -18,7 +20,7 @@ import { keepInBrowser } from '@/src/utils/keepInBrowser.util';
  * Connection state is owned by the parent (InboxDashboard) and passed in, so
  * the top bar's "channels connected" summary and this page can never
  * disagree. Instagram and Facebook connect straight to Meta from here: the inbox
- * needs the Page's own token, which a connection made through Outstand never has.
+ * needs the Page's own token (a direct Facebook connection holds it).
  */
 
 const FONT = "'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -132,6 +134,11 @@ const CHANNEL_SHELLS: {
   },
 ];
 
+// WhatsApp messaging isn't working yet: its card stays (so people know it's on the way) but
+// reads "Coming soon" — no status, no connect. Flip to false when it's ready.
+const WHATSAPP_COMING_SOON = true;
+const comingSoon = (id: string) => id === 'whatsapp' && WHATSAPP_COMING_SOON;
+
 function timeAgo(iso: string | null): string {
   if (!iso) return 'No events yet';
   const zoned = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`;
@@ -211,7 +218,7 @@ const TROUBLESHOOTING: Record<string, { title: string; detail: string }[]> = {
     {
       title: 'Allow access to messages',
       detail:
-        'In the Instagram app on your business account: Settings → Messages and story replies → Message controls → Connected tools → turn on "Allow access to messages".',
+        'Log in to the Instagram app as the Business or Creator account you connected, then open Settings → Messages and story replies → Message requests. Under "Connected tools", turn on "Allow access to messages".',
     },
     {
       title: 'Use a Professional account linked to your Facebook Page',
@@ -243,8 +250,8 @@ const TROUBLESHOOTING: Record<string, { title: string; detail: string }[]> = {
   ],
 };
 
-function TroubleshootPanel({ channelId, defaultOpen }: { channelId: string; defaultOpen: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
+function TroubleshootPanel({ channelId }: { channelId: string }) {
+  const [open, setOpen] = useState(false);
   const steps = TROUBLESHOOTING[channelId];
   if (!steps) return null;
   return (
@@ -297,20 +304,39 @@ function connectDirect(channelId: string) {
   window.location.href = keepInBrowser(`${apiBase}/social-media/connect/${flow}/initiate?source=inbox`);
 }
 
+type SwappablePlatform = 'instagram' | 'facebook';
+
 type IgCandidate = { ig_user_id: string; page_name?: string; username?: string };
 
 const INBOX_CONNECTIONS_URL = '/workspace/?tab=messages&view=connections';
+
+// Each channel's real brand mark and colour, and what kind of account it takes.
+const CHANNEL_LOOK: Record<string, { icon: React.ReactNode; bg: string; sub: string }> = {
+  instagram: {
+    icon: <FaInstagram />,
+    bg: 'linear-gradient(135deg, #F58529 0%, #DD2A7B 50%, #8134AF 100%)',
+    sub: 'Business or Creator account',
+  },
+  facebook: { icon: <FaFacebookF />, bg: '#1877F2', sub: 'Your Facebook Page' },
+  whatsapp: { icon: <FaWhatsapp />, bg: '#25D366', sub: 'WhatsApp Business number' },
+};
 
 export default function InboxConnectionsPage({
   isMobile,
   connections,
   onConnected,
   onChannelsChanged,
+  embedded = false,
+  columns = 3,
 }: {
   isMobile: boolean;
   connections: ChannelConnection[];
   onConnected: (channelId: string, accountLabel: string) => void;
   onChannelsChanged: () => void;
+  /** Shown inside Messaging › Settings: no page padding of its own. */
+  embedded?: boolean;
+  /** Cards per row on desktop. */
+  columns?: number;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -319,11 +345,20 @@ export default function InboxConnectionsPage({
   const [igCandidates, setIgCandidates] = useState<IgCandidate[]>([]);
   const [igSelected, setIgSelected] = useState<Set<string>>(new Set());
   const [finishing, setFinishing] = useState(false);
+  const [replaceFor, setReplaceFor] = useState<ChannelConnection | null>(null);
 
   // Subscribing the Page is what makes Meta deliver messages, and Meta can refuse it
   // (no full control of the Page, a permission left off) — say so right away.
-  const afterConnect = async (label: string) => {
+  const afterConnect = async (label: string, platform: SwappablePlatform) => {
     ToastService.showToast(`${label} connected`, ToastTypeEnum.Success);
+    try {
+      const swapped = await InboxService.finishReplace(platform);
+      if (swapped.replaced.length > 0) {
+        ToastService.showToast(`${swapped.replaced.join(', ')} replaced in this inbox`, ToastTypeEnum.Success);
+      }
+    } catch {
+      /* the earlier account simply stays listed */
+    }
     try {
       const res = await InboxService.resubscribeChannels();
       const issue = res.subscriptions.find((sub) => !sub.subscribed)?.issue;
@@ -334,11 +369,11 @@ export default function InboxConnectionsPage({
     onChannelsChanged();
   };
 
-  const finish = async (run: () => Promise<{ status?: boolean }>, label: string) => {
+  const finish = async (run: () => Promise<{ status?: boolean }>, label: string, platform: SwappablePlatform) => {
     setFinishing(true);
     try {
       const res = await run();
-      if (res.status) await afterConnect(label);
+      if (res.status) await afterConnect(label, platform);
       else ToastService.showToast(`${label} could not be connected. Please try again.`, ToastTypeEnum.Error);
     } catch {
       ToastService.showToast(`${label} could not be connected. Please try again.`, ToastTypeEnum.Error);
@@ -355,12 +390,14 @@ export default function InboxConnectionsPage({
     if (connected === 'instagram_direct' && param('ig_user_id')) {
       finish(
         () => SocialAccountService.finalizeInstagramDirect(param('ig_user_id')),
-        `Instagram @${param('username') || 'account'}`
+        `Instagram @${param('username') || 'account'}`,
+        'instagram'
       );
     } else if (connected === 'facebook_direct' && param('fb_page_id')) {
       finish(
         () => SocialAccountService.finalizeFacebookDirect(param('fb_page_id')),
-        param('page_name') || 'Facebook Page'
+        param('page_name') || 'Facebook Page',
+        'facebook'
       );
     } else if (connected === 'instagram_pending' && param('token')) {
       const token = param('token');
@@ -388,7 +425,8 @@ export default function InboxConnectionsPage({
     const ids = Array.from(igSelected);
     await finish(
       () => SocialMediaAgentService.finalizeInstagramDirectPending(igPendingToken, ids),
-      ids.length > 1 ? `${ids.length} Instagram accounts` : 'Instagram account'
+      ids.length > 1 ? `${ids.length} Instagram accounts` : 'Instagram account',
+      'instagram'
     );
     setIgPendingToken(null);
     setIgCandidates([]);
@@ -397,20 +435,89 @@ export default function InboxConnectionsPage({
   return (
     <div
       style={{
-        padding: isMobile ? 14 : 24,
+        padding: embedded ? 0 : isMobile ? 14 : '22px 28px 32px',
         display: 'flex',
         flexDirection: 'column',
         gap: 16,
-        maxWidth: 880,
-        margin: '0 auto',
         boxSizing: 'border-box',
       }}
     >
-      <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5 }}>
-        Connect Instagram and Facebook here with your Meta login so their messages and comments reach this inbox. Use
-        the account that has full control of your Facebook Page.{' '}
-        {IS_PRODUCTION ? '' : 'WhatsApp is connected here too.'}
-      </div>
+      {replaceFor && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,.45)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 16,
+              padding: 22,
+              maxWidth: 420,
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              fontFamily: FONT,
+            }}
+          >
+            <div style={{ fontSize: 16, fontWeight: 800, color: INK }}>Replace the {replaceFor.label} account?</div>
+            <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.5 }}>
+              This inbox currently shows {replaceFor.statusNote.replace(/^Connected — /, '')}. If you connect a
+              different {replaceFor.label} account now, it will take its place here. The old account stays connected for
+              publishing and in Connected Accounts. Reconnecting the same account changes nothing.
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setReplaceFor(null)}
+                style={{
+                  ...ghostPill,
+                  padding: '9px 16px',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const id = replaceFor.id as SwappablePlatform;
+                  setReplaceFor(null);
+                  try {
+                    await InboxService.beginReplace(id);
+                  } catch {
+                    /* without it the new account is added next to the old one */
+                  }
+                  connectDirect(id);
+                }}
+                style={{
+                  ...primaryPill,
+                  padding: '9px 16px',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {igPendingToken && (
         <div
@@ -501,208 +608,240 @@ export default function InboxConnectionsPage({
         </div>
       )}
 
-      {connections.map((c) => {
-        const health = HEALTH_META[c.tokenHealth];
-        return (
-          <div
-            key={c.id}
-            style={{ background: '#fff', border: '1px solid rgba(0,0,0,.08)', borderRadius: 14, overflow: 'hidden' }}
-          >
-            <div
-              style={{
-                padding: isMobile ? '14px 16px' : '16px 20px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                flexWrap: 'wrap',
-              }}
-            >
-              <div
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 10,
-                  background: c.color,
-                  color: '#fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 800,
-                  fontSize: 13,
-                  flex: '0 0 auto',
-                }}
-              >
-                {c.label[0]}
-              </div>
-              <div style={{ flex: 1, minWidth: 160 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 800, color: '#1a1a1a' }}>{c.label}</div>
+      <div
+        style={{
+          display: 'flex',
+          gap: 16,
+          // Independent columns, not grid rows: opening one card's help must not push down the card in the
+          // next column (a grid row is as tall as its tallest card).
+          alignItems: 'flex-start',
+        }}
+      >
+        {(isMobile
+          ? [connections]
+          : Array.from({ length: columns }, (_, col) => connections.filter((_, i) => i % columns === col))
+        ).map((stack, col) => (
+          <div key={col} style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {stack.map((c) => {
+              const health = HEALTH_META[c.tokenHealth];
+              const brand = CHANNEL_LOOK[c.id] ?? { icon: <span>{c.label[0]}</span>, bg: c.color, sub: '' };
+              // The status pill says Connected / Not connected; the line under the name says what kind of
+              // account it is, or the extra detail when there is one (which account, reconnect needed).
+              const soon = comingSoon(c.id);
+              const subtitle = soon ? 'Coming soon' : c.statusNote === 'Not connected' ? brand.sub : c.statusNote;
+              return (
                 <div
-                  style={{
-                    fontSize: 12,
-                    color: c.connected ? '#2E7D32' : c.warning ? '#B26A00' : '#999',
-                    marginTop: 2,
-                  }}
+                  key={c.id}
+                  style={{ ...card, padding: isMobile ? 16 : 18, display: 'flex', flexDirection: 'column', gap: 12 }}
                 >
-                  {c.statusNote}
-                </div>
-              </div>
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: '4px 10px',
-                  borderRadius: 12,
-                  background: c.connected ? 'rgba(46,125,50,.1)' : 'rgba(0,0,0,.06)',
-                  color: c.connected ? '#2E7D32' : '#777',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {c.connected ? 'Connected' : 'Not connected'}
-              </span>
-              <button
-                type="button"
-                onClick={() => (c.id === 'whatsapp' ? setWhatsAppOpen(true) : connectDirect(c.id))}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 8,
-                  border: '1px solid rgba(0,0,0,.12)',
-                  background: '#fff',
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  color: '#444',
-                  cursor: 'pointer',
-                  fontFamily: FONT,
-                  flex: '0 0 auto',
-                }}
-              >
-                {c.connected ? 'Reconnect' : 'Connect'}
-              </button>
-            </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span
+                      aria-hidden
+                      style={{
+                        width: 46,
+                        height: 46,
+                        borderRadius: 14,
+                        background: brand.bg,
+                        color: '#fff',
+                        display: 'grid',
+                        placeItems: 'center',
+                        fontSize: 22,
+                        flex: 'none',
+                        boxShadow: '0 10px 20px -12px rgba(0,0,0,.35)',
+                      }}
+                    >
+                      {brand.icon}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: INK }}>{c.label}</div>
+                      <div
+                        style={{
+                          fontSize: 12.5,
+                          color: soon ? MUTED : c.connected ? '#1E7A45' : c.warning ? '#B26A00' : MUTED,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {subtitle}
+                      </div>
+                    </div>
+                  </div>
 
-            <div
-              style={{
-                padding: isMobile ? '0 16px 16px' : '0 20px 20px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 12,
-              }}
-            >
-              {c.warning && (
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 10,
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    background: '#FFF7E6',
-                    border: '1px solid #F5D9A8',
-                    borderRadius: 10,
-                    padding: '10px 12px',
-                    fontSize: 12.5,
-                    color: '#7A4B00',
-                  }}
-                >
-                  <span style={{ flex: 1, minWidth: 220 }}>
-                    <strong>Reconnect needed.</strong> {c.warning}
-                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {c.capabilities.map((cap) => (
+                      <span
+                        key={cap.key}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          borderRadius: 999,
+                          padding: '4px 10px',
+                          background: cap.ok && !soon ? '#EEF8F2' : '#F7F2F4',
+                          color: cap.ok && !soon ? '#1E7A45' : '#9A8F94',
+                        }}
+                      >
+                        {cap.ok && !soon && <I n="check" s={11} c="#1E7A45" />}
+                        {cap.label}
+                      </span>
+                    ))}
+                  </div>
+
+                  {!soon && c.scopes.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                      {c.scopes.map((s) => (
+                        <span
+                          key={s}
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: 600,
+                            color: MUTED,
+                            background: '#FAF6F8',
+                            border: '1px solid #F1E4EA',
+                            borderRadius: 999,
+                            padding: '2px 8px',
+                          }}
+                        >
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {!soon && c.warning && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 10,
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        background: '#FFF7EC',
+                        border: '1px solid #F6DFB8',
+                        borderRadius: 14,
+                        padding: '9px 12px',
+                        fontSize: 12.5,
+                        color: '#7A4B00',
+                      }}
+                    >
+                      <span style={{ flex: 1, minWidth: 180 }}>
+                        <strong>Reconnect needed.</strong> {c.warning}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => connectDirect(c.id)}
+                        style={{
+                          background: '#B26A00',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 999,
+                          padding: '6px 13px',
+                          fontWeight: 800,
+                          fontSize: 12,
+                          cursor: 'pointer',
+                          fontFamily: FONT,
+                        }}
+                      >
+                        Reconnect
+                      </button>
+                    </div>
+                  )}
+
+                  {soon ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontSize: 11.5,
+                          fontWeight: 800,
+                          padding: '4px 10px',
+                          borderRadius: 999,
+                          background: '#F4EEF0',
+                          color: '#8A7F84',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        ● Coming soon
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontSize: 11.5,
+                          fontWeight: 800,
+                          padding: '4px 10px',
+                          borderRadius: 999,
+                          background: c.connected ? '#E7F6EE' : '#F4EEF0',
+                          color: c.connected ? '#1E7A45' : '#8A7F84',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        ● {c.connected ? 'Connected' : 'Not connected'}
+                      </span>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          color: health.fg,
+                        }}
+                      >
+                        <I n={health.icon} s={11} c={health.fg} />
+                        {health.label}
+                      </span>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontSize: 11.5,
+                          fontWeight: 600,
+                          color: '#9A9090',
+                        }}
+                      >
+                        <I n="clock" s={11} c="#B0A6AA" />
+                        Last event: {c.lastEvent}
+                      </span>
+                    </div>
+                  )}
+
                   <button
                     type="button"
-                    onClick={() => connectDirect(c.id)}
+                    disabled={soon}
+                    onClick={() =>
+                      c.id === 'whatsapp' ? setWhatsAppOpen(true) : c.connected ? setReplaceFor(c) : connectDirect(c.id)
+                    }
                     style={{
-                      background: '#B26A00',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '7px 14px',
-                      fontWeight: 700,
-                      fontSize: 12.5,
-                      cursor: 'pointer',
+                      ...(c.connected || c.id === 'whatsapp' ? ghostPill : primaryPill),
+                      width: '100%',
+                      padding: '10px 16px',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      cursor: soon ? 'not-allowed' : 'pointer',
+                      opacity: soon ? 0.55 : 1,
                       fontFamily: FONT,
                     }}
                   >
-                    Reconnect
+                    {soon ? 'Coming soon' : c.connected ? `Reconnect ${c.label}` : `Connect ${c.label}`}
                   </button>
-                </div>
-              )}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 12, color: '#666' }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '4px 10px',
-                    borderRadius: 10,
-                    background: health.bg,
-                    color: health.fg,
-                    fontWeight: 700,
-                  }}
-                >
-                  <I n={health.icon} s={12} c={health.fg} />
-                  {health.label}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <I n="clock" s={13} c="#999" />
-                  Last event: {c.lastEvent}
-                </div>
-              </div>
 
-              {c.scopes.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {c.scopes.map((s) => (
-                    <span
-                      key={s}
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 600,
-                        color: '#666',
-                        background: '#f4f4f5',
-                        borderRadius: 8,
-                        padding: '3px 8px',
-                      }}
-                    >
-                      {s}
-                    </span>
-                  ))}
+                  {!soon && c.connected && <TroubleshootPanel channelId={c.id} />}
                 </div>
-              )}
-
-              <div>
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 800,
-                    letterSpacing: '.04em',
-                    textTransform: 'uppercase',
-                    color: '#999',
-                    marginBottom: 6,
-                  }}
-                >
-                  Capabilities
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 6 }}>
-                  {c.capabilities.map((cap) => (
-                    <div
-                      key={cap.key}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        fontSize: 12.5,
-                        color: cap.ok ? '#333' : '#bbb',
-                      }}
-                    >
-                      <I n={cap.ok ? 'check' : 'x'} s={13} c={cap.ok ? '#2E7D32' : '#ccc'} />
-                      {cap.label}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {c.connected && <TroubleshootPanel channelId={c.id} defaultOpen={c.lastEvent === 'No events yet'} />}
-            </div>
+              );
+            })}
           </div>
-        );
-      })}
+        ))}
+      </div>
+
+      <div style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.5 }}>
+        💡 Connect Instagram and Facebook here with your Meta login so their messages and comments reach this inbox. Use
+        the account that has full control of your Facebook Page.{' '}
+        {IS_PRODUCTION ? '' : WHATSAPP_COMING_SOON ? 'WhatsApp is coming soon.' : 'WhatsApp is connected here too.'}
+      </div>
 
       {whatsAppOpen && (
         <WhatsAppConnect

@@ -1,6 +1,7 @@
 'use client';
 
 import { CSSProperties, ReactNode } from 'react';
+import { card, ghostPill, INK, MUTED, primaryPill } from '../messaging/look';
 
 export const FONT = "'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 export const PINK = '#AD1457';
@@ -41,10 +42,7 @@ export function Card({
   return (
     <div
       style={{
-        background: '#fff',
-        border: '1px solid rgba(0,0,0,.08)',
-        borderRadius: 14,
-        padding: '18px 20px',
+        ...card,
         display: 'flex',
         flexDirection: 'column',
         gap: 14,
@@ -53,8 +51,8 @@ export function Card({
       {(title || right) && (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            {title && <div style={{ fontSize: 14.5, fontWeight: 800, color: '#1a1a1a' }}>{title}</div>}
-            {desc && <div style={{ fontSize: 12, color: '#888', marginTop: 3, lineHeight: 1.5 }}>{desc}</div>}
+            {title && <div style={{ fontSize: 17, fontWeight: 900, color: INK, letterSpacing: -0.2 }}>{title}</div>}
+            {desc && <div style={{ fontSize: 13, color: MUTED, marginTop: 3, lineHeight: 1.5 }}>{desc}</div>}
           </div>
           {right}
         </div>
@@ -71,31 +69,33 @@ export function Btn({
   disabled,
   small,
   type = 'button',
+  title,
 }: {
   children: ReactNode;
   onClick?: () => void;
+  title?: string;
   kind?: 'primary' | 'secondary' | 'ghost' | 'danger';
   disabled?: boolean;
   small?: boolean;
   type?: 'button' | 'submit';
 }) {
   const palette: Record<string, CSSProperties> = {
-    primary: { background: PINK, color: '#fff', border: `1px solid ${PINK}` },
-    secondary: { background: '#fff', color: PINK, border: '1px solid rgba(194,24,91,.35)' },
-    ghost: { background: 'transparent', color: '#555', border: '1px solid rgba(0,0,0,.12)' },
-    danger: { background: '#fff', color: '#C62828', border: '1px solid rgba(198,40,40,.35)' },
+    primary: primaryPill,
+    secondary: { ...ghostPill, color: PINK, border: '1px solid rgba(194,24,91,.35)' },
+    ghost: ghostPill,
+    danger: { ...ghostPill, color: '#C62828', border: '1px solid rgba(198,40,40,.35)' },
   };
   return (
     <button
       type={type}
+      title={title}
       onClick={onClick}
       disabled={disabled}
       style={{
         ...palette[kind],
-        borderRadius: 8,
-        padding: small ? '5px 10px' : '8px 14px',
+        padding: small ? '6px 12px' : '9px 16px',
         fontSize: small ? 12 : 13,
-        fontWeight: 700,
+        fontWeight: 800,
         fontFamily: FONT,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.55 : 1,
@@ -140,9 +140,9 @@ export function Chip({
       style={{
         ...style,
         borderRadius: 999,
-        padding: '4px 10px',
+        padding: '5px 11px',
         fontSize: 12,
-        fontWeight: 600,
+        fontWeight: 800,
         fontFamily: FONT,
         display: 'inline-flex',
         alignItems: 'center',
