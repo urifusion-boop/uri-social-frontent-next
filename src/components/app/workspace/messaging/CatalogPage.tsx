@@ -238,7 +238,7 @@ function Items({ isMobile }: { isMobile: boolean }) {
                 {stockCell(i)} {i.low_stock && <Pill {...TONE.amber}>Low</Pill>}
                 {i.status !== 'active' && <Pill {...TONE.grey}>{i.status === 'archived' ? 'Archived' : 'Hidden'}</Pill>}
               </td>
-              <td style={{ ...cell, textAlign: 'right' }}>
+              <td style={{ ...cell, textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                 <Btn
                   kind="outline"
                   style={{ height: 28 }}
