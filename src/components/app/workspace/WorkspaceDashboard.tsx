@@ -98,6 +98,7 @@ import type { WizardDraft } from '@/src/components/app/workspace/campaign-wizard
 import CampaignOverviewPage from '@/src/components/app/workspace/campaign-wizard/CampaignOverviewPage';
 import CampaignGrowthPage from '@/src/components/app/workspace/campaign-wizard/CampaignGrowthPage';
 import { useFeatures } from '@/src/hooks/useFeatures';
+import PageHeader from '@/src/components/app/atoms/PageHeader';
 import CampaignWalletPage from '@/src/components/app/workspace/campaign-wizard/CampaignWalletPage';
 import CampaignRevenuePage from '@/src/components/app/workspace/campaign-wizard/CampaignRevenuePage';
 import HelpSupportPage from '@/src/components/app/workspace/HelpSupportPage';
@@ -2554,7 +2555,9 @@ const CMEmptyState = ({ message, retry }: { message: string; retry?: () => void 
 /* ── SubPage wrapper ─────────────────────────────────────────────────────── */
 const SubPage = ({
   title,
-  icon,
+  // Kept in the signature for callers; the shared PageHeader shows a section label instead.
+  icon: _icon,
+  section,
   desc,
   children,
   onJane,
@@ -2563,6 +2566,8 @@ const SubPage = ({
 }: {
   title: string;
   icon: string;
+  /** The menu section above this page (e.g. "Settings"), shown small above the title. */
+  section?: string;
   desc: string;
   children: ReactNode;
   onJane: () => void;
@@ -2577,44 +2582,14 @@ const SubPage = ({
 }) => (
   <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
     <div style={{ padding: '18px 24px 14px', borderBottom: '1px solid #edecea' }}>
-      {isMobile && onOpenSectionNav ? (
-        <button
-          onClick={onOpenSectionNav}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            border: 'none',
-            background: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            font: 'inherit',
-            color: 'inherit',
-          }}
-        >
-          <h2
-            style={{
-              fontSize: 17,
-              fontWeight: 800,
-              color: '#111',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              margin: 0,
-            }}
-          >
-            <I n={icon} s={18} c="#C2185B" />
-            {title}
-          </h2>
-          <I n="chevronRight" s={13} c="#C2185B" />
-        </button>
-      ) : (
-        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#111', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <I n={icon} s={18} c="#C2185B" />
-          {title}
-        </h2>
-      )}
-      <p style={{ fontSize: 12.5, color: '#999', marginTop: 2 }}>{desc}</p>
+      <PageHeader
+        section={section}
+        title={title}
+        description={desc}
+        compact={isMobile}
+        titleOnClick={isMobile && onOpenSectionNav ? onOpenSectionNav : undefined}
+        titleSuffix={isMobile && onOpenSectionNav ? <I n="chevronRight" s={13} c="#C2185B" /> : undefined}
+      />
     </div>
     <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>{children}</div>
     <div
@@ -6548,6 +6523,7 @@ const IntelPage = ({
   return (
     <SubPage
       title="Market Intel"
+      section="Performance"
       icon="globe"
       desc={
         trends
@@ -7882,6 +7858,7 @@ const PlaybookPage = ({
       <PbEditContext.Provider value={{ onEdit: editAt, onEditSection: jumpToSection, hideEmpty }}>
         <SubPage
           title="Brand Playbook"
+          section="Settings"
           icon="book"
           desc="Everything URI Agent knows about your brand"
           onJane={onJane}
