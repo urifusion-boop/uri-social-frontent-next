@@ -492,7 +492,21 @@ function OrderDetail({ id, onClose, onChanged }: { id: string; onClose: () => vo
               Add discount
             </Btn>
           )}
-          {order.refund_due && (
+          {open && order.payment_status === 'paid' && order.lines.some((l) => l.fulfilment_status !== 'fulfilled') && (
+            <Btn
+              disabled={busy}
+              onClick={() =>
+                run(async () => {
+                  for (const l of order.lines.filter((x) => x.fulfilment_status !== 'fulfilled')) {
+                    await OrdersService.fulfil(order.id, l.id, 'fulfilled');
+                  }
+                })
+              }
+            >
+              Mark all fulfilled
+            </Btn>
+          )}
+          {(order.refund_due || (order.paid_amount > 0 && order.payment_status !== 'refunded')) && (
             <Btn kind="outline" onClick={() => setPanel('refund')}>
               Request refund
             </Btn>
