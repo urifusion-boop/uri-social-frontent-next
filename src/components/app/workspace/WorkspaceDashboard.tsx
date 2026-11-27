@@ -11682,6 +11682,7 @@ export default function WorkspaceDashboard() {
       ['automations', 'sliders', 'Automations'],
       ['audience', 'users', 'Audience'],
       ['catalog', 'grid', 'Products & Services'],
+      ['orders', 'grid', 'Orders'],
       ['voice', 'mic', 'Brand Voice'],
       ['insights', 'chart', 'Insights'],
       ['settings', 'settings', 'Settings'],

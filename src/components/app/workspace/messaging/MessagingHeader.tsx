@@ -6,6 +6,7 @@ import {
   ChartLine,
   Mail,
   Package,
+  ShoppingBag,
   Settings,
   SlidersHorizontal,
   Users,
@@ -28,6 +29,7 @@ export type MessagingSection =
   | 'quick'
   | 'audience'
   | 'catalog'
+  | 'orders'
   | 'voice'
   | 'insights'
   | 'settings';
@@ -42,6 +44,7 @@ export const MESSAGING_TABS: { id: Exclude<MessagingSection, 'settings'>; label:
   { id: 'automations', label: 'Automations', icon: SlidersHorizontal },
   { id: 'audience', label: 'Audience', icon: Users },
   { id: 'catalog', label: 'Products & Services', icon: Package },
+  { id: 'orders', label: 'Orders', icon: ShoppingBag },
   { id: 'voice', label: 'Brand Voice', icon: AudioLines },
   { id: 'insights', label: 'Insights', icon: ChartLine },
 ];

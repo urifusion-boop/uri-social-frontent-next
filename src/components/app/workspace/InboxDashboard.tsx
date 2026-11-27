@@ -25,6 +25,7 @@ import AutomationsPage from './messaging/AutomationsPage';
 import QuickRepliesPage, { replyWithButtons } from './messaging/QuickRepliesPage';
 import AudiencePage from './messaging/AudiencePage';
 import CatalogPage from './messaging/CatalogPage';
+import OrdersPage from './messaging/OrdersPage';
 import InsightsPage from './messaging/InsightsPage';
 import { NavRow } from './messaging/ui';
 import { PlatformBadge, PLATFORM_LABEL } from './messaging/platform';
@@ -721,6 +722,7 @@ export function resolveView(view: string): { section: MessagingSection; settings
     case 'automations':
     case 'audience':
     case 'catalog':
+    case 'orders':
     case 'voice':
     case 'insights':
       return { section: view };
@@ -1307,6 +1309,8 @@ export default function InboxDashboard({
             />
           ) : subView === 'catalog' ? (
             <CatalogPage isMobile={isMobile} />
+          ) : subView === 'orders' ? (
+            <OrdersPage isMobile={isMobile} />
           ) : subView === 'insights' ? (
             <InsightsPage isMobile={isMobile} />
           ) : (
