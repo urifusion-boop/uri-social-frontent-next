@@ -174,8 +174,17 @@ export function Row({ label, hint, children }: { label: string; hint?: string; c
 
 export function Grid({ cols = 2, children }: { cols?: number; children: ReactNode }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 12 }}>{children}</div>
+    <div
+      style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 12, alignItems: 'end' }}
+    >
+      {children}
+    </div>
   );
+}
+
+/** A button that sits in a Grid cell level with the inputs beside it. */
+export function Action({ children }: { children: ReactNode }) {
+  return <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', minWidth: 0 }}>{children}</div>;
 }
 
 export function Modal({

@@ -5,6 +5,7 @@ import { CatalogService, type AvailabilityResult, type CatalogItem, type Catalog
 import { Btn, Field, Label, Muted, Pill, Toggle, apiError } from './ui';
 import {
   AVAILABILITY_LABEL,
+  Action,
   Grid,
   Modal,
   NumberInput,
@@ -20,13 +21,12 @@ import {
 } from './catalogUi';
 
 const REASONS = [
-  { value: 'restock', label: 'Restock (add units)' },
-  { value: 'damage', label: 'Damaged (remove)' },
-  { value: 'loss', label: 'Lost (remove)' },
-  { value: 'return', label: 'Customer return (add)' },
-  { value: 'correction', label: 'Set the exact count' },
+  { value: 'restock', label: 'Restock (add units)', type: 'received', why: 'Restocked' },
+  { value: 'damage', label: 'Damaged (remove)', type: 'damaged', why: 'Damaged' },
+  { value: 'loss', label: 'Lost (remove)', type: 'lost', why: 'Lost' },
+  { value: 'return', label: 'Customer return (add)', type: 'returned', why: 'Customer return' },
+  { value: 'correction', label: 'Set the exact count', type: 'adjusted', why: 'Stock count' },
 ];
-const ADDS = new Set(['restock', 'return']);
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -73,17 +73,13 @@ function StockPanel({ item, reload }: { item: CatalogItem; reload: () => void })
   const adjust = () => {
     const n = Number(qty);
     if (!Number.isFinite(n) || qty === '') return setMsg({ text: 'Enter a number.', bad: true });
+    const kind = REASONS.find((r) => r.value === reason) ?? REASONS[0];
     const body =
-      reason === 'correction' ? { set_to: n } : { quantity_change: ADDS.has(reason) ? Math.abs(n) : -Math.abs(n) };
+      kind.value === 'correction'
+        ? { set_to: n, reason: kind.why }
+        : { movement_type: kind.type, quantity: Math.abs(n), reason: kind.why };
     return run(
-      () =>
-        CatalogService.adjustStock({
-          item_id: item.id,
-          variant_id: target || null,
-          movement_type: reason === 'correction' ? 'correction' : reason,
-          reason,
-          ...body,
-        }),
+      () => CatalogService.adjustStock({ item_id: item.id, variant_id: target || null, ...body }),
       'Stock updated.'
     ).then(() => setQty(''));
   };
@@ -135,14 +131,18 @@ function StockPanel({ item, reload }: { item: CatalogItem; reload: () => void })
           </Row>
         )}
         <Row label="Change">
-          <Select value={reason} onChange={setReason} options={REASONS} />
+          <Select
+            value={reason}
+            onChange={setReason}
+            options={REASONS.map((r) => ({ value: r.value, label: r.label }))}
+          />
         </Row>
         <Row label={reason === 'correction' ? 'Count is now' : 'Units'}>
           <NumberInput value={qty} onChange={setQty} />
         </Row>
-        <Row label=" ">
+        <Action>
           <Btn onClick={adjust}>Update stock</Btn>
-        </Row>
+        </Action>
       </Grid>
       <Grid cols={3}>
         <Row label="Add a size, colour or option">
@@ -151,7 +151,7 @@ function StockPanel({ item, reload }: { item: CatalogItem; reload: () => void })
         <Row label="Units to start with">
           <NumberInput value={vQty} onChange={setVQty} />
         </Row>
-        <Row label=" ">
+        <Action>
           <Btn
             kind="outline"
             disabled={!vName.trim()}
@@ -168,7 +168,7 @@ function StockPanel({ item, reload }: { item: CatalogItem; reload: () => void })
           >
             Add option
           </Btn>
-        </Row>
+        </Action>
       </Grid>
       {msg && <Notice {...msg} />}
     </Section>
@@ -385,14 +385,14 @@ function CheckPanel({ item, reload }: { item: CatalogItem; reload: () => void })
             />
           </Row>
         )}
-        <Row label=" ">
+        <Action>
           <div style={{ display: 'flex', gap: 8 }}>
             <Btn kind="outline" onClick={check}>
               Check
             </Btn>
             <Btn onClick={hold}>Hold</Btn>
           </div>
-        </Row>
+        </Action>
       </Grid>
       {result && (
         <div

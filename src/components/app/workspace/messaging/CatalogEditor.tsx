@@ -7,6 +7,7 @@ import {
   type CatalogItem,
   type CatalogItemInput,
   type ItemType,
+  type StockVisibility,
 } from '@/src/api/CatalogService';
 import { MSG_MUTED } from './MessagingHeader';
 import { Btn, Field, Label, Muted, Toggle, apiError } from './ui';
@@ -37,6 +38,11 @@ const PERIODS = [
   { value: 'week', label: 'Per week' },
   { value: 'month', label: 'Per month' },
 ];
+const VISIBILITY: { value: StockVisibility; label: string }[] = [
+  { value: 'low_only', label: 'Say "limited stock" only when it is low' },
+  { value: 'never', label: 'Never mention how many (in stock or out of stock only)' },
+  { value: 'exact', label: 'Tell customers the exact number left' },
+];
 const BILLING = [
   { value: 'one_time', label: 'One-time' },
   { value: 'weekly', label: 'Weekly' },
@@ -63,6 +69,7 @@ interface Form {
   cancellation_policy: string;
   images: string[];
   low_stock_threshold: string;
+  stock_visibility: StockVisibility;
   initial_quantity: string;
   billing_interval: string;
   plan_features: string;
@@ -113,6 +120,7 @@ function initial(item: CatalogItem | null | undefined): Form {
     cancellation_policy: item?.cancellation_policy ?? '',
     images: item?.images ?? [],
     low_stock_threshold: str(item?.low_stock_threshold),
+    stock_visibility: item?.stock_visibility ?? 'low_only',
     initial_quantity: '',
     billing_interval: item?.billing_interval || 'one_time',
     plan_features: (item?.plan_features ?? []).join('\n'),
@@ -205,6 +213,7 @@ function inputOf(f: Form, isNew: boolean, showCost: boolean): CatalogItemInput {
     cancellation_policy: f.cancellation_policy,
     images: f.images,
     low_stock_threshold: num(f.low_stock_threshold),
+    stock_visibility: f.stock_visibility,
   };
   if (showCost) body.cost_price = num(f.cost_price);
   if (f.item_type === 'digital') {
@@ -599,6 +608,15 @@ export function CatalogEditor({
                 <Field multiline value={f.plan_features} onChange={(v) => set('plan_features', v)} />
               </Row>
             </>
+          )}
+
+          {(kind === 'quantity' || kind === 'capacity' || kind === 'schedule' || kind === 'capped') && (
+            <Row
+              label="What can your assistant say about how much is left?"
+              hint="Your own dashboard always shows exact numbers."
+            >
+              <Select value={f.stock_visibility} onChange={(v) => set('stock_visibility', v)} options={VISIBILITY} />
+            </Row>
           )}
 
           {kind !== 'unlimited' && (

@@ -11,6 +11,7 @@ export type AvailabilityType =
   | 'schedule'
   | 'manual'
   | 'made_to_order';
+export type StockVisibility = 'exact' | 'low_only' | 'never';
 export type ItemStatus = 'active' | 'inactive' | 'archived';
 
 export interface StockInfo {
@@ -61,6 +62,7 @@ export interface CatalogItem {
   trial_eligible: boolean;
   cancellation_policy: string;
   low_stock_threshold: number | null;
+  stock_visibility?: StockVisibility;
   updated_at?: string;
   // list view
   variant_count?: number;
