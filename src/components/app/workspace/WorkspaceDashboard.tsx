@@ -3065,6 +3065,11 @@ const ConnectionsPage = ({
 
   // Handle OAuth callback params (after Facebook/Instagram OAuth redirect back here)
   useEffect(() => {
+    // A connect started from Messaging comes back to ?tab=messages, and Messaging finishes it itself
+    // (InboxConnectionsPage). Handling it here as well raced that page: this moved the person to
+    // Connected Accounts and opened a second account picker there, the inbox moved them back, and
+    // the picker they needed was never on screen, so the Instagram account never connected.
+    if (searchParams.get('tab') === 'messages') return;
     const connected = searchParams.get('connected');
     if (connected === 'instagram_direct') {
       const igUserId = searchParams.get('ig_user_id') ?? '';
@@ -11175,7 +11180,8 @@ const PRIMARY_NAV = [
 
 // Pages hidden on prod only (dev keeps them all): Customer Messages / Onebox,
 // Market Intelligence (+ the Performance page's intel view), and Blog.
-const PROD_HIDDEN_NAV = new Set(['messages', 'market-intelligence', 'intel', 'blog', 'visual-engine-v2']);
+// Messaging (Onebox) is live on prod since 2026-11-27; the rest stay hidden there.
+const PROD_HIDDEN_NAV = new Set(['market-intelligence', 'intel', 'blog', 'visual-engine-v2']);
 const isHiddenOnProd = (id: string) => IS_PRODUCTION && PROD_HIDDEN_NAV.has(id);
 const VISIBLE_PRIMARY_NAV = PRIMARY_NAV.filter((n) => !isHiddenOnProd(n.id));
 
