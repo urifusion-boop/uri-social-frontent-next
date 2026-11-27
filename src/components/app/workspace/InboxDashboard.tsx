@@ -1,22 +1,49 @@
 'use client';
 
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { InboxService, InboxAgentView, InboxConversationDTO, InboxMessageDTO } from '@/src/api/InboxService';
-import InboxConnectionsPage, {
-  INITIAL_CHANNEL_CONNECTIONS,
-  channelsFromApi,
-  type ChannelConnection,
-} from './InboxConnectionsPage';
-import InboxInsightsPage, { type InsightsConversation } from './InboxInsightsPage';
-import InboxSettingsPage from './InboxSettingsPage';
+import {
+  InboxService,
+  InboxAgentView,
+  InboxConversationDTO,
+  InboxMessageDTO,
+  type DeskChange,
+  type DeskNote,
+} from '@/src/api/InboxService';
+import { INITIAL_CHANNEL_CONNECTIONS, channelsFromApi, type ChannelConnection } from './InboxConnectionsPage';
 import { InboxPersonalityPage } from './personality/InboxPersonalityPage';
 import { useNotifications } from '@/src/providers/NotificationProvider';
+import { ToastService } from '@/src/utils/toast.util';
+import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { GrowthService } from '@/src/api/GrowthService';
 import { WhatsAppTemplatePicker } from './WhatsAppTemplates';
-import { OneboxUsagePanel } from './OneboxUsage';
 import type { Notification } from '@/src/api/NotificationService';
 import EmptyState from '@/src/components/app/atoms/EmptyState';
+import MessagingHeader, { MSG_BG, QUICK_REPLIES_ENABLED, type MessagingSection } from './messaging/MessagingHeader';
+import SettingsPage, { type SettingsSection } from './messaging/SettingsPage';
+import AutomationsPage from './messaging/AutomationsPage';
+import QuickRepliesPage, { replyWithButtons } from './messaging/QuickRepliesPage';
+import AudiencePage from './messaging/AudiencePage';
+import CatalogPage from './messaging/CatalogPage';
+import InsightsPage from './messaging/InsightsPage';
+import { NavRow } from './messaging/ui';
+import { PlatformBadge, PLATFORM_LABEL } from './messaging/platform';
+import { tagLook } from './messaging/SettingsPage';
+import {
+  Check,
+  ChevronDown,
+  Filter,
+  List,
+  ListFilter,
+  Maximize2,
+  Minimize2,
+  MoreHorizontal,
+  PanelRight,
+  Star,
+  User,
+  X,
+} from 'lucide-react';
+import type { TeamMember } from '@/src/api/InboxService';
 
 /*
  * Unified Social Inbox — a tab inside WorkspaceDashboard (PAGES.messages),
@@ -292,6 +319,9 @@ interface Conversation {
   tags?: string[];
   notes?: InternalNote[];
   lead?: Lead | null;
+  starred?: boolean;
+  assigneeId?: string;
+  notesCount?: number;
   agent?: AgentInfo;
   lastDirection?: string;
   lastActivityAt?: string | null;
@@ -339,6 +369,9 @@ const BOARD_COLUMNS: { id: QueueKey; label: string }[] = [
 export interface SavedReply {
   label: string;
   text: string;
+  /** set when it comes from the brand's saved quick replies */
+  id?: string;
+  shortcut?: string;
 }
 
 const DEFAULT_TAG_PRESETS = ['VIP', 'Repeat customer', 'Refund', 'Spam review', 'Urgent'];
@@ -400,7 +433,7 @@ function buildGroups(items: Conversation[], mode: GroupMode): ConversationGroup[
 // ─── Small shared style helpers ─────────────────────────────────────────────
 const FONT = "'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
-function pillStyle(active: boolean): React.CSSProperties {
+function pillStyle(active: boolean): CSSProperties {
   return {
     padding: '6px 14px',
     borderRadius: 7,
@@ -567,11 +600,28 @@ function toConversation(dto: InboxConversationDTO): Conversation {
     messages: dto.kind === 'dm' ? [] : undefined,
     comments: dto.kind === 'comment' ? [] : undefined,
     notes: [],
-    lead: null,
+    // A lead is saved on the conversation (lead_stage, lead_interest, lead_value).
+    lead:
+      dto.lead_stage && dto.lead_stage !== 'lost'
+        ? {
+            interest: dto.lead_interest || '',
+            budget: dto.lead_value != null ? String(dto.lead_value) : '',
+            notes: '',
+            createdBy: '',
+            createdAt: '',
+          }
+        : null,
+    starred: Boolean(dto.starred),
+    assigneeId: dto.assignee_id || '',
+    notesCount: dto.notes_count ?? 0,
     lastDirection: dto.last_direction || '',
     lastActivityAt: dto.last_activity_at,
     ...agentPart,
   };
+}
+
+function deskNote(n: DeskNote): InternalNote {
+  return { id: n.id, text: n.text, by: n.author_name || 'Team', time: relativeTime(n.at) };
 }
 
 function toThreadMessage(m: InboxMessageDTO): ThreadMessage {
@@ -594,10 +644,152 @@ function toThreadComment(m: InboxMessageDTO): ThreadComment {
   };
 }
 
-export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
+// Drives the header pill — never claims "all connected" while a real channel is
+// disconnected or its token is expiring, and never counts an unapproved platform
+// (TikTok) against the total.
+function connectionsSummaryOf(channelConnections: ChannelConnection[]) {
+  const approvedConnections = channelConnections.filter((c) => c.approved);
+  const connectionIssues = approvedConnections.filter(
+    (c) => !c.connected || c.tokenHealth === 'expiring' || Boolean(c.warning)
+  );
+  const reconnect = approvedConnections.filter((c) => c.warning).map((c) => c.label);
+  return connectionIssues.length === 0
+    ? { label: 'All channels connected', fg: '#2E7D32', bg: '#EAF8EF', dot: '#16A34A' }
+    : {
+        label: reconnect.length
+          ? `Reconnect needed — ${reconnect.join(', ')}`
+          : `${approvedConnections.length - connectionIssues.length}/${approvedConnections.length} connected — action needed`,
+        fg: '#B26A00',
+        bg: '#FFF4E5',
+        dot: '#B26A00',
+      };
+}
+
+// Small shared looks for the desk (list header, menus, the chat header buttons).
+const deskButton: CSSProperties = {
+  height: 32,
+  padding: '0 12px',
+  border: '1px solid #ECE6EA',
+  borderRadius: 9,
+  background: '#fff',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 7,
+  fontSize: 12.5,
+  fontWeight: 600,
+  color: '#2A2230',
+  cursor: 'pointer',
+  fontFamily: "'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  whiteSpace: 'nowrap',
+};
+const deskSelect: CSSProperties = { ...deskButton, appearance: 'auto', paddingRight: 6, flex: 1, minWidth: 0 };
+const deskMenuLabel: CSSProperties = {
+  fontSize: 10.5,
+  fontWeight: 700,
+  letterSpacing: '.04em',
+  textTransform: 'uppercase',
+  color: '#999',
+  margin: '10px 2px 4px',
+};
+
+// The pill on each conversation row: which queue it is in.
+const QUEUE_PILL: Record<QueueKey, { label: string; fg: string; bg: string }> = {
+  unassigned: { label: 'Open', fg: '#2563EB', bg: '#EAF2FF' },
+  sales: { label: 'Sales', fg: '#7C3AED', bg: '#F1EAFE' },
+  support: { label: 'Support', fg: '#15803D', bg: '#E7F7EE' },
+  complaints: { label: 'Complaint', fg: '#C62828', bg: '#FDECEA' },
+  ad: { label: 'Ad lead', fg: '#D0145C', bg: '#FDEEF4' },
+  resolved: { label: 'Done', fg: '#5C5460', bg: '#F3F2EF' },
+};
+
+type OwnerFilter = 'all' | 'unassigned' | 'mine' | 'team';
+
+/** Which Messaging section (and Settings section) a ?view= value or an in-page link means. */
+export function resolveView(view: string): { section: MessagingSection; settings?: SettingsSection } {
+  switch (view) {
+    case 'connections':
+      return { section: 'settings', settings: 'channels' };
+    case 'usage':
+      return { section: 'settings', settings: 'usage' };
+    case 'settings':
+      return { section: 'settings' };
+    case 'inbox-settings':
+      return { section: 'automations' };
+    case 'quick':
+      return { section: QUICK_REPLIES_ENABLED ? 'quick' : 'inbox' };
+    case 'automations':
+    case 'audience':
+    case 'catalog':
+    case 'voice':
+    case 'insights':
+      return { section: view };
+    default:
+      return { section: 'inbox' };
+  }
+}
+
+export default function InboxDashboard({
+  isMobile,
+  onSectionChange,
+}: {
+  isMobile: boolean;
+  /** Keeps the sidebar's Messaging submenu highlight in step with the tabs. */
+  onSectionChange?: (section: MessagingSection) => void;
+}) {
   const [mobileScreen, setMobileScreen] = useState<'list' | 'thread'>('list');
 
   const [selectedQueue, setSelectedQueue] = useState<QueueFilter>('all');
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all');
+  const [channelFilter, setChannelFilter] = useState<'all' | ChannelKey>('all');
+  const [newestFirst, setNewestFirst] = useState(true);
+  const [smartOpen, setSmartOpen] = useState(true);
+  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [tagAdding, setTagAdding] = useState(false);
+  const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
+  // How wide the desk is decides what fits beside the chat: the filters column becomes a
+  // "View" menu and the details panel a slide-over on narrower screens, so the chat itself
+  // always keeps room to read and write.
+  const deskRef = useRef<HTMLDivElement | null>(null);
+  const [deskWidth, setDeskWidth] = useState(1200);
+  const [detailsOverlayOpen, setDetailsOverlayOpen] = useState(false);
+  // Full-size chat: the filters and the conversation list fold away and the chat fills the
+  // Inbox card. Remembered on this browser. The list can still be opened as a slide-over.
+  const [chatExpanded, setChatExpanded] = useState(false);
+  const [listOverlayOpen, setListOverlayOpen] = useState(false);
+  useEffect(() => {
+    setChatExpanded(window.localStorage.getItem('uri.inbox.chatExpanded') === '1');
+  }, []);
+  function toggleChatExpanded() {
+    setChatExpanded((v) => {
+      window.localStorage.setItem('uri.inbox.chatExpanded', v ? '0' : '1');
+      return !v;
+    });
+    setListOverlayOpen(false);
+  }
+  useEffect(() => {
+    if (!chatExpanded) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (listOverlayOpen) setListOverlayOpen(false);
+      else toggleChatExpanded();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [chatExpanded, listOverlayOpen]);
+  useEffect(() => {
+    const el = deskRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((entries) => setDeskWidth(entries[0].contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+  useEffect(() => {
+    InboxService.listTeam()
+      .then(setTeam)
+      .catch(() => undefined);
+  }, []);
   const [selectedId, setSelectedId] = useState<string>('');
   const [view, setView] = useState<'list' | 'board'>('list');
   const [groupBy, setGroupBy] = useState<GroupMode>('time');
@@ -634,6 +826,8 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [noteDraft, setNoteDraft] = useState('');
   const [savedRepliesOpen, setSavedRepliesOpen] = useState(false);
   const [leadOverrides, setLeadOverrides] = useState<Record<string, Lead>>({});
+  const [starOverrides, setStarOverrides] = useState<Record<string, boolean>>({});
+  const [assigneeOverrides, setAssigneeOverrides] = useState<Record<string, string>>({});
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [leadFormInterest, setLeadFormInterest] = useState('');
   const [leadFormBudget, setLeadFormBudget] = useState('');
@@ -645,21 +839,33 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   // Voice/AI Usage/Inbox Settings) links here the same way, so every sub-view
   // — not just connections — needs to be reachable from this same param.
   const searchParams = useSearchParams();
-  const VALID_SUBVIEWS = ['inbox', 'connections', 'insights', 'settings', 'voice', 'usage'] as const;
-  const [subView, setSubView] = useState<(typeof VALID_SUBVIEWS)[number]>(() => {
-    const v = searchParams?.get('view');
-    return (VALID_SUBVIEWS as readonly string[]).includes(v ?? '') ? (v as (typeof VALID_SUBVIEWS)[number]) : 'inbox';
-  });
+  // The sections of the new Messaging design, plus the older names the app and saved
+  // links still use: "connections" and "usage" open Settings at that section, and the
+  // old "Inbox Settings" ("settings" before the gear page existed) opens Automations.
+  const [subView, setSection] = useState<MessagingSection>(() => resolveView(searchParams?.get('view') ?? '').section);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>(
+    () => resolveView(searchParams?.get('view') ?? '').settings ?? 'channels'
+  );
+  const setSubView = useCallback(
+    (view: string) => {
+      const r = resolveView(view);
+      setSection(r.section);
+      if (r.settings) setSettingsSection(r.settings);
+      onSectionChange?.(r.section);
+    },
+    [onSectionChange]
+  );
   // The lazy useState above only runs on first mount — it doesn't help when
   // the sidebar dropdown is clicked while this page is already open (the
   // common case: Automated Messaging is already the active tab, so the
-  // param changes but this component never remounts). Re-derive subView
-  // whenever the param itself actually changes, without fighting the
-  // in-page rail buttons, which set subView directly and never touch the URL.
+  // param changes but this component never remounts). Re-derive the section
+  // whenever the param itself actually changes.
   useEffect(() => {
     const v = searchParams?.get('view');
-    if (v && (VALID_SUBVIEWS as readonly string[]).includes(v)) {
-      setSubView(v as (typeof VALID_SUBVIEWS)[number]);
+    if (v) {
+      const r = resolveView(v);
+      setSection(r.section);
+      if (r.settings) setSettingsSection(r.settings);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams?.get('view')]);
@@ -672,6 +878,24 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [openedIds, setOpenedIds] = useState<Set<string>>(() => new Set());
   const [tagPresets, setTagPresets] = useState<string[]>(DEFAULT_TAG_PRESETS);
   const [savedReplies, setSavedReplies] = useState<SavedReply[]>([]);
+  // Quick replies and tag presets are saved to the brand (Messaging › Quick Replies and
+  // Settings › Tags); re-read whenever the inbox comes back into view so edits show up.
+  useEffect(() => {
+    if (subView !== 'inbox') return;
+    InboxService.getDeskPrefs()
+      .then((p) => {
+        setTagPresets(p.tag_presets);
+        setSavedReplies(
+          p.quick_replies.map((r) => ({
+            label: r.title,
+            text: replyWithButtons(r.text, r.buttons),
+            id: r.id,
+            shortcut: r.shortcut,
+          }))
+        );
+      })
+      .catch(() => undefined);
+  }, [subView]);
 
   // Escape closes whatever overlay is currently open — drawers, sheets,
   // menus and modals alike — since none of them trap focus, a keyboard or
@@ -749,6 +973,17 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     return () => window.clearInterval(timer);
   }, [refreshConversations]);
 
+  // The team's internal notes on a conversation, fetched once when it is first opened.
+  const [notesLoaded, setNotesLoaded] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    if (!selectedId || notesLoaded[selectedId]) return;
+    const id = selectedId;
+    setNotesLoaded((prev) => ({ ...prev, [id]: true }));
+    InboxService.getDesk(id)
+      .then((d) => setNoteOverrides((prev) => ({ ...prev, [id]: d.notes.slice().reverse().map(deskNote) })))
+      .catch(() => setNotesLoaded((prev) => ({ ...prev, [id]: false })));
+  }, [selectedId, notesLoaded]);
+
   // Messages are fetched per thread, once, when it is first opened: the list
   // endpoint returns only an excerpt, and fetching every thread's history up
   // front would be hundreds of requests for threads nobody opens.
@@ -803,6 +1038,8 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           tags: tagOverrides[c.id] ?? c.tags ?? [],
           notes: noteOverrides[c.id] ?? c.notes ?? [],
           lead: c.id in leadOverrides ? leadOverrides[c.id] : (c.lead ?? null),
+          starred: starOverrides[c.id] ?? c.starred,
+          assigneeId: assigneeOverrides[c.id] ?? c.assigneeId,
         };
       }),
     [
@@ -814,6 +1051,8 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
       tagOverrides,
       noteOverrides,
       leadOverrides,
+      starOverrides,
+      assigneeOverrides,
     ]
   );
 
@@ -830,9 +1069,20 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     return c.type === 'dm' ? (last as ThreadMessage).from === 'customer' : (last as ThreadComment).from !== 'agent';
   }
 
+  const myId = team.find((m) => m.is_me)?.user_id ?? '';
+  // "Assigned to me" / "Team" count open work only: a done conversation is nobody's queue.
+  function matchesOwner(c: Conversation, owner: OwnerFilter): boolean {
+    if (owner === 'all') return true;
+    if (c.status === 'resolved') return false;
+    const a = c.assigneeId ?? '';
+    if (owner === 'unassigned') return !a;
+    if (owner === 'mine') return Boolean(myId) && a === myId;
+    return Boolean(a) && a !== myId;
+  }
+
   const filteredConversations = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return conversations.filter((c) => {
+    const list = conversations.filter((c) => {
       if (selectedQueue === 'unanswered') {
         if (!isUnanswered(c)) return false;
       } else if (selectedQueue !== 'all' && currentQueueOf(c) !== selectedQueue) {
@@ -840,11 +1090,25 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
       }
       if (typeFilter !== 'all' && c.type !== typeFilter) return false;
       if (tagFilter !== 'all' && !(c.tags ?? []).includes(tagFilter)) return false;
+      if (channelFilter !== 'all' && c.channel !== channelFilter) return false;
+      if (!matchesOwner(c, ownerFilter)) return false;
       if (q && !(c.name.toLowerCase().includes(q) || c.excerpt.toLowerCase().includes(q))) return false;
       return true;
     });
+    return newestFirst ? list : list.slice().reverse();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations, selectedQueue, cardQueues, typeFilter, tagFilter, searchQuery]);
+  }, [
+    conversations,
+    selectedQueue,
+    cardQueues,
+    typeFilter,
+    tagFilter,
+    searchQuery,
+    channelFilter,
+    ownerFilter,
+    newestFirst,
+    team,
+  ]);
 
   const groups = useMemo(() => buildGroups(filteredConversations, groupBy), [filteredConversations, groupBy]);
 
@@ -1005,88 +1269,52 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           display: 'flex',
           flexDirection: 'column',
           fontFamily: FONT,
-          background: '#fafafa',
+          background: MSG_BG,
           color: '#1a1a1a',
           overflow: 'hidden',
         }}
       >
-        <div
-          style={{
-            height: 56,
-            flex: '0 0 56px',
-            background: '#fff',
-            borderBottom: '1px solid rgba(0,0,0,.08)',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 16px',
-            gap: 10,
-            boxSizing: 'border-box',
-          }}
-        >
-          <button
-            type="button"
-            aria-label="Back to Customer Messages"
-            onClick={() => setSubView('inbox')}
-            style={{
-              width: 34,
-              height: 34,
-              border: 'none',
-              background: 'transparent',
-              color: '#444',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              borderRadius: 8,
-              flex: '0 0 auto',
-            }}
-          >
-            <I n="chevronLeft" s={20} />
-          </button>
-          <div
-            style={{
-              flex: 1,
-              fontSize: isMobile ? 16 : 18,
-              fontWeight: 800,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {subView === 'connections'
-              ? 'Channel Connections'
-              : subView === 'insights'
-                ? 'Insights'
-                : subView === 'voice'
-                  ? 'Brand Voice'
-                  : subView === 'usage'
-                    ? 'AI Usage'
-                    : 'Inbox Settings'}
-          </div>
-          {notificationBell}
-        </div>
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-          {subView === 'connections' ? (
-            <InboxConnectionsPage
+          <MessagingHeader
+            active={subView}
+            onSelect={(s) => setSubView(s)}
+            connections={connectionsSummaryOf(channelConnections)}
+            extra={notificationBell}
+            compact={isMobile}
+          />
+          <div style={{ height: 18 }} />
+          {subView === 'settings' ? (
+            <SettingsPage
               isMobile={isMobile}
+              section={settingsSection}
+              onSection={setSettingsSection}
               connections={channelConnections}
               onConnected={handleChannelConnected}
               onChannelsChanged={loadChannels}
             />
-          ) : subView === 'insights' ? (
-            <InboxInsightsPage isMobile={isMobile} conversations={conversations} />
-          ) : subView === 'voice' ? (
-            <InboxPersonalityPage isMobile={isMobile} />
-          ) : subView === 'usage' ? (
-            <OneboxUsagePanel isMobile={isMobile} />
-          ) : (
-            <InboxSettingsPage
+          ) : subView === 'automations' ? (
+            <AutomationsPage isMobile={isMobile} />
+          ) : subView === 'quick' ? (
+            <QuickRepliesPage isMobile={isMobile} />
+          ) : subView === 'audience' ? (
+            <AudiencePage
               isMobile={isMobile}
-              savedReplies={savedReplies}
-              onSavedRepliesChange={setSavedReplies}
-              tagPresets={tagPresets}
-              onTagPresetsChange={setTagPresets}
+              onOpenConversation={(id) => {
+                setSelectedId(id);
+                setSubView('inbox');
+                if (isMobile) setMobileScreen('thread');
+              }}
             />
+          ) : subView === 'catalog' ? (
+            <CatalogPage isMobile={isMobile} />
+          ) : subView === 'insights' ? (
+            <InsightsPage isMobile={isMobile} />
+          ) : (
+            <div style={{ padding: isMobile ? '0 14px 14px' : '0 28px 28px' }}>
+              <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #F4E9EE', overflow: 'hidden' }}>
+                <InboxPersonalityPage isMobile={isMobile} />
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -1099,91 +1327,93 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     return (
       <div
         style={{
-          fontFamily: FONT,
+          width: '100%',
+          height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 10,
-          padding: '64px 24px',
-          textAlign: 'center',
-          color: '#5B6472',
+          background: MSG_BG,
+          overflowY: 'auto',
         }}
       >
-        {loadingList ? (
-          <p style={{ margin: 0, fontSize: 15 }}>Loading your inbox…</p>
-        ) : loadError ? (
-          <>
-            <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#1F2430' }}>
-              We couldn&apos;t load your inbox
-            </p>
-            <p style={{ margin: 0, fontSize: 14, maxWidth: 420 }}>{loadError}</p>
-            <button
-              type="button"
-              onClick={() => {
-                setLoadingList(true);
-                refreshConversations();
-              }}
+        <MessagingHeader
+          active="inbox"
+          onSelect={(s) => setSubView(s)}
+          connections={connectionsSummaryOf(channelConnections)}
+          extra={notificationBell}
+          compact={isMobile}
+        />
+        <div style={{ height: 16, flex: '0 0 16px' }} />
+        <div style={{ padding: isMobile ? '0 14px 14px' : '0 28px 24px' }}>
+          <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #F4E9EE' }}>
+            <div
               style={{
-                marginTop: 6,
-                padding: '9px 18px',
-                borderRadius: 8,
-                border: 'none',
-                background: '#C2185B',
-                color: '#fff',
                 fontFamily: FONT,
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                padding: '64px 24px',
+                textAlign: 'center',
+                color: '#5B6472',
               }}
             >
-              Try again
-            </button>
-          </>
-        ) : (
-          <>
-            <EmptyState
-              emoji="💬"
-              notes={['📸 Instagram DMs', '💬 Facebook']}
-              title="Your customers will"
-              highlight="land here"
-              body="Messages and comments from your connected Instagram and Facebook accounts arrive here as they come in. Jane can draft the replies."
-              action={{ label: 'Connect an account', onClick: () => setSubView('connections') }}
-              secondary={{ label: "Set up Jane's brand voice first", onClick: () => setSubView('voice') }}
-            />
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginTop: 10 }}>
-              {(
-                [
-                  ['connections', 'Connections'],
-                  ['voice', 'Brand Voice'],
-                  ['usage', 'AI Usage'],
-                  ['settings', 'Inbox Settings'],
-                  ['insights', 'Insights'],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setSubView(id)}
-                  style={{
-                    padding: '9px 16px',
-                    borderRadius: 8,
-                    // The empty state above owns the main action; these stay quiet shortcuts.
-                    border: '1px solid rgba(0,0,0,.12)',
-                    background: '#fff',
-                    color: '#333',
-                    fontFamily: FONT,
-                    fontSize: 13.5,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
+              {loadingList ? (
+                <p style={{ margin: 0, fontSize: 15 }}>Loading your inbox…</p>
+              ) : loadError ? (
+                <>
+                  <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#1F2430' }}>
+                    We couldn&apos;t load your inbox
+                  </p>
+                  <p style={{ margin: 0, fontSize: 14, maxWidth: 420 }}>{loadError}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoadingList(true);
+                      refreshConversations();
+                    }}
+                    style={{
+                      marginTop: 6,
+                      padding: '9px 18px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: '#C2185B',
+                      color: '#fff',
+                      fontFamily: FONT,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Try again
+                  </button>
+                </>
+              ) : (
+                <>
+                  {channelConnections.some((c) => c.connected) ? (
+                    <EmptyState
+                      emoji="💬"
+                      notes={['📸 Instagram DMs', '💬 Facebook']}
+                      title="No messages"
+                      highlight="yet"
+                      body="Your accounts are connected. New messages and comments will show up here as they arrive."
+                    />
+                  ) : (
+                    <EmptyState
+                      emoji="💬"
+                      notes={['📸 Instagram DMs', '💬 Facebook']}
+                      title="Your customers will"
+                      highlight="land here"
+                      body="Messages and comments from your connected Instagram and Facebook accounts arrive here as they come in. Jane can draft the replies."
+                      action={{ label: 'Connect an account', onClick: () => setSubView('connections') }}
+                      secondary={{ label: "Set up Jane's brand voice first", onClick: () => setSubView('voice') }}
+                    />
+                  )}
+                </>
+              )}
             </div>
-          </>
-        )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -1201,6 +1431,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   }
 
   function openConversation(id: string) {
+    setListOverlayOpen(false);
     setSelectedId(id);
     setView('list');
     setThreadTab('thread');
@@ -1307,6 +1538,22 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     }
   }
 
+  async function handBackToJane() {
+    if (!selectedId) return;
+    setAgentError('');
+    try {
+      await InboxService.handBack(selectedId);
+      setAgentOverrides((prev) => {
+        const copy = { ...prev };
+        delete copy[selectedId];
+        return copy;
+      });
+      await refreshConversations();
+    } catch {
+      setAgentError("Couldn't hand this back to Jane. Try again.");
+    }
+  }
+
   async function correctIntent(intent: string) {
     if (!selectedId) return;
     setAgentError('');
@@ -1327,20 +1574,55 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     }
   }
 
-  function insertSavedReply(text: string) {
-    setComposerDrafts((prev) => ({ ...prev, [selectedId]: text }));
+  function insertSavedReply(reply: SavedReply) {
+    const first = (selectedConv?.name || '').trim().split(/\s+/)[0] || 'there';
+    setComposerDrafts((prev) => ({ ...prev, [selectedId]: reply.text.replace(/\{first_name\}/g, first) }));
     setSavedRepliesOpen(false);
+    if (reply.id) InboxService.quickReplyUsed(reply.id).catch(() => undefined);
+  }
+
+  // Typing a quick reply's shortcut ("/hi") followed by a space puts the reply in.
+  function onComposerChange(value: string) {
+    const m = /^(\/[a-z0-9_-]+) $/i.exec(value);
+    const hit =
+      QUICK_REPLIES_ENABLED &&
+      m &&
+      savedReplies.find((r) => r.shortcut && r.shortcut.toLowerCase() === m[1].toLowerCase());
+    if (hit) {
+      insertSavedReply(hit);
+      return;
+    }
+    setComposerDrafts((prev) => ({ ...prev, [selectedId]: value }));
+  }
+
+  // Every desk change shows at once and is saved to the brand; a failed save puts the
+  // screen back and says so, so what you see is always what's stored.
+  function saveDesk(id: string, change: DeskChange, undo: () => void) {
+    InboxService.updateDesk(id, change).catch(() => {
+      undo();
+      ToastService.showToast("Couldn't save that change. Try again.", ToastTypeEnum.Error);
+    });
   }
 
   function toggleResolved() {
-    if (selectedConv.status === 'resolved') {
-      setStatusOverrides((prev) => ({ ...prev, [selectedId]: 'unassigned' }));
-      setCardQueues((prev) => ({ ...prev, [selectedId]: 'unassigned' }));
-    } else {
-      setStatusOverrides((prev) => ({ ...prev, [selectedId]: 'resolved' }));
-      setCardQueues((prev) => ({ ...prev, [selectedId]: 'resolved' }));
-    }
+    const id = selectedId;
+    const wasResolved = selectedConv.status === 'resolved';
+    const before = { status: statusOverrides[id], queue: cardQueues[id] };
+    const next: StatusKey = wasResolved ? 'unassigned' : 'resolved';
+    setStatusOverrides((prev) => ({ ...prev, [id]: next }));
+    setCardQueues((prev) => ({ ...prev, [id]: next }));
     setMoreMenuOpen(false);
+    saveDesk(id, { status: wasResolved ? 'open' : 'resolved' }, () => {
+      setStatusOverrides((prev) => ({ ...prev, [id]: before.status as StatusKey }));
+      setCardQueues((prev) => ({ ...prev, [id]: before.queue as QueueKey }));
+    });
+  }
+
+  function setTags(next: string[]) {
+    const id = selectedId;
+    const before = selectedConv.tags ?? [];
+    setTagOverrides((prev) => ({ ...prev, [id]: next }));
+    saveDesk(id, { tags: next }, () => setTagOverrides((prev) => ({ ...prev, [id]: before })));
   }
 
   function addTag(tag: string) {
@@ -1348,24 +1630,50 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     if (!trimmed) return;
     const current = selectedConv.tags ?? [];
     if (current.includes(trimmed)) return;
-    setTagOverrides((prev) => ({ ...prev, [selectedId]: [...current, trimmed] }));
+    setTags([...current, trimmed]);
     setCustomTagDraft('');
   }
 
   function removeTag(tag: string) {
-    const current = selectedConv.tags ?? [];
-    setTagOverrides((prev) => ({ ...prev, [selectedId]: current.filter((t) => t !== tag) }));
+    setTags((selectedConv.tags ?? []).filter((t) => t !== tag));
   }
 
-  function addNote() {
+  function toggleStar() {
+    const id = selectedId;
+    const next = !selectedConv.starred;
+    setStarOverrides((prev) => ({ ...prev, [id]: next }));
+    saveDesk(id, { starred: next }, () => setStarOverrides((prev) => ({ ...prev, [id]: !next })));
+  }
+
+  function assignTo(userId: string) {
+    const id = selectedId;
+    const before = selectedConv.assigneeId ?? '';
+    setAssigneeOverrides((prev) => ({ ...prev, [id]: userId }));
+    saveDesk(id, { assignee_id: userId }, () => setAssigneeOverrides((prev) => ({ ...prev, [id]: before })));
+  }
+
+  async function addNote() {
     const text = noteDraft.trim();
     if (!text) return;
-    const current = selectedConv.notes ?? [];
-    setNoteOverrides((prev) => ({
-      ...prev,
-      [selectedId]: [...current, { id: `note-${Date.now()}`, text, by: 'You', time: 'Just now' }],
-    }));
+    const id = selectedId;
     setNoteDraft('');
+    try {
+      const n = await InboxService.addNote(id, text);
+      setNoteOverrides((prev) => ({ ...prev, [id]: [...(prev[id] ?? []), deskNote(n)] }));
+    } catch {
+      setNoteDraft(text);
+      ToastService.showToast("Couldn't save the note. Try again.", ToastTypeEnum.Error);
+    }
+  }
+
+  function deleteNote(noteId: string) {
+    const id = selectedId;
+    const before = noteOverrides[id] ?? [];
+    setNoteOverrides((prev) => ({ ...prev, [id]: before.filter((n) => n.id !== noteId) }));
+    InboxService.deleteNote(id, noteId).catch(() => {
+      setNoteOverrides((prev) => ({ ...prev, [id]: before }));
+      ToastService.showToast("Couldn't delete the note. Try again.", ToastTypeEnum.Error);
+    });
   }
 
   function openLeadModal() {
@@ -1379,17 +1687,42 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
 
   function submitLead() {
     if (!leadFormInterest.trim()) return;
+    const id = selectedId;
+    const before = id in leadOverrides ? leadOverrides[id] : undefined;
+    const budget = leadFormBudget.trim();
+    const value = Number(budget.replace(/[^\d.]/g, ''));
     setLeadOverrides((prev) => ({
       ...prev,
-      [selectedId]: {
+      [id]: {
         interest: leadFormInterest.trim(),
-        budget: leadFormBudget.trim(),
+        budget,
         notes: leadFormNotes.trim(),
         createdBy: 'You',
         createdAt: 'Just now',
       },
     }));
     setLeadModalOpen(false);
+    saveDesk(
+      id,
+      {
+        lead_stage: (selectedConv.leadStage as DeskChange['lead_stage']) || 'new',
+        lead_interest: leadFormInterest.trim(),
+        lead_value: budget && Number.isFinite(value) && value > 0 ? value : null,
+      },
+      () =>
+        setLeadOverrides((prev) => {
+          const next = { ...prev };
+          if (before === undefined) delete next[id];
+          else next[id] = before;
+          return next;
+        })
+    );
+    // The lead form's notes are kept as an internal note on the conversation.
+    if (leadFormNotes.trim()) {
+      InboxService.addNote(id, `Lead: ${leadFormNotes.trim()}`)
+        .then((n) => setNoteOverrides((prev) => ({ ...prev, [id]: [...(prev[id] ?? []), deskNote(n)] })))
+        .catch(() => undefined);
+    }
   }
 
   function toggleSelectId(id: string) {
@@ -1419,6 +1752,14 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
       return next;
     });
     exitSelectMode();
+    Promise.allSettled(ids.map((id) => InboxService.updateDesk(id, { status: 'resolved' }))).then((r) => {
+      const failed = r.filter((x) => x.status === 'rejected').length;
+      if (failed)
+        ToastService.showToast(
+          `${failed} conversation${failed === 1 ? '' : 's'} couldn't be marked done.`,
+          ToastTypeEnum.Error
+        );
+    });
   }
 
   function handleChannelConnected(channelId: string, accountLabel: string) {
@@ -1506,7 +1847,9 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         )}
 
       {selectedConv.type === 'comment' && (
-        <div style={{ border: '1px solid rgba(0,0,0,.08)', borderRadius: 12, overflow: 'hidden' }}>
+        // flexShrink 0: with overflow hidden, the column would otherwise squash this card to the
+        // panel height and cut the comments off instead of letting the panel scroll.
+        <div style={{ border: '1px solid rgba(0,0,0,.08)', borderRadius: 12, overflow: 'hidden', flexShrink: 0 }}>
           {selectedConv.post && (
             <div style={{ display: 'flex', gap: 12, padding: 12, background: '#fafafa' }}>
               <div
@@ -1913,102 +2256,106 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         >
           <I n="paperclip" s={16} />
         </button>
-        <div style={{ position: 'relative', flex: '0 0 auto' }}>
-          <button
-            type="button"
-            aria-label="Saved replies"
-            title="Saved replies"
-            onClick={() => setSavedRepliesOpen((o) => !o)}
-            style={{
-              width: 28,
-              height: 28,
-              border: 'none',
-              background: 'transparent',
-              color: '#888',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            <I n="zap" s={16} />
-          </button>
-          {savedRepliesOpen && (
-            <>
-              <div onClick={() => setSavedRepliesOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: '120%',
-                  left: 0,
-                  zIndex: 999,
-                  background: '#fff',
-                  borderRadius: 10,
-                  boxShadow: '0 8px 24px rgba(0,0,0,.15)',
-                  border: '1px solid rgba(0,0,0,.06)',
-                  minWidth: 240,
-                  maxWidth: '80vw',
-                  padding: 6,
-                }}
-              >
+        {QUICK_REPLIES_ENABLED && (
+          <div style={{ position: 'relative', flex: '0 0 auto' }}>
+            <button
+              type="button"
+              aria-label="Saved replies"
+              title="Saved replies"
+              onClick={() => setSavedRepliesOpen((o) => !o)}
+              style={{
+                width: 28,
+                height: 28,
+                border: 'none',
+                background: 'transparent',
+                color: '#888',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <I n="zap" s={16} />
+            </button>
+            {savedRepliesOpen && (
+              <>
+                <div onClick={() => setSavedRepliesOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
                 <div
                   style={{
-                    fontSize: 11,
-                    fontWeight: 800,
-                    letterSpacing: '.04em',
-                    textTransform: 'uppercase',
-                    color: '#999',
-                    padding: '6px 8px',
+                    position: 'absolute',
+                    bottom: '120%',
+                    left: 0,
+                    zIndex: 999,
+                    background: '#fff',
+                    borderRadius: 10,
+                    boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                    border: '1px solid rgba(0,0,0,.06)',
+                    minWidth: 240,
+                    maxWidth: '80vw',
+                    padding: 6,
                   }}
                 >
-                  Saved replies
-                </div>
-                {savedReplies.length === 0 && (
-                  <div style={{ padding: '6px 8px 8px', fontSize: 12.5, color: '#888', lineHeight: 1.5 }}>
-                    None yet. Add them under Settings.
-                  </div>
-                )}
-                {savedReplies.map((r) => (
-                  <button
-                    key={r.label}
-                    type="button"
-                    onClick={() => insertSavedReply(r.text)}
+                  <div
                     style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      padding: '8px',
-                      border: 'none',
-                      background: 'transparent',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      fontFamily: FONT,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      letterSpacing: '.04em',
+                      textTransform: 'uppercase',
+                      color: '#999',
+                      padding: '6px 8px',
                     }}
                   >
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: '#333' }}>{r.label}</div>
-                    <div
+                    Saved replies
+                  </div>
+                  {savedReplies.length === 0 && (
+                    <div style={{ padding: '6px 8px 8px', fontSize: 12.5, color: '#888', lineHeight: 1.5 }}>
+                      None yet. Add them under Quick Replies.
+                    </div>
+                  )}
+                  {savedReplies.map((r) => (
+                    <button
+                      key={r.label}
+                      type="button"
+                      onClick={() => insertSavedReply(r)}
                       style={{
-                        fontSize: 11,
-                        color: '#999',
-                        marginTop: 1,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '8px',
+                        border: 'none',
+                        background: 'transparent',
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                        fontFamily: FONT,
                       }}
                     >
-                      {r.text}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: '#333' }}>{r.label}</div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: '#999',
+                          marginTop: 1,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {r.text}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
         <textarea
           aria-label="Reply message"
-          placeholder="Write a reply..."
+          placeholder={
+            isMobile || !QUICK_REPLIES_ENABLED ? 'Write a reply…' : 'Write a reply… (type / for a quick reply)'
+          }
           rows={1}
           value={draft}
-          onChange={(e) => setComposerDrafts((prev) => ({ ...prev, [selectedId]: e.target.value }))}
+          onChange={(e) => onComposerChange(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
@@ -2483,6 +2830,25 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         >
           <strong>Not sent automatically:</strong> {agentInfo.handoffReason}. Check the draft below and send it
           yourself. Auto-replies only send when URI is sure the reply is right.
+          {/(team member|assigned)/i.test(agentInfo.handoffReason) && (
+            <button
+              type="button"
+              onClick={handBackToJane}
+              style={{
+                marginLeft: 8,
+                padding: '3px 10px',
+                borderRadius: 999,
+                border: '1px solid #C2185B',
+                background: '#fff',
+                color: '#C2185B',
+                fontWeight: 700,
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              Hand back to Jane
+            </button>
+          )}
         </div>
       )}
       {agentError && <div style={{ color: '#C62828' }}>{agentError}</div>}
@@ -2694,6 +3060,26 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           : conversations.filter((c) => currentQueueOf(c) === q.id).length,
   }));
 
+  const ownerViews: { id: OwnerFilter; label: string; count: number }[] = [
+    { id: 'all', label: 'All conversations', count: conversations.length },
+    { id: 'unassigned', label: 'Unassigned', count: conversations.filter((c) => matchesOwner(c, 'unassigned')).length },
+    { id: 'mine', label: 'Assigned to me', count: conversations.filter((c) => matchesOwner(c, 'mine')).length },
+    { id: 'team', label: 'Team', count: conversations.filter((c) => matchesOwner(c, 'team')).length },
+  ];
+  // The design's smart views, then the queues the inbox already had, so none is lost.
+  const SMART_ORDER: QueueFilter[] = ['unassigned', 'unanswered', 'sales', 'support', 'ad', 'complaints', 'resolved'];
+  const SMART_LABEL: Partial<Record<QueueFilter, string>> = {
+    unassigned: 'Open',
+    unanswered: 'Needs reply',
+    ad: 'Ad leads',
+    complaints: 'Complaints',
+    resolved: 'Done',
+  };
+  const smartViews = SMART_ORDER.map((id) => {
+    const pill = queuePills.find((q) => q.id === id)!;
+    return { ...pill, label: SMART_LABEL[id] ?? pill.label };
+  });
+
   const allTagsInUse = Array.from(new Set(conversations.flatMap((c) => c.tags ?? []))).sort();
   const hasExtraFilters = typeFilter !== 'all' || tagFilter !== 'all';
 
@@ -2731,25 +3117,598 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     </div>
   );
 
-  // Drives the top bar pill — never claims "all connected" while a real
-  // channel is disconnected or its token is expiring, and never counts an
-  // unapproved platform (TikTok) against the total.
-  const approvedConnections = channelConnections.filter((c) => c.approved);
-  const connectionIssues = approvedConnections.filter(
-    (c) => !c.connected || c.tokenHealth === 'expiring' || Boolean(c.warning)
+  const connectionsSummary = connectionsSummaryOf(channelConnections);
+
+  // ── The new desk: chat header and conversation details (desktop) ──
+  function setDeskStatus(next: 'open' | 'pending' | 'resolved') {
+    const id = selectedId;
+    const key: StatusKey = next === 'open' ? 'unassigned' : next;
+    const before = { status: statusOverrides[id], queue: cardQueues[id] };
+    setStatusOverrides((prev) => ({ ...prev, [id]: key }));
+    if (next === 'resolved' || selectedConv.status === 'resolved')
+      setCardQueues((prev) => ({ ...prev, [id]: next === 'resolved' ? 'resolved' : 'unassigned' }));
+    saveDesk(id, { status: next }, () => {
+      setStatusOverrides((prev) => ({ ...prev, [id]: before.status as StatusKey }));
+      setCardQueues((prev) => ({ ...prev, [id]: before.queue as QueueKey }));
+    });
+  }
+
+  const assignee = team.find((m) => m.user_id === selectedConv.assigneeId);
+  const assigneeLabel = (m?: TeamMember) => (m ? (m.is_me ? `${m.name} (you)` : m.name) : 'Unassigned');
+  const deskStatus: 'open' | 'pending' | 'resolved' =
+    selectedConv.status === 'resolved' ? 'resolved' : selectedConv.status === 'pending' ? 'pending' : 'open';
+  const STATUS_LOOK = {
+    open: { label: 'Open', fg: '#2563EB', bg: '#EAF2FF' },
+    pending: { label: 'Pending', fg: '#B26A00', bg: '#FFF4E5' },
+    resolved: { label: 'Done', fg: '#15803D', bg: '#E7F7EE' },
+  } as const;
+
+  const assignMenu = assignOpen && (
+    <>
+      <div onClick={() => setAssignOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+      <div
+        style={{
+          position: 'absolute',
+          top: '110%',
+          right: 0,
+          zIndex: 999,
+          background: '#fff',
+          borderRadius: 10,
+          boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+          border: '1px solid rgba(0,0,0,.06)',
+          minWidth: 200,
+          padding: 6,
+        }}
+      >
+        {[undefined, ...team].map((m) => (
+          <button
+            key={m?.user_id ?? 'none'}
+            type="button"
+            onClick={() => {
+              assignTo(m?.user_id ?? '');
+              setAssignOpen(false);
+            }}
+            style={{
+              width: '100%',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '8px 10px',
+              border: 'none',
+              background: (selectedConv.assigneeId ?? '') === (m?.user_id ?? '') ? '#FDEEF4' : 'transparent',
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#2A2230',
+              cursor: 'pointer',
+              fontFamily: FONT,
+              textAlign: 'left',
+            }}
+          >
+            {assigneeLabel(m)}
+            {(selectedConv.assigneeId ?? '') === (m?.user_id ?? '') && <Check size={14} color="#D0145C" />}
+          </button>
+        ))}
+        {team.length <= 1 && (
+          <div style={{ fontSize: 11.5, color: '#8A8290', padding: '6px 10px 4px', lineHeight: 1.45 }}>
+            Invite teammates to this brand to assign conversations to them.
+          </div>
+        )}
+      </div>
+    </>
   );
-  const reconnect = approvedConnections.filter((c) => c.warning).map((c) => c.label);
-  const connectionsSummary =
-    connectionIssues.length === 0
-      ? { label: 'All channels connected', fg: '#2E7D32', bg: 'rgba(46,125,50,.08)', dot: '#2E7D32' }
-      : {
-          label: reconnect.length
-            ? `Reconnect needed — ${reconnect.join(', ')}`
-            : `${approvedConnections.length - connectionIssues.length}/${approvedConnections.length} connected — action needed`,
-          fg: '#B26A00',
-          bg: 'rgba(237,108,2,.08)',
-          dot: '#B26A00',
-        };
+
+  const showFilters = deskWidth >= 1000 && !chatExpanded;
+  const showDetails = deskWidth >= 1150;
+  // Up to the 1440 laptop width the panel stays 214px; past it the panel takes a share of
+  // the extra room so the chat doesn't stretch into very long lines.
+  const detailsWidth = Math.round(Math.min(340, Math.max(214, 214 + (deskWidth - 1230) * 0.3)));
+  // Header buttons: a little tighter than the list's, so all six fit beside the name.
+  const hdrButton: CSSProperties = { ...deskButton, padding: '0 9px', gap: 5 };
+  const deskHeader = (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '10px 14px',
+        borderBottom: '1px solid #F1EBEE',
+        flex: '0 0 auto',
+      }}
+    >
+      <PlatformBadge
+        platform={selectedConv.channel}
+        size={28}
+        initials={selectedConv.initials}
+        color={selectedConv.avatarColor}
+      />
+      <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 700,
+            letterSpacing: -0.2,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {selectedConv.name}
+        </div>
+        <div
+          style={{
+            fontSize: 11,
+            color: '#6D6572',
+            marginTop: 2,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {PLATFORM_LABEL[selectedConv.channel]}
+          {selectedConv.type === 'comment' ? ' comment' : ''} · Last active {selectedConv.time}
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginLeft: 'auto', flexShrink: 0 }}>
+        {chatExpanded && (
+          <button
+            type="button"
+            onClick={() => setListOverlayOpen((o) => !o)}
+            style={{
+              ...hdrButton,
+              borderColor: listOverlayOpen ? '#E0156B' : '#ECE6EA',
+              color: listOverlayOpen ? '#E0156B' : '#2A2230',
+            }}
+          >
+            <List size={15} />
+            Chats
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={toggleChatExpanded}
+          aria-label={chatExpanded ? 'Exit full size' : 'Expand chat'}
+          title={chatExpanded ? 'Exit full size (Esc)' : 'Expand chat'}
+          style={{
+            ...hdrButton,
+            width: 32,
+            padding: 0,
+            borderColor: chatExpanded ? '#E0156B' : '#ECE6EA',
+            color: chatExpanded ? '#E0156B' : '#2A2230',
+          }}
+        >
+          {chatExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+        </button>
+        <button
+          type="button"
+          aria-label={selectedConv.starred ? 'Unstar' : 'Star'}
+          onClick={toggleStar}
+          style={{ ...hdrButton, width: 32, padding: 0 }}
+        >
+          <Star
+            size={16}
+            fill={selectedConv.starred ? '#F5B301' : 'none'}
+            color={selectedConv.starred ? '#F5B301' : '#2A2230'}
+          />
+        </button>
+        <div style={{ position: 'relative' }}>
+          <button type="button" onClick={() => setAssignOpen((o) => !o)} style={hdrButton}>
+            <User size={15} />
+            {assignee ? (assignee.is_me ? 'You' : assignee.name.split(' ')[0]) : 'Assign'}
+            <ChevronDown size={14} />
+          </button>
+          {assignMenu}
+        </div>
+        {!showDetails && (
+          <button
+            type="button"
+            onClick={() => setDetailsOverlayOpen((o) => !o)}
+            style={{
+              ...hdrButton,
+              borderColor: detailsOverlayOpen ? '#E0156B' : '#ECE6EA',
+              background: detailsOverlayOpen ? '#FDF1F6' : '#fff',
+              color: detailsOverlayOpen ? '#E0156B' : '#2A2230',
+            }}
+          >
+            <PanelRight size={15} />
+            {detailsOverlayOpen ? 'Hide details' : 'Details'}
+          </button>
+        )}
+        <button type="button" onClick={toggleResolved} style={hdrButton}>
+          <Check size={15} />
+          {selectedConv.status === 'resolved' ? 'Reopen' : showDetails ? 'Mark as done' : 'Done'}
+        </button>
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            aria-label="More"
+            onClick={() => setMoreMenuOpen((o) => !o)}
+            style={{ ...hdrButton, border: 'none', width: 30, padding: 0 }}
+          >
+            <MoreHorizontal size={18} />
+          </button>
+          {moreMenuOpen && (
+            <>
+              <div onClick={() => setMoreMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '110%',
+                  right: 0,
+                  zIndex: 999,
+                  background: '#fff',
+                  borderRadius: 10,
+                  boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                  border: '1px solid rgba(0,0,0,.06)',
+                  minWidth: 190,
+                  padding: 6,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={openLeadModal}
+                  style={{ ...hdrButton, border: 'none', width: '100%', justifyContent: 'flex-start' }}
+                >
+                  <I n="target" s={14} c={selectedConv.lead ? '#2E7D32' : '#999'} />
+                  {selectedConv.lead ? 'Edit lead' : 'Create lead'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeskStatus(deskStatus === 'pending' ? 'open' : 'pending');
+                    setMoreMenuOpen(false);
+                  }}
+                  style={{ ...hdrButton, border: 'none', width: '100%', justifyContent: 'flex-start' }}
+                >
+                  <I n="clock" s={14} c="#999" />
+                  {deskStatus === 'pending' ? 'Mark as open' : 'Mark as pending'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Phones: back, who it is, star, mark as done, and the details sheet.
+  const iconButton: CSSProperties = { ...deskButton, width: 36, height: 36, padding: 0, flex: '0 0 auto' };
+  const mobileDeskHeader = (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '10px 12px',
+        background: '#fff',
+        borderBottom: '1px solid #F1EBEE',
+        flex: '0 0 auto',
+      }}
+    >
+      <button
+        type="button"
+        aria-label="Back to conversations"
+        onClick={() => setMobileScreen('list')}
+        style={{ ...iconButton, border: 'none' }}
+      >
+        <I n="chevronLeft" s={20} />
+      </button>
+      <PlatformBadge
+        platform={selectedConv.channel}
+        size={38}
+        initials={selectedConv.initials}
+        color={selectedConv.avatarColor}
+      />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div
+          style={{
+            fontSize: 15.5,
+            fontWeight: 700,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {selectedConv.name}
+        </div>
+        <div
+          style={{
+            fontSize: 11.5,
+            color: '#6D6572',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {PLATFORM_LABEL[selectedConv.channel]} · {selectedConv.time}
+        </div>
+      </div>
+      <button
+        type="button"
+        aria-label={selectedConv.starred ? 'Unstar' : 'Star'}
+        onClick={toggleStar}
+        style={iconButton}
+      >
+        <Star
+          size={16}
+          fill={selectedConv.starred ? '#F5B301' : 'none'}
+          color={selectedConv.starred ? '#F5B301' : '#2A2230'}
+        />
+      </button>
+      <button
+        type="button"
+        aria-label={selectedConv.status === 'resolved' ? 'Reopen' : 'Mark as done'}
+        onClick={toggleResolved}
+        style={{ ...iconButton, background: selectedConv.status === 'resolved' ? '#E7F7EE' : '#fff' }}
+      >
+        <Check size={16} color={selectedConv.status === 'resolved' ? '#15803D' : '#2A2230'} />
+      </button>
+      <button
+        type="button"
+        aria-label="Conversation details"
+        onClick={() => setDetailsSheetOpen(true)}
+        style={{ ...iconButton, width: 'auto', padding: '0 10px' }}
+      >
+        <User size={15} />
+        Details
+      </button>
+    </div>
+  );
+
+  const detailsLabel: CSSProperties = { fontSize: 12.5, fontWeight: 600, color: '#2A2230' };
+  const presetsLeft = tagPresets.filter((t) => !(selectedConv.tags ?? []).includes(t));
+  // The details (status, assignee, tags, lead, notes): a side panel on desktop, a bottom
+  // sheet on phones.
+  const detailsContent = (
+    <>
+      <div style={{ fontSize: 14, fontWeight: 700 }}>Conversation details</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, fontSize: 12.5, color: '#3A3240' }}>
+        <PlatformBadge platform={selectedConv.channel} size={24} plain />
+        {PLATFORM_LABEL[selectedConv.channel]}
+        {selectedConv.type === 'comment' ? ' comment' : ''}
+      </div>
+      <div style={{ height: 1, background: '#F1EBEE', margin: '14px 0' }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={detailsLabel}>Status</span>
+        <select
+          aria-label="Status"
+          value={deskStatus}
+          onChange={(e) => setDeskStatus(e.target.value as 'open' | 'pending' | 'resolved')}
+          style={{
+            border: 'none',
+            borderRadius: 14,
+            padding: '5px 10px',
+            fontSize: 12.5,
+            fontWeight: 600,
+            fontFamily: FONT,
+            background: STATUS_LOOK[deskStatus].bg,
+            color: STATUS_LOOK[deskStatus].fg,
+            cursor: 'pointer',
+          }}
+        >
+          <option value="open">Open</option>
+          <option value="pending">Pending</option>
+          <option value="resolved">Done</option>
+        </select>
+      </div>
+      <div style={{ ...detailsLabel, marginTop: 16 }}>Assignee</div>
+      <select
+        aria-label="Assignee"
+        value={selectedConv.assigneeId ?? ''}
+        onChange={(e) => assignTo(e.target.value)}
+        style={{ ...deskSelect, width: '100%', marginTop: 6, flex: 'none' }}
+      >
+        <option value="">Unassigned</option>
+        {team.map((m) => (
+          <option key={m.user_id} value={m.user_id}>
+            {assigneeLabel(m)}
+          </option>
+        ))}
+      </select>
+      <div style={{ height: 1, background: '#F1EBEE', margin: '14px 0' }} />
+      <div style={detailsLabel}>Tags</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+        {(selectedConv.tags ?? []).map((t) => {
+          const l = tagLook(t);
+          return (
+            <span
+              key={t}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                fontSize: 12,
+                fontWeight: 500,
+                padding: '3px 9px',
+                borderRadius: 7,
+                background: l.bg,
+                color: l.fg,
+              }}
+            >
+              {t}
+              <button
+                type="button"
+                aria-label={`Remove ${t}`}
+                onClick={() => removeTag(t)}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  color: l.fg,
+                  display: 'flex',
+                }}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          );
+        })}
+      </div>
+      {tagAdding ? (
+        <div style={{ marginTop: 8 }}>
+          <input
+            autoFocus
+            value={customTagDraft}
+            onChange={(e) => setCustomTagDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') addTag(customTagDraft);
+              if (e.key === 'Escape') setTagAdding(false);
+            }}
+            placeholder="New tag…"
+            style={{
+              width: '100%',
+              height: 30,
+              border: '1px solid #ECE6EA',
+              borderRadius: 8,
+              padding: '0 9px',
+              fontSize: 12.5,
+              fontFamily: FONT,
+              boxSizing: 'border-box',
+            }}
+          />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
+            {presetsLeft.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => addTag(t)}
+                style={{
+                  border: '1px solid #ECE6EA',
+                  background: '#fff',
+                  borderRadius: 7,
+                  fontSize: 11.5,
+                  padding: '2px 8px',
+                  cursor: 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                + {t}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setTagAdding(true)} style={{ ...deskButton, height: 28, marginTop: 8 }}>
+          + Add tag
+        </button>
+      )}
+      <div style={{ height: 1, background: '#F1EBEE', margin: '14px 0' }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={detailsLabel}>Lead</span>
+        <button
+          type="button"
+          onClick={openLeadModal}
+          style={{
+            border: 'none',
+            background: 'none',
+            color: '#D0145C',
+            fontWeight: 600,
+            fontSize: 12,
+            cursor: 'pointer',
+            fontFamily: FONT,
+          }}
+        >
+          {selectedConv.lead ? 'Edit' : '+ Create'}
+        </button>
+      </div>
+      {selectedConv.lead && (
+        <div style={{ fontSize: 12, color: '#3A3240', marginTop: 6, lineHeight: 1.45 }}>
+          {selectedConv.lead.interest}
+          {selectedConv.lead.budget ? ` · ₦${Number(selectedConv.lead.budget).toLocaleString()}` : ''}
+        </div>
+      )}
+      <div style={{ height: 1, background: '#F1EBEE', margin: '14px 0' }} />
+      <div style={detailsLabel}>Notes</div>
+      <textarea
+        value={noteDraft}
+        onChange={(e) => setNoteDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            addNote();
+          }
+        }}
+        placeholder="Add a note…"
+        rows={3}
+        style={{
+          width: '100%',
+          marginTop: 8,
+          border: '1px solid #ECE6EA',
+          borderRadius: 8,
+          background: '#FAF8F9',
+          padding: '8px 10px',
+          fontSize: 12,
+          fontFamily: FONT,
+          resize: 'vertical',
+          boxSizing: 'border-box',
+        }}
+      />
+      <div style={{ fontSize: 10.5, color: '#8A8290', marginTop: 3 }}>Only your team sees notes. Enter to save.</div>
+      {(selectedConv.notes ?? [])
+        .slice()
+        .reverse()
+        .map((n) => (
+          <div
+            key={n.id}
+            style={{
+              marginTop: 8,
+              fontSize: 12,
+              background: '#fff',
+              border: '1px solid #EFE8EC',
+              borderRadius: 8,
+              padding: '7px 9px',
+              lineHeight: 1.45,
+            }}
+          >
+            {n.text}
+            <div
+              style={{
+                fontSize: 10.5,
+                color: '#8A8290',
+                marginTop: 2,
+                display: 'flex',
+                justifyContent: 'space-between',
+              }}
+            >
+              <span>
+                {n.by} · {n.time}
+              </span>
+              <button
+                type="button"
+                aria-label="Delete note"
+                onClick={() => deleteNote(n.id)}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  color: '#8A8290',
+                  display: 'flex',
+                }}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          </div>
+        ))}
+    </>
+  );
+  const detailsPanel = (
+    <div
+      style={{
+        width: detailsWidth,
+        flex: `0 0 ${detailsWidth}px`,
+        borderLeft: '1px solid #F1EBEE',
+        padding: '16px 16px',
+        overflowY: 'auto',
+        boxSizing: 'border-box',
+        fontFamily: FONT,
+      }}
+    >
+      {detailsContent}
+    </div>
+  );
 
   const leadModal = leadModalOpen && (
     <>
@@ -2922,7 +3881,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           display: 'flex',
           flexDirection: 'column',
           fontFamily: FONT,
-          background: '#fafafa',
+          background: MSG_BG,
           color: '#1a1a1a',
           overflow: 'hidden',
           position: 'relative',
@@ -2930,21 +3889,62 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
       >
         {mobileScreen === 'list' ? (
           <>
-            <div
-              style={{
-                flex: '0 0 56px',
-                height: 56,
-                background: '#fff',
-                borderBottom: '1px solid rgba(0,0,0,.08)',
-                display: 'flex',
-                alignItems: 'center',
-                padding: '0 12px',
-                gap: 8,
-                boxSizing: 'border-box',
-              }}
-            >
-              <div style={{ flex: 1, fontSize: 17, fontWeight: 800 }}>Customer Messages</div>
-              {notificationBell}
+            <MessagingHeader
+              active="inbox"
+              onSelect={(sec) => setSubView(sec)}
+              connections={connectionsSummary}
+              extra={notificationBell}
+              compact
+            />
+            {/* Quick filters: the design's views, scrolling sideways; everything else is in
+                the filter drawer below. */}
+            <div style={{ flex: '0 0 auto', display: 'flex', flexWrap: 'wrap', gap: 6, padding: '10px 12px 0' }}>
+              {[
+                ...ownerViews.map((v) => ({
+                  key: `o-${v.id}`,
+                  label: v.id === 'mine' ? 'Mine' : v.id === 'all' ? 'All' : v.label,
+                  count: v.count,
+                  active: selectedQueue === 'all' && ownerFilter === v.id,
+                  pick: () => {
+                    setOwnerFilter(v.id);
+                    setSelectedQueue('all');
+                  },
+                })),
+                ...smartViews
+                  .filter((q) => q.id !== 'complaints' && q.id !== 'resolved')
+                  .map((q) => ({
+                    key: `q-${q.id}`,
+                    label: q.label,
+                    count: q.count,
+                    active: q.active,
+                    pick: () => {
+                      setSelectedQueue(q.id);
+                      setOwnerFilter('all');
+                    },
+                  })),
+              ].map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={c.pick}
+                  style={{
+                    flex: '0 0 auto',
+                    height: 28,
+                    padding: '0 10px',
+                    borderRadius: 999,
+                    border: c.active ? 'none' : '1px solid #ECE6EA',
+                    background: c.active ? '#E0156B' : '#fff',
+                    color: c.active ? '#fff' : '#2A2230',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    fontFamily: FONT,
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {c.label} {c.count}
+                </button>
+              ))}
             </div>
 
             {/* View toggle + filter summary — no horizontal scroll: queues/grouping live in the
@@ -3073,8 +4073,8 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                       </>
                     )}
                     {grp.items.map((item) => {
-                      const ch = CHANNEL_META[item.channel];
-                      const st = STATUS_META[item.status];
+                      const selected = selectedIds.has(item.id);
+                      const pill = QUEUE_PILL[currentQueueOf(item)];
                       return (
                         <button
                           key={item.id}
@@ -3084,102 +4084,70 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                             width: '100%',
                             textAlign: 'left',
                             display: 'flex',
-                            alignItems: 'center',
                             gap: 12,
-                            padding: 14,
-                            minHeight: 76,
-                            boxSizing: 'border-box',
-                            border: 'none',
+                            padding: '12px',
+                            marginBottom: 8,
+                            border: '1px solid #F3EAEE',
                             background: '#fff',
-                            borderRadius: 14,
-                            boxShadow: '0 1px 2px rgba(0,0,0,.04)',
+                            borderRadius: 12,
                             cursor: 'pointer',
                             fontFamily: FONT,
-                            marginBottom: 8,
+                            position: 'relative',
                           }}
                         >
                           {selectMode && (
-                            <div
+                            <span
                               style={{
-                                width: 20,
-                                height: 20,
-                                borderRadius: 6,
-                                border: selectedIds.has(item.id) ? 'none' : '1.5px solid rgba(0,0,0,.2)',
-                                background: selectedIds.has(item.id) ? '#AD1457' : 'transparent',
+                                width: 18,
+                                height: 18,
+                                borderRadius: 5,
+                                border: selected ? 'none' : '1.5px solid rgba(0,0,0,.2)',
+                                background: selected ? '#AD1457' : 'transparent',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
+                                alignSelf: 'center',
                                 flex: '0 0 auto',
                               }}
                             >
-                              {selectedIds.has(item.id) && <I n="check" s={13} c="#fff" />}
-                            </div>
+                              {selected && <I n="check" s={12} c="#fff" />}
+                            </span>
                           )}
-                          <div style={{ position: 'relative', flex: '0 0 auto' }}>
-                            <div
-                              style={{
-                                width: 44,
-                                height: 44,
-                                borderRadius: '50%',
-                                background: item.avatarColor,
-                                color: '#fff',
-                                fontSize: 14,
-                                fontWeight: 700,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}
-                            >
-                              {item.initials}
-                            </div>
-                            <div
-                              style={{
-                                position: 'absolute',
-                                bottom: -2,
-                                right: -2,
-                                width: 18,
-                                height: 18,
-                                borderRadius: '50%',
-                                background: ch.color,
-                                border: '2px solid #fff',
-                                color: '#fff',
-                                fontSize: 9,
-                                fontWeight: 800,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}
-                            >
-                              {ch.letter}
-                            </div>
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div
-                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}
-                            >
+                          <PlatformBadge
+                            platform={item.channel}
+                            size={42}
+                            initials={item.initials}
+                            color={item.avatarColor}
+                          />
+                          <span style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
                               <span
                                 style={{
-                                  fontSize: 14,
+                                  fontSize: 13.5,
                                   fontWeight: 700,
-                                  color: '#1a1a1a',
+                                  color: '#1B1520',
                                   whiteSpace: 'nowrap',
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
                                 }}
                               >
+                                {item.starred && (
+                                  <Star
+                                    size={11}
+                                    fill="#F5B301"
+                                    color="#F5B301"
+                                    style={{ marginRight: 4, verticalAlign: -1 }}
+                                  />
+                                )}
                                 {item.name}
                               </span>
-                              <span style={{ display: 'flex', alignItems: 'center', gap: 5, flex: '0 0 auto' }}>
-                                {!openedIds.has(item.id) && (
-                                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#E91E63' }} />
-                                )}
-                                <span style={{ fontSize: 11, color: '#999' }}>{item.time}</span>
-                              </span>
-                            </div>
-                            <div
+                              <span style={{ fontSize: 11, color: '#8A8290', flex: '0 0 auto' }}>{item.time}</span>
+                            </span>
+                            <span
                               style={{
-                                fontSize: 12.5,
-                                color: openedIds.has(item.id) ? '#999' : '#444',
+                                display: 'block',
+                                fontSize: 12,
+                                color: openedIds.has(item.id) ? '#8A8290' : '#4B4350',
                                 fontWeight: openedIds.has(item.id) ? 400 : 600,
                                 whiteSpace: 'nowrap',
                                 overflow: 'hidden',
@@ -3188,22 +4156,35 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                               }}
                             >
                               {item.excerpt}
-                            </div>
-                            <div style={{ marginTop: 7 }}>
-                              <span
-                                style={{
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  padding: '3px 8px',
-                                  borderRadius: 10,
-                                  background: st.bg,
-                                  color: st.fg,
-                                }}
-                              >
-                                {st.label}
-                              </span>
-                            </div>
-                          </div>
+                            </span>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                fontSize: 11,
+                                fontWeight: 600,
+                                padding: '2px 9px',
+                                borderRadius: 5,
+                                marginTop: 6,
+                                background: pill.bg,
+                                color: pill.fg,
+                              }}
+                            >
+                              {pill.label}
+                            </span>
+                          </span>
+                          {!openedIds.has(item.id) && (
+                            <span
+                              style={{
+                                position: 'absolute',
+                                right: 12,
+                                bottom: 16,
+                                width: 7,
+                                height: 7,
+                                borderRadius: '50%',
+                                background: '#E0155F',
+                              }}
+                            />
+                          )}
                         </button>
                       );
                     })}
@@ -3384,13 +4365,41 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           </>
         ) : (
           <>
-            {threadHeader(true)}
-            {tagsRow}
-            {threadTabs}
-            {threadTab === 'thread' && sourceStrip}
-            {threadTab === 'thread' && agentStrip}
-            {threadBody}
-            {threadTab === 'thread' ? threadComposer : noteComposer}
+            {mobileDeskHeader}
+            {sourceStrip}
+            {agentStrip}
+            {messagesView}
+            {threadComposer}
+            {detailsSheetOpen && (
+              <>
+                <div
+                  onClick={() => setDetailsSheetOpen(false)}
+                  style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1000 }}
+                />
+                <div
+                  role="dialog"
+                  aria-label="Conversation details"
+                  style={{
+                    position: 'fixed',
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    maxHeight: '82vh',
+                    overflowY: 'auto',
+                    background: '#fff',
+                    borderRadius: '18px 18px 0 0',
+                    padding: '10px 18px 28px',
+                    zIndex: 1001,
+                    fontFamily: FONT,
+                  }}
+                >
+                  <div
+                    style={{ width: 40, height: 4, borderRadius: 2, background: '#E3DDE1', margin: '0 auto 12px' }}
+                  />
+                  {detailsContent}
+                </div>
+              </>
+            )}
           </>
         )}
 
@@ -3930,416 +4939,242 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         flexDirection: 'column',
         minWidth: 0,
         fontFamily: FONT,
-        background: '#fafafa',
+        background: MSG_BG,
         color: '#1a1a1a',
-        overflow: 'hidden',
+        overflowX: 'hidden',
+        overflowY: 'auto',
       }}
     >
-      {/* top bar */}
-      <div
-        style={{
-          height: 60,
-          flex: '0 0 60px',
-          background: '#fff',
-          borderBottom: '1px solid rgba(0,0,0,.08)',
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0 24px',
-          gap: 16,
-          boxSizing: 'border-box',
-        }}
-      >
-        <div
-          style={{ fontSize: 13, color: '#888', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
-        >
-          <span>Workspace</span>
-          <span>›</span>
-          <span style={{ color: '#1a1a1a', fontWeight: 700 }}>Customer Messages</span>
-        </div>
-
+      <MessagingHeader
+        active="inbox"
+        onSelect={(s) => setSubView(s)}
+        connections={connectionsSummary}
+        extra={notificationBell}
+      />
+      <div style={{ height: 14, flex: '0 0 14px' }} />
+      {view === 'board' && (
         <div
           style={{
-            flex: 1,
+            height: 48,
+            flex: '0 0 48px',
+            margin: '0 28px 12px',
+            background: '#fff',
+            border: '1px solid #F4E9EE',
+            borderRadius: 12,
             display: 'flex',
             alignItems: 'center',
-            background: '#f4f4f5',
-            borderRadius: 8,
-            padding: '8px 12px',
-            gap: 8,
-            maxWidth: 420,
+            padding: '0 16px',
+            gap: 20,
+            boxSizing: 'border-box',
           }}
         >
-          <I n="search" s={16} c="#999" />
-          <input
-            aria-label="Search conversations, customers, or keywords"
-            placeholder="Search conversations, customers, or keywords"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              border: 'none',
-              background: 'transparent',
-              outline: 'none',
-              fontSize: 13,
-              flex: 1,
-              fontFamily: FONT,
-              color: '#333',
-            }}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              aria-label="Clear search"
-              onClick={() => setSearchQuery('')}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: '#999',
-                cursor: 'pointer',
-                display: 'flex',
-                padding: 0,
-              }}
-            >
-              <I n="x" s={13} />
-            </button>
-          )}
-        </div>
-
-        <div style={{ flex: 1 }} />
-
-        <button
-          type="button"
-          onClick={() => setSubView('connections')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            fontSize: 12,
-            fontWeight: 600,
-            color: connectionsSummary.fg,
-            background: connectionsSummary.bg,
-            padding: '6px 10px',
-            borderRadius: 20,
-            whiteSpace: 'nowrap',
-            border: 'none',
-            cursor: 'pointer',
-            fontFamily: FONT,
-          }}
-        >
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: connectionsSummary.dot }} />
-          {connectionsSummary.label}
-        </button>
-
-        {notificationBell}
-      </div>
-
-      {/* toolbar: view switch + group by */}
-      <div
-        style={{
-          height: 48,
-          flex: '0 0 48px',
-          background: '#fff',
-          borderBottom: '1px solid rgba(0,0,0,.08)',
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0 24px',
-          gap: 20,
-          boxSizing: 'border-box',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            background: '#f4f4f5',
-            borderRadius: 9,
-            padding: 3,
-            gap: 2,
-          }}
-        >
-          {(['list', 'board'] as const).map((v) => (
-            <button key={v} type="button" onClick={() => setView(v)} style={pillStyle(view === v)}>
-              {v === 'list' ? 'List' : 'Board'}
-            </button>
-          ))}
-        </div>
-
-        {view === 'list' ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: '#999',
-                textTransform: 'uppercase',
-                letterSpacing: '.04em',
-              }}
-            >
-              Group by
-            </span>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                background: '#f4f4f5',
-                borderRadius: 9,
-                padding: 3,
-                gap: 2,
-              }}
-            >
-              {(
-                [
-                  ['time', 'Time'],
-                  ['platform', 'Platform'],
-                  ['customer', 'Customer'],
-                ] as const
-              ).map(([id, label]) => (
-                <button key={id} type="button" onClick={() => setGroupBy(id)} style={pillStyle(groupBy === id)}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div style={{ fontSize: 12, color: '#999' }}>Drag a card between columns to re-triage it</div>
-        )}
-      </div>
-
-      {view === 'list' ? (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0 }}>
-          {/* queue nav */}
           <div
             style={{
-              width: 220,
-              flex: '0 0 220px',
-              background: '#fff',
-              borderRight: '1px solid rgba(0,0,0,.08)',
-              padding: '20px 12px',
-              boxSizing: 'border-box',
-              overflowY: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              background: '#f4f4f5',
+              borderRadius: 9,
+              padding: 3,
+              gap: 2,
             }}
           >
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 800,
-                letterSpacing: '.06em',
-                textTransform: 'uppercase',
-                color: '#999',
-                padding: '0 8px 10px',
-              }}
-            >
-              Queues
-            </div>
-            {queuePills.map((q) => (
-              <button
-                key={q.id}
-                type="button"
-                onClick={() => setSelectedQueue(q.id)}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '9px 10px',
-                  marginBottom: 2,
-                  border: 'none',
-                  borderLeft: q.active ? '3px solid #E91E63' : '3px solid transparent',
-                  background: q.active ? 'rgba(194,24,91,.1)' : 'transparent',
-                  color: q.active ? '#AD1457' : '#444',
-                  fontWeight: q.active ? 700 : 500,
-                  fontSize: 13,
-                  borderRadius: '0 8px 8px 0',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  fontFamily: FONT,
-                }}
-              >
-                <span>{q.label}</span>
-                <span style={{ fontSize: 11, color: '#999', fontWeight: 700 }}>{q.count}</span>
+            {(['list', 'board'] as const).map((v) => (
+              <button key={v} type="button" onClick={() => setView(v)} style={pillStyle(view === v)}>
+                {v === 'list' ? 'List' : 'Board'}
               </button>
             ))}
-
-            <div style={{ height: 1, background: 'rgba(0,0,0,.08)', margin: '16px 8px' }} />
-
-            <button
-              type="button"
-              onClick={() => setSubView('connections')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 10px',
-                border: 'none',
-                background: 'transparent',
-                color: '#444',
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 8,
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontFamily: FONT,
-              }}
-            >
-              <I n="share" s={16} c="#888" />
-              Connections
-            </button>
-            <button
-              type="button"
-              onClick={() => setSubView('insights')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 10px',
-                border: 'none',
-                background: 'transparent',
-                color: '#444',
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 8,
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontFamily: FONT,
-              }}
-            >
-              <I n="chart" s={16} c="#888" />
-              Insights
-            </button>
-            <button
-              type="button"
-              onClick={() => setSubView('voice')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 10px',
-                border: 'none',
-                background: 'transparent',
-                color: '#444',
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 8,
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontFamily: FONT,
-              }}
-            >
-              <I n="sparkle" s={16} c="#888" />
-              Brand Voice
-            </button>
-            <button
-              type="button"
-              onClick={() => setSubView('usage')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 10px',
-                border: 'none',
-                background: 'transparent',
-                color: '#444',
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 8,
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontFamily: FONT,
-              }}
-            >
-              <I n="chart" s={16} c="#888" />
-              AI Usage
-            </button>
-            <button
-              type="button"
-              onClick={() => setSubView('settings')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 10px',
-                border: 'none',
-                background: 'transparent',
-                color: '#444',
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 8,
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontFamily: FONT,
-              }}
-            >
-              <I n="settings" s={16} c="#888" />
-              Inbox Settings
-            </button>
           </div>
+          <div style={{ fontSize: 12, color: '#999' }}>Drag a card between columns to re-triage it</div>
+        </div>
+      )}
 
-          {/* conversation list */}
+      {view === 'list' ? (
+        <div
+          ref={deskRef}
+          style={{ flex: '1 0 auto', height: 0, minHeight: 440, display: 'flex', padding: '0 24px 16px' }}
+        >
           <div
             style={{
-              width: 380,
-              flex: '0 0 380px',
-              background: '#fafafa',
-              borderRight: '1px solid rgba(0,0,0,.08)',
+              flex: 1,
+              minWidth: 0,
               display: 'flex',
-              flexDirection: 'column',
-              minHeight: 0,
+              position: 'relative',
+              background: '#fff',
+              borderRadius: 14,
+              border: '1px solid #F4E9EE',
+              boxShadow: '0 1px 3px rgba(80,20,50,.05)',
+              overflow: 'hidden',
             }}
           >
-            <div
-              style={{
-                padding: '14px 16px 10px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#333' }}>
-                {filteredConversations.length} conversation{filteredConversations.length === 1 ? '' : 's'}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* filters */}
+            {showFilters && (
+              <div
+                style={{
+                  width: 188,
+                  flex: '0 0 188px',
+                  borderRight: '1px solid #F1EBEE',
+                  padding: '18px 0',
+                  overflowY: 'auto',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {ownerViews.map((v) => (
+                  <NavRow
+                    key={v.id}
+                    label={v.label}
+                    count={v.count}
+                    active={selectedQueue === 'all' && ownerFilter === v.id}
+                    onClick={() => {
+                      setOwnerFilter(v.id);
+                      setSelectedQueue('all');
+                    }}
+                  />
+                ))}
+                <div style={{ height: 1, background: '#EFE9EC', margin: '12px 20px' }} />
                 <button
                   type="button"
-                  onClick={() => {
-                    if (selectMode) exitSelectMode();
-                    else setSelectMode(true);
-                  }}
+                  onClick={() => setSmartOpen((o) => !o)}
                   style={{
+                    width: 'calc(100% - 16px)',
+                    margin: '0 8px 4px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '6px 12px',
                     border: 'none',
-                    background: 'transparent',
-                    color: selectMode ? '#AD1457' : '#888',
-                    fontSize: 12,
-                    fontWeight: 700,
+                    background: 'none',
+                    fontWeight: 600,
+                    fontSize: 13.5,
+                    color: '#2A2230',
                     cursor: 'pointer',
                     fontFamily: FONT,
-                    padding: '4px 6px',
                   }}
                 >
-                  {selectMode ? 'Cancel' : 'Select'}
+                  Smart views
+                  <ChevronDown size={15} style={{ transform: smartOpen ? undefined : 'rotate(-90deg)' }} />
+                </button>
+                {smartOpen &&
+                  smartViews.map((q) => (
+                    <NavRow
+                      key={q.id}
+                      label={
+                        q.id === 'unanswered' ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#E0155F' }} />
+                            {q.label}
+                          </span>
+                        ) : (
+                          q.label
+                        )
+                      }
+                      count={q.count}
+                      active={q.active}
+                      onClick={() => {
+                        setSelectedQueue(q.id);
+                        setOwnerFilter('all');
+                      }}
+                    />
+                  ))}
+              </div>
+            )}
+
+            {/* conversation list */}
+            {chatExpanded && listOverlayOpen && (
+              <div
+                onClick={() => setListOverlayOpen(false)}
+                style={{ position: 'absolute', inset: 0, background: 'rgba(20,10,15,.18)', zIndex: 29 }}
+              />
+            )}
+            <div
+              style={{
+                width: 290,
+                flex: '0 0 290px',
+                borderRight: '1px solid #F1EBEE',
+                display: chatExpanded && !listOverlayOpen ? 'none' : 'flex',
+                flexDirection: 'column',
+                minHeight: 0,
+                ...(chatExpanded
+                  ? {
+                      position: 'absolute',
+                      top: 0,
+                      bottom: 0,
+                      left: 0,
+                      zIndex: 30,
+                      background: '#fff',
+                      boxShadow: '8px 0 24px rgba(20,10,15,.12)',
+                    }
+                  : {}),
+              }}
+            >
+              {!showFilters && (
+                <div style={{ padding: '12px 12px 0' }}>
+                  <select
+                    aria-label="View"
+                    value={selectedQueue === 'all' ? `o:${ownerFilter}` : `q:${selectedQueue}`}
+                    onChange={(e) => {
+                      const [kind, id] = e.target.value.split(':');
+                      if (kind === 'o') {
+                        setOwnerFilter(id as OwnerFilter);
+                        setSelectedQueue('all');
+                      } else {
+                        setSelectedQueue(id as QueueFilter);
+                        setOwnerFilter('all');
+                      }
+                    }}
+                    style={{ ...deskSelect, width: '100%' }}
+                  >
+                    {ownerViews.map((v) => (
+                      <option key={v.id} value={`o:${v.id}`}>
+                        {v.label} ({v.count})
+                      </option>
+                    ))}
+                    {smartViews.map((q) => (
+                      <option key={q.id} value={`q:${q.id}`}>
+                        {q.label} ({q.count})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 12px 10px' }}>
+                <select
+                  aria-label="Platform"
+                  value={channelFilter}
+                  onChange={(e) => setChannelFilter(e.target.value as 'all' | ChannelKey)}
+                  style={deskSelect}
+                >
+                  <option value="all">All platforms</option>
+                  {(['instagram', 'facebook', 'whatsapp', 'tiktok'] as const)
+                    .filter((ch) => conversations.some((c) => c.channel === ch))
+                    .map((ch) => (
+                      <option key={ch} value={ch}>
+                        {CHANNEL_META[ch].label}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setNewestFirst((n) => !n)}
+                  style={{ ...deskButton, gap: 6 }}
+                  aria-label="Sort order"
+                >
+                  {newestFirst ? 'Newest' : 'Oldest'}
+                  <ListFilter size={15} />
                 </button>
                 <div style={{ position: 'relative' }}>
                   <button
                     type="button"
-                    aria-label="Filters"
+                    aria-label="More filters"
                     onClick={() => setTypeFilterMenuOpen((o) => !o)}
                     style={{
-                      width: 28,
-                      height: 28,
-                      border: hasExtraFilters ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
-                      background: hasExtraFilters ? 'rgba(194,24,91,.08)' : '#fff',
-                      borderRadius: 6,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: hasExtraFilters ? '#AD1457' : '#666',
-                      cursor: 'pointer',
+                      ...deskButton,
+                      width: 34,
+                      padding: 0,
+                      borderColor: hasExtraFilters || searchQuery ? '#E0156B' : '#ECE6EA',
+                      color: hasExtraFilters || searchQuery ? '#E0156B' : '#2A2230',
                     }}
                   >
-                    <I n="filter" s={14} />
+                    <Filter size={15} />
                   </button>
                   {typeFilterMenuOpen && (
                     <>
@@ -4354,180 +5189,146 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                           right: 0,
                           zIndex: 999,
                           background: '#fff',
-                          borderRadius: 10,
+                          borderRadius: 12,
                           boxShadow: '0 8px 24px rgba(0,0,0,.15)',
                           border: '1px solid rgba(0,0,0,.06)',
-                          minWidth: 200,
+                          width: 240,
                           maxHeight: '70vh',
                           overflowY: 'auto',
-                          padding: 6,
+                          padding: 10,
                         }}
                       >
-                        <div
+                        <input
+                          aria-label="Search conversations"
+                          placeholder="Search names or messages"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
                           style={{
-                            fontSize: 10.5,
-                            fontWeight: 800,
-                            letterSpacing: '.04em',
-                            textTransform: 'uppercase',
-                            color: '#999',
-                            padding: '6px 8px 4px',
+                            width: '100%',
+                            height: 32,
+                            border: '1px solid #ECE6EA',
+                            borderRadius: 8,
+                            padding: '0 10px',
+                            fontSize: 12.5,
+                            fontFamily: FONT,
+                            boxSizing: 'border-box',
                           }}
+                        />
+                        <div style={deskMenuLabel}>Type</div>
+                        <select
+                          value={typeFilter}
+                          onChange={(e) => setTypeFilter(e.target.value as 'all' | ConversationType)}
+                          style={{ ...deskSelect, width: '100%' }}
                         >
-                          Type
-                        </div>
-                        {(
-                          [
-                            ['all', 'All types'],
-                            ['dm', 'Messages only'],
-                            ['comment', 'Comments only'],
-                          ] as const
-                        ).map(([id, label]) => (
+                          <option value="all">All types</option>
+                          <option value="dm">Messages only</option>
+                          <option value="comment">Comments only</option>
+                        </select>
+                        {allTagsInUse.length > 0 && (
+                          <>
+                            <div style={deskMenuLabel}>Tag</div>
+                            <select
+                              value={tagFilter}
+                              onChange={(e) => setTagFilter(e.target.value)}
+                              style={{ ...deskSelect, width: '100%' }}
+                            >
+                              <option value="all">All tags</option>
+                              {allTagsInUse.map((t) => (
+                                <option key={t} value={t}>
+                                  {t}
+                                </option>
+                              ))}
+                            </select>
+                          </>
+                        )}
+                        <div style={deskMenuLabel}>Group by</div>
+                        <select
+                          value={groupBy}
+                          onChange={(e) => setGroupBy(e.target.value as GroupMode)}
+                          style={{ ...deskSelect, width: '100%' }}
+                        >
+                          <option value="time">Time</option>
+                          <option value="platform">Platform</option>
+                          <option value="customer">Customer</option>
+                        </select>
+                        <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
                           <button
-                            key={id}
                             type="button"
-                            onClick={() => setTypeFilter(id)}
+                            onClick={() => {
+                              setView('board');
+                              setTypeFilterMenuOpen(false);
+                            }}
+                            style={{ ...deskButton, flex: 1 }}
+                          >
+                            Board view
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (selectMode) exitSelectMode();
+                              else setSelectMode(true);
+                              setTypeFilterMenuOpen(false);
+                            }}
+                            style={{ ...deskButton, flex: 1 }}
+                          >
+                            {selectMode ? 'Stop selecting' : 'Select'}
+                          </button>
+                        </div>
+                        {(hasExtraFilters || searchQuery) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTypeFilter('all');
+                              setTagFilter('all');
+                              setSearchQuery('');
+                            }}
                             style={{
-                              width: '100%',
-                              textAlign: 'left',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              padding: '8px 10px',
+                              marginTop: 8,
                               border: 'none',
-                              background: typeFilter === id ? 'rgba(194,24,91,.08)' : 'transparent',
-                              borderRadius: 6,
-                              fontSize: 13,
+                              background: 'none',
+                              color: '#D0145C',
                               fontWeight: 600,
-                              color: '#333',
+                              fontSize: 12.5,
                               cursor: 'pointer',
                               fontFamily: FONT,
                             }}
                           >
-                            {label}
-                            {typeFilter === id && <I n="check" s={13} c="#AD1457" />}
+                            Clear filters
                           </button>
-                        ))}
-
-                        {allTagsInUse.length > 0 && (
-                          <>
-                            <div
-                              style={{
-                                fontSize: 10.5,
-                                fontWeight: 800,
-                                letterSpacing: '.04em',
-                                textTransform: 'uppercase',
-                                color: '#999',
-                                padding: '10px 8px 4px',
-                              }}
-                            >
-                              Tag
-                            </div>
-                            {['all', ...allTagsInUse].map((id) => (
-                              <button
-                                key={id}
-                                type="button"
-                                onClick={() => setTagFilter(id)}
-                                style={{
-                                  width: '100%',
-                                  textAlign: 'left',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  padding: '8px 10px',
-                                  border: 'none',
-                                  background: tagFilter === id ? 'rgba(194,24,91,.08)' : 'transparent',
-                                  borderRadius: 6,
-                                  fontSize: 13,
-                                  fontWeight: 600,
-                                  color: '#333',
-                                  cursor: 'pointer',
-                                  fontFamily: FONT,
-                                }}
-                              >
-                                {id === 'all' ? 'Any tag' : id}
-                                {tagFilter === id && <I n="check" s={13} c="#AD1457" />}
-                              </button>
-                            ))}
-                          </>
-                        )}
-
-                        {hasExtraFilters && (
-                          <>
-                            <div style={{ height: 1, background: 'rgba(0,0,0,.06)', margin: '6px 0' }} />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setTypeFilter('all');
-                                setTagFilter('all');
-                              }}
-                              style={{
-                                width: '100%',
-                                textAlign: 'left',
-                                padding: '8px 10px',
-                                border: 'none',
-                                background: 'transparent',
-                                borderRadius: 6,
-                                fontSize: 12.5,
-                                fontWeight: 700,
-                                color: '#AD1457',
-                                cursor: 'pointer',
-                                fontFamily: FONT,
-                              }}
-                            >
-                              Clear filters
-                            </button>
-                          </>
                         )}
                       </div>
                     </>
                   )}
                 </div>
               </div>
-            </div>
-            {selectMode && (
-              <div
-                style={{
-                  padding: '0 16px 10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  flexWrap: 'wrap',
-                }}
-              >
-                <span style={{ fontSize: 12, color: '#666', fontWeight: 600 }}>{selectedIds.size} selected</span>
-                <button
-                  type="button"
-                  disabled={selectedIds.size === 0}
-                  onClick={bulkMarkResolved}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: 7,
-                    border: '1px solid rgba(0,0,0,.1)',
-                    background: '#fff',
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    color: selectedIds.size === 0 ? '#ccc' : '#2E7D32',
-                    cursor: selectedIds.size === 0 ? 'default' : 'pointer',
-                    fontFamily: FONT,
-                  }}
-                >
-                  Mark resolved
-                </button>
-              </div>
-            )}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 12px' }}>
-              {filteredConversations.length === 0 && listEmptyState}
-              {groups.map((grp) => (
-                <div key={grp.key}>
-                  {grp.label && (
-                    <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 8px 4px' }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: grp.dotColor }} />
+              {selectMode && (
+                <div style={{ padding: '0 14px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 12, color: '#666', fontWeight: 600 }}>{selectedIds.size} selected</span>
+                  <button
+                    type="button"
+                    disabled={selectedIds.size === 0}
+                    onClick={bulkMarkResolved}
+                    style={{ ...deskButton, height: 28 }}
+                  >
+                    Mark as done
+                  </button>
+                  <button type="button" onClick={exitSelectMode} style={{ ...deskButton, height: 28 }}>
+                    Cancel
+                  </button>
+                </div>
+              )}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '0 6px 12px' }}>
+                {filteredConversations.length === 0 && listEmptyState}
+                {groups.map((grp) => (
+                  <div key={grp.key}>
+                    {grp.label && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 10px 4px' }}>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: grp.dotColor }} />
                         <span
                           style={{
                             fontSize: 11,
-                            fontWeight: 800,
-                            color: '#666',
+                            fontWeight: 700,
+                            color: '#8A8290',
                             textTransform: 'uppercase',
                             letterSpacing: '.04em',
                           }}
@@ -4536,168 +5337,168 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                         </span>
                         <span style={{ fontSize: 10.5, color: '#aaa' }}>({grp.items.length})</span>
                       </div>
-                      {grp.caption && (
-                        <div style={{ fontSize: 10.5, color: '#AD1457', padding: '0 8px 6px' }}>{grp.caption}</div>
-                      )}
-                    </>
-                  )}
-                  {grp.items.map((item) => {
-                    const ch = CHANNEL_META[item.channel];
-                    const st = STATUS_META[item.status];
-                    const selected = selectedId === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => (selectMode ? toggleSelectId(item.id) : openConversation(item.id))}
-                        style={{
-                          width: '100%',
-                          textAlign: 'left',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 10,
-                          padding: 12,
-                          marginBottom: 6,
-                          border: 'none',
-                          borderLeft: selected ? '3px solid #E91E63' : '3px solid transparent',
-                          background: selected ? 'rgba(194,24,91,.06)' : '#fff',
-                          borderRadius: '0 10px 10px 0',
-                          cursor: 'pointer',
-                          fontFamily: FONT,
-                        }}
-                      >
-                        {selectMode && (
-                          <div
-                            style={{
-                              width: 18,
-                              height: 18,
-                              borderRadius: 5,
-                              border: selectedIds.has(item.id) ? 'none' : '1.5px solid rgba(0,0,0,.2)',
-                              background: selectedIds.has(item.id) ? '#AD1457' : 'transparent',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flex: '0 0 auto',
-                            }}
-                          >
-                            {selectedIds.has(item.id) && <I n="check" s={12} c="#fff" />}
-                          </div>
-                        )}
-                        <div style={{ position: 'relative', flex: '0 0 auto' }}>
-                          <div
-                            style={{
-                              width: 36,
-                              height: 36,
-                              borderRadius: '50%',
-                              background: item.avatarColor,
-                              color: '#fff',
-                              fontSize: 12,
-                              fontWeight: 700,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            {item.initials}
-                          </div>
-                          <div
-                            style={{
-                              position: 'absolute',
-                              bottom: -2,
-                              right: -2,
-                              width: 16,
-                              height: 16,
-                              borderRadius: '50%',
-                              background: ch.color,
-                              border: '2px solid #fafafa',
-                              color: '#fff',
-                              fontSize: 8,
-                              fontWeight: 800,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            {ch.letter}
-                          </div>
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}
-                          >
+                    )}
+                    {grp.items.map((item) => {
+                      const selected = selectedId === item.id;
+                      const pill = QUEUE_PILL[currentQueueOf(item)];
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => (selectMode ? toggleSelectId(item.id) : openConversation(item.id))}
+                          style={{
+                            width: '100%',
+                            textAlign: 'left',
+                            display: 'flex',
+                            gap: 12,
+                            padding: '10px 10px 10px 9px',
+                            border: 'none',
+                            borderLeft: selected ? '3px solid #D81B60' : '3px solid transparent',
+                            borderBottom: selected ? 'none' : '1px solid #F3EEF1',
+                            background: selected ? '#FDEEF4' : '#fff',
+                            borderRadius: selected ? 8 : 0,
+                            cursor: 'pointer',
+                            fontFamily: FONT,
+                            position: 'relative',
+                          }}
+                        >
+                          {selectMode && (
                             <span
                               style={{
-                                fontSize: 13,
-                                fontWeight: 700,
-                                color: '#1a1a1a',
+                                width: 18,
+                                height: 18,
+                                borderRadius: 5,
+                                border: selectedIds.has(item.id) ? 'none' : '1.5px solid rgba(0,0,0,.2)',
+                                background: selectedIds.has(item.id) ? '#AD1457' : 'transparent',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                alignSelf: 'center',
+                                flex: '0 0 auto',
+                              }}
+                            >
+                              {selectedIds.has(item.id) && <I n="check" s={12} c="#fff" />}
+                            </span>
+                          )}
+                          <PlatformBadge
+                            platform={item.channel}
+                            size={40}
+                            initials={item.initials}
+                            color={item.avatarColor}
+                          />
+                          <span style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                              <span
+                                style={{
+                                  fontSize: 13.5,
+                                  fontWeight: 700,
+                                  color: '#1B1520',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                {item.starred && (
+                                  <Star
+                                    size={11}
+                                    fill="#F5B301"
+                                    color="#F5B301"
+                                    style={{ marginRight: 4, verticalAlign: -1 }}
+                                  />
+                                )}
+                                {item.name}
+                              </span>
+                              <span style={{ fontSize: 11, color: '#8A8290', flex: '0 0 auto' }}>{item.time}</span>
+                            </span>
+                            <span
+                              style={{
+                                display: 'block',
+                                fontSize: 11.5,
+                                color: openedIds.has(item.id) ? '#8A8290' : '#4B4350',
+                                fontWeight: openedIds.has(item.id) ? 400 : 600,
                                 whiteSpace: 'nowrap',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
+                                marginTop: 3,
                               }}
                             >
-                              {item.name}
+                              {item.excerpt}
                             </span>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 5, flex: '0 0 auto' }}>
-                              {!openedIds.has(item.id) && (
-                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#E91E63' }} />
-                              )}
-                              <span style={{ fontSize: 11, color: '#999' }}>{item.time}</span>
-                            </span>
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: openedIds.has(item.id) ? '#999' : '#444',
-                              fontWeight: openedIds.has(item.id) ? 400 : 600,
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              marginTop: 2,
-                            }}
-                          >
-                            {item.excerpt}
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
                             <span
                               style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                padding: '2px 7px',
-                                borderRadius: 10,
-                                background: st.bg,
-                                color: st.fg,
+                                display: 'inline-block',
+                                fontSize: 11,
+                                fontWeight: 600,
+                                padding: '2px 9px',
+                                borderRadius: 5,
+                                marginTop: 6,
+                                background: pill.bg,
+                                color: pill.fg,
                               }}
                             >
-                              {st.label}
+                              {pill.label}
                             </span>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
+                          </span>
+                          {!openedIds.has(item.id) && (
+                            <span
+                              style={{
+                                position: 'absolute',
+                                right: 12,
+                                bottom: 16,
+                                width: 7,
+                                height: 7,
+                                borderRadius: '50%',
+                                background: '#E0155F',
+                              }}
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* thread pane */}
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              minHeight: 0,
-              minWidth: 0,
-              background: '#fff',
-            }}
-          >
-            {threadHeader(false)}
-            {tagsRow}
-            {threadTabs}
-            {threadTab === 'thread' && sourceStrip}
-            {threadTab === 'thread' && agentStrip}
-            {threadBody}
-            {threadTab === 'thread' ? threadComposer : noteComposer}
+            {/* chat + details: the header runs across both, as in the design */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
+              {deskHeader}
+              <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
+                  {sourceStrip}
+                  {agentStrip}
+                  {messagesView}
+                  {threadComposer}
+                </div>
+                {showDetails && detailsPanel}
+                {!showDetails && detailsOverlayOpen && (
+                  <>
+                    <div
+                      onClick={() => setDetailsOverlayOpen(false)}
+                      style={{ position: 'absolute', inset: 0, background: 'rgba(20,10,15,.18)', zIndex: 20 }}
+                    />
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        right: 0,
+                        bottom: 0,
+                        width: 260,
+                        background: '#fff',
+                        boxShadow: '-8px 0 24px rgba(20,10,15,.12)',
+                        padding: '16px',
+                        overflowY: 'auto',
+                        zIndex: 21,
+                        fontFamily: FONT,
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      {detailsContent}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       ) : (

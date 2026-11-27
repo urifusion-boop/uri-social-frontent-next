@@ -1,5 +1,6 @@
 'use client';
 
+import { SETUP_RETURN_KEY } from '@/src/components/app/brand-intel/setupReturn';
 import { IS_PRODUCTION } from '@/src/configs/env.config';
 import posthog from 'posthog-js';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
@@ -11,6 +12,7 @@ import GoogleAdsChooser, { continueWithGoogle, GoogleAdsReturn } from './GoogleA
 import GoogleAdsLinkPanel from './GoogleAdsLinkPanel';
 import GoogleAdsModePicker from './GoogleAdsModePicker';
 import TellJane from './TellJane';
+import PlaybookWebsitePanel from '@/src/components/app/brand-intel/PlaybookWebsitePanel';
 import type { PlaybookHealthData } from '@/src/api/BrandProfileService';
 import { V3Service } from '@/src/api/V3Service';
 import {
@@ -95,6 +97,7 @@ import CampaignBuilderPage from '@/src/components/app/workspace/campaign-wizard/
 import type { WizardDraft } from '@/src/components/app/workspace/campaign-wizard/wizardDraft';
 import CampaignOverviewPage from '@/src/components/app/workspace/campaign-wizard/CampaignOverviewPage';
 import CampaignGrowthPage from '@/src/components/app/workspace/campaign-wizard/CampaignGrowthPage';
+import { useFeatures } from '@/src/hooks/useFeatures';
 import CampaignWalletPage from '@/src/components/app/workspace/campaign-wizard/CampaignWalletPage';
 import CampaignRevenuePage from '@/src/components/app/workspace/campaign-wizard/CampaignRevenuePage';
 import HelpSupportPage from '@/src/components/app/workspace/HelpSupportPage';
@@ -123,6 +126,20 @@ import { keepInBrowser } from '@/src/utils/keepInBrowser.util';
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
   const p: Record<string, ReactNode> = {
+    users: (
+      <>
+        <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+      </>
+    ),
+    sliders: <path d="M10 5H3M12 19H3M14 3v4M16 17v4M21 12h-9M21 19h-5M21 5h-7M8 10v4M8 12H3" />,
+    replies: (
+      <>
+        <path d="M14 9a2 2 0 01-2 2H6l-4 4V4a2 2 0 012-2h8a2 2 0 012 2z" />
+        <path d="M18 9h2a2 2 0 012 2v11l-4-4h-6a2 2 0 01-2-2v-1" />
+      </>
+    ),
     home: <path d="M3 12l9-8 9 8M5 11v8a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-8" />,
     inbox: (
       <>
@@ -2865,7 +2882,11 @@ const ConnectionsPage = ({
     InboxService.resubscribeChannels()
       .then((res) => {
         const issue = res.subscriptions.find((s) => !s.subscribed)?.issue;
-        if (issue) ToastService.showToast(issue.message, ToastTypeEnum.Error);
+        if (issue)
+          ToastService.showToast(
+            `Connected, but the inbox won't receive messages yet. ${issue.message}`,
+            ToastTypeEnum.Warning
+          );
       })
       .catch(() => undefined);
   };
@@ -2896,6 +2917,24 @@ const ConnectionsPage = ({
     } finally {
       setAdsPicking(null);
     }
+  };
+
+  // Connecting an account from brand setup: once it's connected (or the owner backed out), send them
+  // straight back to the setup step they were on, which then reads the account — instead of
+  // leaving them here on Connected Accounts having lost their place.
+  const handBackToSetup = (platform: string, ok = true) => {
+    if (typeof window === 'undefined') return false;
+    let back: { source?: string; at?: number } | null = null;
+    try {
+      back = JSON.parse(localStorage.getItem(SETUP_RETURN_KEY) || 'null');
+    } catch {
+      back = null;
+    }
+    localStorage.removeItem(SETUP_RETURN_KEY);
+    if (!back?.at || Date.now() - back.at > 30 * 60 * 1000) return false;
+    const which = platform || back.source || '';
+    window.location.replace(`/social-media/brand-setup/?${ok ? 'read' : 'connect_failed'}=${encodeURIComponent(which)}`);
+    return true;
   };
 
   const loadStatuses = async () => {
@@ -3069,6 +3108,7 @@ const ConnectionsPage = ({
               }
               loadStatuses();
               warnIfInboxBlocked();
+              handBackToSetup('instagram');
             } else {
               ToastService.showToast('Instagram connection failed. Please try again.', ToastTypeEnum.Error);
             }
@@ -3152,6 +3192,7 @@ const ConnectionsPage = ({
               posthog.capture('social_account_connected', { platform: 'facebook', page_name: pageName });
               loadStatuses();
               warnIfInboxBlocked();
+              handBackToSetup('facebook');
             } else {
               ToastService.showToast('Facebook connection failed. Please try again.', ToastTypeEnum.Error);
             }
@@ -3271,6 +3312,7 @@ const ConnectionsPage = ({
       const err = searchParams.get('error') ?? '';
       const storedPlatform = localStorage.getItem('outstand_connect_platform') ?? '';
       localStorage.removeItem('outstand_connect_platform');
+      if (handBackToSetup(storedPlatform, false)) return;
       setConnectError({ platform: storedPlatform, error: err });
       router.replace('/workspace/?tab=connections');
       if (typeof window !== 'undefined' && window.opener) window.close();
@@ -3339,6 +3381,7 @@ const ConnectionsPage = ({
         }
         loadStatuses();
         warnIfInboxBlocked();
+        handBackToSetup(isFb ? 'facebook' : 'instagram');
       } else {
         ToastService.showToast(
           res.responseMessage || 'Could not connect those accounts. Please try again.',
@@ -6828,7 +6871,70 @@ const PbSection = ({ title, children }: { title: string; children: ReactNode }) 
 const PbUsedInContext = React.createContext<{
   usedIn: Record<string, string[]>;
   sections: Record<string, string[]>;
+  /** Row label -> where its current value came from, while it still holds what the website gave it. */
+  sources?: Record<string, 'website' | 'guess'>;
 }>({ usedIn: {}, sections: {} });
+
+// Playbook row labels for the fields Website → Playbook can fill.
+const PB_SOURCE_LABELS: Record<string, string> = {
+  brand_name: 'Brand name',
+  industry: 'Industry',
+  website: 'Website',
+  product_description: 'Description',
+  tagline: 'Tagline',
+  key_products_services: 'Key products / services',
+  price_range: 'Price range',
+  unique_selling_proposition: 'What makes you different',
+  customer_pain_points: 'Customer pain points',
+  customer_needs: 'Customer needs',
+  why_customers_choose_us: 'Why customers choose you',
+  common_questions: 'Common questions customers ask',
+};
+
+const pbNorm = (v: unknown): string =>
+  JSON.stringify(
+    Array.isArray(v)
+      ? [...v].map((x) => String(x).trim().toLowerCase()).sort()
+      : String(v ?? '')
+          .trim()
+          .toLowerCase()
+  );
+
+/** Which rows still show what the website gave them: once the owner edits one, it's theirs. */
+const playbookSources = (profile: BrandProfileData | null): Record<string, 'website' | 'guess'> => {
+  const out: Record<string, 'website' | 'guess'> = {};
+  for (const [key, src] of Object.entries(profile?.field_sources ?? {})) {
+    const label = PB_SOURCE_LABELS[key];
+    if (!label || src.source !== 'website') continue;
+    if (pbNorm(src.value) !== pbNorm((profile as Record<string, unknown>)[key])) continue;
+    out[label] = src.basis === 'inferred' ? 'guess' : 'website';
+  }
+  return out;
+};
+
+const PbSourceTag = ({ label }: { label: string }) => {
+  const source = React.useContext(PbUsedInContext).sources?.[label];
+  if (!source) return null;
+  const guess = source === 'guess';
+  return (
+    <span
+      title={guess ? "Jane's reading of your website — edit it if it's not quite right" : 'Taken from your website'}
+      style={{
+        marginLeft: 6,
+        padding: '1px 7px',
+        borderRadius: 999,
+        fontSize: 9.5,
+        fontWeight: 700,
+        letterSpacing: 0,
+        textTransform: 'none',
+        background: guess ? '#FFFBEB' : '#ECFDF5',
+        color: guess ? '#92400E' : '#047857',
+      }}
+    >
+      {guess ? "Jane's guess" : 'From your website'}
+    </span>
+  );
+};
 
 const PbUsedIn = ({ label }: { label: string }) => {
   const usedIn = React.useContext(PbUsedInContext).usedIn[label];
@@ -6909,6 +7015,7 @@ const PbRow = ({
         }}
       >
         {label}
+        {!editing && <PbSourceTag label={label} />}
         {tooltip && (
           <BrandTooltip title={tooltip} arrow placement="right">
             <span style={{ display: 'inline-flex', cursor: 'help', textTransform: 'none' }}>
@@ -7075,6 +7182,7 @@ const PlaybookPage = ({
   isMobile?: boolean;
   onOpenSectionNav?: () => void;
 }) => {
+  const { flags: features } = useFeatures();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -7768,7 +7876,9 @@ const PlaybookPage = ({
   const ALL_APPROVAL = APPROVAL_OPTIONS;
 
   return (
-    <PbUsedInContext.Provider value={{ usedIn: health?.used_in ?? {}, sections: health?.sections ?? {} }}>
+    <PbUsedInContext.Provider
+      value={{ usedIn: health?.used_in ?? {}, sections: health?.sections ?? {}, sources: playbookSources(profile) }}
+    >
       <PbEditContext.Provider value={{ onEdit: editAt, onEditSection: jumpToSection, hideEmpty }}>
         <SubPage
           title="Brand Playbook"
@@ -7913,6 +8023,13 @@ const PlaybookPage = ({
             )}
           </div>
 
+          {features.website_playbook && (
+            <PlaybookWebsitePanel
+              profile={profile}
+              onProfileUpdate={onProfileUpdate}
+              disabledReason={editing ? 'Save or cancel your edits first, then read your website.' : undefined}
+            />
+          )}
           <TellJane
             profile={profile}
             onProfileUpdate={onProfileUpdate}
@@ -11363,6 +11480,8 @@ const MOBILE_TABS = [
 // Every NAV id that the bottom bar has no room for lives here, so mobile can
 // still reach all of them — MOBILE_TABS only holds the five primary destinations.
 const MORE_NAV: { id: string; icon: string; label: string; href?: string; target?: string; anchor?: string }[] = [
+  // Messaging had no way in on phones except the Home card.
+  { id: 'messages', icon: 'inbox', label: 'Messaging' },
   { id: 'performance', icon: 'chart', label: 'Analytics' },
   { id: 'blog', icon: 'book', label: 'Blog' },
   { id: 'market-intelligence', icon: 'eye', label: 'Market Intelligence' },
@@ -11493,6 +11612,8 @@ export default function WorkspaceDashboard() {
   // other businesses' reasoning and performance, so it is hidden for everyone else —
   // and every endpoint behind it re-checks server-side regardless (CI-SPEC-01 §4.5).
   const [isAdsAdmin, setIsAdsAdmin] = useState(false);
+  // New capabilities rolled out in stages (staff first, then a share of brands).
+  const { flags: featureFlags } = useFeatures();
 
   useEffect(() => {
     CampaignService.billingAccess()
@@ -11573,12 +11694,16 @@ export default function WorkspaceDashboard() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    // Meta returns here to finish connecting an account. During brand setup that happens in a
+    // small sign-in window opened by the setup page, so it must be allowed to finish here
+    // instead of being sent back to setup halfway through.
+    const finishingConnection = !!searchParams?.get('connected');
     BrandProfileService.isOnboardingDone().then((done) => {
       // Only redirect on a confirmed "not done" — null means the check
       // failed (expired token, network error, etc.), and the global 401
       // handler already logs the user out to /login in the auth case, so
       // this must not race it with a wrong redirect to brand-setup.
-      if (done === false) router.replace('/social-media/brand-setup/');
+      if (done === false && !finishingConnection) router.replace('/social-media/brand-setup/');
     });
     BrandProfileService.get().then((res) => {
       if (res.status && res.responseData) setProfile(res.responseData);
@@ -11926,50 +12051,27 @@ export default function WorkspaceDashboard() {
   };
   const messagesView = nav === 'messages' ? messagesViewState : null;
 
-  const messagesSubNav = [
-    {
-      id: 'messages-inbox',
-      icon: 'inbox',
-      label: 'Inbox',
-      active: messagesView === 'inbox',
-      onClick: () => goToMessagesView('inbox'),
-    },
-    {
-      id: 'messages-connections',
-      icon: 'share',
-      label: 'Connections',
-      active: messagesView === 'connections',
-      onClick: () => goToMessagesView('connections'),
-    },
-    {
-      id: 'messages-insights',
-      icon: 'chart',
-      label: 'Insights',
-      active: messagesView === 'insights',
-      onClick: () => goToMessagesView('insights'),
-    },
-    {
-      id: 'messages-voice',
-      icon: 'mic',
-      label: 'Brand Voice',
-      active: messagesView === 'voice',
-      onClick: () => goToMessagesView('voice'),
-    },
-    {
-      id: 'messages-usage',
-      icon: 'trending',
-      label: 'AI Usage',
-      active: messagesView === 'usage',
-      onClick: () => goToMessagesView('usage'),
-    },
-    {
-      id: 'messages-settings',
-      icon: 'settings',
-      label: 'Inbox Settings',
-      active: messagesView === 'settings',
-      onClick: () => goToMessagesView('settings'),
-    },
-  ];
+  // The Messaging sections, in the order the page's own tabs show them, then Settings
+  // (the gear on the page). The older names still work: InboxDashboard maps
+  // "connections" and "usage" to Settings.
+  const messagesSubNav = (
+    [
+      ['inbox', 'inbox', 'Inbox'],
+      ['automations', 'sliders', 'Automations'],
+      ['audience', 'users', 'Audience'],
+      ['catalog', 'grid', 'Products & Services'],
+      ['voice', 'mic', 'Brand Voice'],
+      ['insights', 'chart', 'Insights'],
+      ['settings', 'settings', 'Settings'],
+    ] as const
+  ).map(([view, icon, label]) => ({
+    id: `messages-${view}`,
+    icon,
+    label,
+    active:
+      messagesView === view || (view === 'settings' && (messagesView === 'connections' || messagesView === 'usage')),
+    onClick: () => goToMessagesView(view),
+  }));
 
   // Which contextual sidebar (if any) the current nav value belongs to.
   // A nav id not claimed by any zone falls through to the flat PRIMARY_NAV
@@ -12525,7 +12627,17 @@ export default function WorkspaceDashboard() {
   const PAGES: Record<string, ReactNode> = {
     home: <HomePage onNavigate={goTo} />,
     help: <HelpSupportPage />,
-    messages: <InboxDashboard isMobile={isMobile} />,
+    messages: (
+      <InboxDashboard
+        isMobile={isMobile}
+        onSectionChange={(section) => {
+          setMessagesViewState(section);
+          router.replace(`/workspace/?tab=messages&view=${section}`, {
+            scroll: false,
+          } as Parameters<typeof router.replace>[1]);
+        }}
+      />
+    ),
     schedule: (
       <ContentManagerPage
         onJane={goWorkspace}
@@ -12639,6 +12751,8 @@ export default function WorkspaceDashboard() {
         .ws-nav-scroll{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.12) transparent}
         .ws-nav-scroll::-webkit-scrollbar{width:4px}
         .ws-nav-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px}
+        .workspace-root{--ws-h:100vh}
+        @supports (height: 100dvh){.workspace-root{--ws-h:100dvh}}
         @keyframes tourFadeIn{from{opacity:0}to{opacity:1}}
         @keyframes tourRingPulse{0%,100%{box-shadow:0 0 0 3px #C2185B,0 0 0 7px rgba(194,24,91,.2),0 0 28px rgba(194,24,91,.45)}50%{box-shadow:0 0 0 3px #C2185B,0 0 0 12px rgba(194,24,91,.1),0 0 40px rgba(194,24,91,.25)}}
       `}</style>
@@ -12648,7 +12762,10 @@ export default function WorkspaceDashboard() {
         style={{
           display: 'flex',
           flexDirection: isMobile ? 'column' : 'row',
-          height: '100vh',
+          // The visible screen height (see .workspace-root below): on phones 100vh is
+          // taller or shorter than what the browser actually shows, so the bottom bar
+          // floated above a blank strip.
+          height: 'var(--ws-h)',
           overflow: 'hidden',
           fontFamily: 'var(--wf)',
           background: '#f5f4f0',
@@ -13474,14 +13591,13 @@ export default function WorkspaceDashboard() {
               to discover that the page title opens a menu. */}
           {isMobile && activeSection && (SECTION_META[activeSection]?.subNav.length ?? 0) > 1 && (
             <div
-              className="tab-scroll"
+              // Every section on view at once: the pills wrap onto a second line instead of
+              // sliding sideways with the last one cut in half.
               style={{
                 display: 'flex',
-                gap: 8,
-                overflowX: 'auto',
-                WebkitOverflowScrolling: 'touch',
-                scrollbarWidth: 'none',
-                padding: '8px 14px',
+                flexWrap: 'wrap',
+                gap: 6,
+                padding: '8px 12px',
                 background: '#fff',
                 borderBottom: '1px solid #f0eeea',
                 flexShrink: 0,
@@ -13495,12 +13611,12 @@ export default function WorkspaceDashboard() {
                   onClick={n.onClick}
                   style={{
                     flexShrink: 0,
-                    padding: '7px 14px',
+                    padding: '6px 11px',
                     borderRadius: 999,
                     border: n.active ? 'none' : '1px solid #E5E7EB',
                     background: n.active ? '#C2185B' : '#fff',
                     color: n.active ? '#fff' : '#4B5563',
-                    fontSize: 12.5,
+                    fontSize: 12,
                     fontWeight: n.active ? 700 : 600,
                     fontFamily: 'var(--wf)',
                     whiteSpace: 'nowrap',

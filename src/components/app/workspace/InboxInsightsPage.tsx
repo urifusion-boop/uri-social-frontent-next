@@ -2,6 +2,7 @@
 
 import { ReactNode } from 'react';
 import EmptyState from '@/src/components/app/atoms/EmptyState';
+import { card, iconTile, INK, MUTED } from './messaging/look';
 
 /*
  * Insights — counts and recurring themes computed only from the conversations
@@ -91,28 +92,26 @@ export default function InboxInsightsPage({
   return (
     <div
       style={{
-        padding: isMobile ? 14 : 24,
+        padding: isMobile ? 14 : '22px 28px 32px',
         display: 'flex',
         flexDirection: 'column',
         gap: 20,
-        maxWidth: 880,
-        margin: '0 auto',
         boxSizing: 'border-box',
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 14 }}>
         {[
-          { label: 'Conversations', value: stats.total },
-          { label: 'Resolved', value: stats.resolved },
-          { label: 'Urgent', value: stats.urgent },
-          { label: 'Resolved rate', value: `${stats.resolvedRate}%` },
+          { label: 'Conversations', value: stats.total, emoji: '💬', tint: '#E6F0FF' },
+          { label: 'Resolved', value: stats.resolved, emoji: '✅', tint: '#E7F6EE' },
+          { label: 'Urgent', value: stats.urgent, emoji: '⚡', tint: '#FFF1DE' },
+          { label: 'Resolved rate', value: `${stats.resolvedRate}%`, emoji: '📈', tint: '#FCE4EE' },
         ].map((s) => (
-          <div
-            key={s.label}
-            style={{ background: '#fff', border: '1px solid rgba(0,0,0,.08)', borderRadius: 12, padding: '14px 16px' }}
-          >
-            <div style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a' }}>{s.value}</div>
-            <div style={{ fontSize: 11.5, color: '#888', marginTop: 2 }}>{s.label}</div>
+          <div key={s.label} style={{ ...card, padding: '16px 18px' }}>
+            <span aria-hidden style={{ ...iconTile(s.tint, 36), borderRadius: '50%' }}>
+              {s.emoji}
+            </span>
+            <div style={{ fontSize: 13, color: MUTED, marginTop: 10 }}>{s.label}</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: INK }}>{s.value}</div>
           </div>
         ))}
       </div>
@@ -121,8 +120,9 @@ export default function InboxInsightsPage({
         Based on the {stats.total} most recent conversations in your inbox.
       </div>
 
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a', marginBottom: 10 }}>Recurring themes</div>
+      <div style={{ ...card, padding: '18px 20px' }}>
+        <div style={{ fontSize: 17, fontWeight: 900, color: INK }}>Recurring themes</div>
+        <div style={{ fontSize: 13, color: MUTED, marginBottom: 12 }}>From your most recent conversations.</div>
         {themes.length === 0 ? (
           <EmptyState
             compact
@@ -138,9 +138,9 @@ export default function InboxInsightsPage({
               <div
                 key={theme.id}
                 style={{
-                  background: '#fff',
-                  border: '1px solid rgba(0,0,0,.08)',
-                  borderRadius: 12,
+                  background: '#FCF8FA',
+                  border: '1px solid #F4E8ED',
+                  borderRadius: 14,
                   padding: '14px 16px',
                 }}
               >
