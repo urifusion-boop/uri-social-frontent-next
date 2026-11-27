@@ -283,3 +283,15 @@ export function Table({ head, children }: { head: string[]; children: ReactNode 
 }
 
 export const cell: CSSProperties = { padding: '9px 10px', borderBottom: '1px solid #F7F2F5', verticalAlign: 'middle' };
+
+const PERIOD_SUFFIX: Record<string, string> = {
+  weekly: '/week',
+  monthly: '/month',
+  quarterly: '/quarter',
+  yearly: '/year',
+};
+
+/** A price with its billing period for plans, such as "₦30,000/month". */
+export function priceLabel(item: { price: number | null; currency: string; billing_interval?: string }): string {
+  return `${money(item.price, item.currency)}${item.price === null ? '' : (PERIOD_SUFFIX[item.billing_interval ?? ''] ?? '')}`;
+}

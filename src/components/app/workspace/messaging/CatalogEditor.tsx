@@ -38,6 +38,63 @@ const PERIODS = [
   { value: 'week', label: 'Per week' },
   { value: 'month', label: 'Per month' },
 ];
+const COPY: Record<
+  ItemType,
+  { name: string; category: string; sku: string; skuPh: string; about: string; policy: string; left: string }
+> = {
+  physical: {
+    name: 'e.g. Air Max 90',
+    category: 'e.g. Footwear, Apparel, Beauty',
+    sku: 'SKU or reference (optional)',
+    skuPh: 'e.g. AM90',
+    about: 'What customers (and your AI assistant) will be told about it.',
+    policy: 'Return policy (optional)',
+    left: 'What can your assistant say about how much is left?',
+  },
+  digital: {
+    name: 'e.g. Standard Plan',
+    category: 'e.g. Subscription, Software, Course',
+    sku: 'Plan code (optional)',
+    skuPh: 'e.g. STANDARD',
+    about: 'What the plan is for and who it suits. Your assistant uses this when customers ask about it.',
+    policy: 'Cancellation or refund policy (optional)',
+    left: 'What can your assistant say about spots left?',
+  },
+  capacity: {
+    name: 'e.g. Lagos Island Tour',
+    category: 'e.g. Tours, Events, Classes',
+    sku: 'Reference (optional)',
+    skuPh: 'e.g. TOUR1',
+    about: 'What is included, where it meets and who it suits.',
+    policy: 'Cancellation policy (optional)',
+    left: 'What can your assistant say about places left?',
+  },
+  service: {
+    name: 'e.g. Haircut',
+    category: 'e.g. Beauty, Consulting, Repairs',
+    sku: 'Reference (optional)',
+    skuPh: 'e.g. CUT',
+    about: 'What the service includes and how long it takes.',
+    policy: 'Cancellation policy (optional)',
+    left: 'What can your assistant say about free times?',
+  },
+  made_to_order: {
+    name: 'e.g. Custom wedding cake',
+    category: 'e.g. Cakes, Tailoring, Furniture',
+    sku: 'Reference (optional)',
+    skuPh: 'e.g. CAKE',
+    about: 'What you make, the options and what the customer needs to tell you.',
+    policy: 'Cancellation policy (optional)',
+    left: 'What can your assistant say about order slots left?',
+  },
+};
+
+const DIGITAL_AVAILABILITY: Partial<Record<AvailabilityType, string>> = {
+  unlimited: 'Anyone can subscribe, no limit',
+  capped: 'Limit how many can subscribe',
+  manual: 'I approve each subscriber',
+};
+
 const VISIBILITY: { value: StockVisibility; label: string }[] = [
   { value: 'low_only', label: 'Say "limited stock" only when it is low' },
   { value: 'never', label: 'Never mention how many (in stock or out of stock only)' },
@@ -377,6 +434,8 @@ export function CatalogEditor({
   };
 
   const kind = f.availability_type;
+  const copy = COPY[f.item_type];
+  const isPlan = f.item_type === 'digital';
   return (
     <Modal title={isNew ? 'Add a product or service' : `Edit ${item.name}`} onClose={onClose} width={720}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -389,22 +448,18 @@ export function CatalogEditor({
             />
           </Row>
           <Row label="Name">
-            <Field value={f.name} onChange={(v) => set('name', v)} placeholder="e.g. Air Max 90" />
+            <Field value={f.name} onChange={(v) => set('name', v)} placeholder={copy.name} />
           </Row>
         </Grid>
-        <Row label="Description" hint="What customers (and your AI assistant) will be told about it.">
+        <Row label="Description" hint={copy.about}>
           <Field multiline value={f.description} onChange={(v) => set('description', v)} />
         </Row>
         <Grid>
           <Row label="Category">
-            <Field
-              value={f.category}
-              onChange={(v) => set('category', v)}
-              placeholder="e.g. Footwear, Travel, Software"
-            />
+            <Field value={f.category} onChange={(v) => set('category', v)} placeholder={copy.category} />
           </Row>
-          <Row label="SKU or reference (optional)">
-            <Field value={f.sku} onChange={(v) => set('sku', v)} placeholder="e.g. AM90" />
+          <Row label={copy.sku}>
+            <Field value={f.sku} onChange={(v) => set('sku', v)} placeholder={copy.skuPh} />
           </Row>
         </Grid>
 
@@ -419,7 +474,7 @@ export function CatalogEditor({
               ]}
             />
           </Row>
-          <Row label="Price">
+          <Row label={f.item_type === 'digital' ? 'Price per billing period' : 'Price'}>
             <NumberInput
               value={f.price}
               onChange={(v) => set('price', v)}
@@ -432,14 +487,36 @@ export function CatalogEditor({
           </Row>
         </Grid>
 
+        {isPlan && (
+          <>
+            <Grid>
+              <Row label="Billing">
+                <Select value={f.billing_interval} onChange={(v) => set('billing_interval', v)} options={BILLING} />
+              </Row>
+              <Row label="Free trial">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: 34 }}>
+                  <Toggle on={f.trial_eligible} onChange={(v) => set('trial_eligible', v)} label="Trial available" />
+                  <Muted>{f.trial_eligible ? 'Trial available' : 'No trial'}</Muted>
+                </div>
+              </Row>
+            </Grid>
+            <Row label="What's included (one per line)">
+              <Field multiline value={f.plan_features} onChange={(v) => set('plan_features', v)} />
+            </Row>
+          </>
+        )}
+
         <div
           style={{ borderTop: '1px solid #F1EBEE', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}
         >
-          <Row label="How does availability work?">
+          <Row label={isPlan ? 'Who can subscribe?' : 'How does availability work?'}>
             <Select
               value={f.availability_type}
               onChange={(v) => set('availability_type', v)}
-              options={ALLOWED[f.item_type].map((a) => ({ value: a, label: AVAILABILITY_LABEL[a] }))}
+              options={ALLOWED[f.item_type].map((a) => ({
+                value: a,
+                label: (isPlan && DIGITAL_AVAILABILITY[a]) || AVAILABILITY_LABEL[a],
+              }))}
             />
           </Row>
 
@@ -591,35 +668,13 @@ export function CatalogEditor({
             </>
           )}
 
-          {f.item_type === 'digital' && (
-            <>
-              <Grid>
-                <Row label="Billing">
-                  <Select value={f.billing_interval} onChange={(v) => set('billing_interval', v)} options={BILLING} />
-                </Row>
-                <Row label="Free trial">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: 34 }}>
-                    <Toggle on={f.trial_eligible} onChange={(v) => set('trial_eligible', v)} label="Trial available" />
-                    <Muted>{f.trial_eligible ? 'Trial available' : 'No trial'}</Muted>
-                  </div>
-                </Row>
-              </Grid>
-              <Row label="What's included (one per line)">
-                <Field multiline value={f.plan_features} onChange={(v) => set('plan_features', v)} />
-              </Row>
-            </>
-          )}
-
           {(kind === 'quantity' || kind === 'capacity' || kind === 'schedule' || kind === 'capped') && (
-            <Row
-              label="What can your assistant say about how much is left?"
-              hint="Your own dashboard always shows exact numbers."
-            >
+            <Row label={copy.left} hint="Your own dashboard always shows exact numbers.">
               <Select value={f.stock_visibility} onChange={(v) => set('stock_visibility', v)} options={VISIBILITY} />
             </Row>
           )}
 
-          {kind !== 'unlimited' && (
+          {kind !== 'unlimited' && !isPlan && (
             <Grid>
               <Row label="Hold a customer's order for" hint="How long unpaid orders keep the stock or place.">
                 <Select
@@ -658,10 +713,10 @@ export function CatalogEditor({
             <Field multiline value={f.sales_notes} onChange={(v) => set('sales_notes', v)} style={{ minHeight: 56 }} />
           </Row>
           <Grid>
-            <Row label="Cancellation policy (optional)">
+            <Row label={copy.policy}>
               <Field value={f.cancellation_policy} onChange={(v) => set('cancellation_policy', v)} />
             </Row>
-            {canSeeCost && (
+            {canSeeCost && !isPlan && (
               <Row label="Cost price (private)" hint="Never shown to customers or your assistant.">
                 <NumberInput value={f.cost_price} onChange={(v) => set('cost_price', v)} step={0.01} />
               </Row>

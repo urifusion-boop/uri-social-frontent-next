@@ -6,7 +6,7 @@ import { CatalogDetail } from './CatalogDetail';
 import { CatalogEditor } from './CatalogEditor';
 import { HistoryTab, ReportsTab, ReservationsTab } from './CatalogTabs';
 import { Btn, Field, Muted, Pane, Pill, Title, apiError } from './ui';
-import { AVAILABILITY_LABEL, Modal, Select, TONE, TYPE_LABEL, Table, cell, money } from './catalogUi';
+import { AVAILABILITY_LABEL, Modal, Select, TONE, TYPE_LABEL, Table, cell, priceLabel } from './catalogUi';
 
 type Tab = 'items' | 'reservations' | 'history' | 'reports';
 const TABS: { id: Tab; label: string }[] = [
@@ -233,7 +233,7 @@ function Items({ isMobile }: { isMobile: boolean }) {
                 </Muted>
               </td>
               <td style={cell}>{TYPE_LABEL[i.item_type]}</td>
-              <td style={cell}>{money(i.price, i.currency)}</td>
+              <td style={cell}>{priceLabel(i)}</td>
               <td style={cell}>
                 {stockCell(i)} {i.low_stock && <Pill {...TONE.amber}>Low</Pill>}
                 {i.status !== 'active' && <Pill {...TONE.grey}>{i.status === 'archived' ? 'Archived' : 'Hidden'}</Pill>}

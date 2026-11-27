@@ -17,6 +17,7 @@ import {
   cell,
   fromLocalInput,
   money,
+  priceLabel,
   when,
 } from './catalogUi';
 
@@ -466,7 +467,7 @@ export function CatalogDetail({
             {item.status !== 'active' && (
               <Pill {...TONE.amber}>{item.status === 'archived' ? 'Archived' : 'Hidden'}</Pill>
             )}
-            <b style={{ fontSize: 14 }}>{money(item.price, item.currency)}</b>
+            <b style={{ fontSize: 14 }}>{priceLabel(item)}</b>
             <div style={{ flex: 1 }} />
             <Btn kind="outline" onClick={() => onEdit(item)}>
               Edit
@@ -491,7 +492,7 @@ export function CatalogDetail({
               </Muted>
             </Section>
           )}
-          <CheckPanel item={item} reload={reload} />
+          {!(item.item_type === 'digital' && t === 'unlimited') && <CheckPanel item={item} reload={reload} />}
         </div>
       )}
     </Modal>
