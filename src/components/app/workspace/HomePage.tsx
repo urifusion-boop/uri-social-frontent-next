@@ -6,7 +6,6 @@ import { useAuth } from '@/src/providers/AuthProvider';
 import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { CampaignService } from '@/src/api/CampaignService';
 import { InboxService } from '@/src/api/InboxService';
-import { IS_PRODUCTION } from '@/src/configs/env.config';
 
 type PeriodDays = 7 | 30;
 
@@ -287,8 +286,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
           marginBottom: 20,
         }}
       >
-        {/* Messages is hidden on prod. */}
-        {QUICK_ACTIONS.filter((a) => !(IS_PRODUCTION && a.id === 'messages')).map((action) => {
+        {QUICK_ACTIONS.map((action) => {
           const Icon = action.icon;
           return (
             <button
@@ -401,8 +399,6 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
             {tiles
-              // Customer Messages is hidden on prod, so its stat tile is too.
-              .filter((tile) => !(IS_PRODUCTION && tile.label === 'Customer Messages'))
               .map((tile) => {
                 const Icon = tile.icon;
                 return (
