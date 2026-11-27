@@ -3061,6 +3061,11 @@ const ConnectionsPage = ({
 
   // Handle OAuth callback params (after Facebook/Instagram OAuth redirect back here)
   useEffect(() => {
+    // A connect started from Messaging comes back to ?tab=messages, and Messaging finishes it itself
+    // (InboxConnectionsPage). Handling it here as well raced that page: this moved the person to
+    // Connected Accounts and opened a second account picker there, the inbox moved them back, and
+    // the picker they needed was never on screen, so the Instagram account never connected.
+    if (searchParams.get('tab') === 'messages') return;
     const connected = searchParams.get('connected');
     const token = searchParams.get('sessionToken');
     if (connected === 'instagram_direct') {
