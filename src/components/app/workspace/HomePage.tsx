@@ -10,7 +10,6 @@ import { BrandProfileService, type PlaybookHealthData } from '@/src/api/BrandPro
 import { useConnectedAccounts } from '@/src/hooks/useConnectedAccounts';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { categorize } from '@/src/components/app/social-media/ContentLibrary/ContentLibraryPage';
-import { IS_PRODUCTION } from '@/src/configs/env.config';
 
 type PeriodDays = 7 | 30;
 type ContentTabId = 'create' | 'library' | 'calendar-v2';
@@ -585,8 +584,7 @@ export default function HomePage({
           marginBottom: 20,
         }}
       >
-        {/* Messages is hidden on prod. */}
-        {QUICK_ACTIONS.filter((a) => !(IS_PRODUCTION && a.id === 'messages')).map((action) => {
+        {QUICK_ACTIONS.map((action) => {
           const Icon = action.icon;
           const pill = pillFor(action.id);
           return (
@@ -960,8 +958,6 @@ export default function HomePage({
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
             {tiles
-              // Customer Messages is hidden on prod, so its stat tile is too.
-              .filter((tile) => !(IS_PRODUCTION && tile.label === 'Customer Messages'))
               .map((tile) => {
                 const Icon = tile.icon;
                 return (
