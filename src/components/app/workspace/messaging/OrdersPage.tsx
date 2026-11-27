@@ -7,6 +7,8 @@ import {
   type LineFulfilment,
   type Order,
   type OrderEvent,
+  type OrderNotification,
+  type OrderReturn,
   type OrderStatus,
   type PaymentStatus,
 } from '@/src/api/OrdersService';
@@ -31,6 +33,8 @@ const PAYMENT_TONE: Record<PaymentStatus, { label: string; tone: Tone }> = {
   partially_paid: { label: 'Part paid', tone: 'blue' },
   paid: { label: 'Paid', tone: 'green' },
   failed: { label: 'Payment failed', tone: 'red' },
+  refunded: { label: 'Refunded', tone: 'grey' },
+  partially_refunded: { label: 'Part refunded', tone: 'grey' },
 };
 
 const FULFILMENT_LABEL: Record<string, string> = {
@@ -212,11 +216,14 @@ function NewOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated:
 
 // ── order detail ─────────────────────────────────────────────────────────────
 
-type Panel = '' | 'payment' | 'discount' | 'cancel' | 'refund' | 'quote';
+type Panel = '' | 'payment' | 'discount' | 'cancel' | 'refund' | 'quote' | 'return';
 
 function OrderDetail({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
   const [order, setOrder] = useState<Order | null>(null);
   const [events, setEvents] = useState<OrderEvent[]>([]);
+  const [returns, setReturns] = useState<OrderReturn[]>([]);
+  const [notes, setNotes] = useState<OrderNotification[]>([]);
+  const [assignee, setAssignee] = useState('');
   const [panel, setPanel] = useState<Panel>('');
   const [amount, setAmount] = useState('');
   const [text, setText] = useState('');
@@ -230,6 +237,12 @@ function OrderDetail({ id, onClose, onChanged }: { id: string; onClose: () => vo
       .catch((e) => setError(apiError(e, 'Could not load this order.')));
     OrdersService.events(id)
       .then(setEvents)
+      .catch(() => undefined);
+    OrdersService.returnsOf(id)
+      .then(setReturns)
+      .catch(() => undefined);
+    OrdersService.notificationsOf(id)
+      .then(setNotes)
       .catch(() => undefined);
   }, [id]);
   useEffect(load, [load]);
@@ -335,6 +348,21 @@ function OrderDetail({ id, onClose, onChanged }: { id: string; onClose: () => vo
         </Section>
 
         <Section title="Customer">
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+            <Field
+              value={assignee || order.assignee}
+              onChange={setAssignee}
+              placeholder="Assigned to"
+              style={{ maxWidth: 200 }}
+            />
+            <Btn
+              kind="outline"
+              style={{ height: 30 }}
+              onClick={() => run(() => OrdersService.assign(order.id, assignee))}
+            >
+              Assign
+            </Btn>
+          </div>
           <Row label="Name">{order.customer.name || '—'}</Row>
           <Row label="Phone">{order.customer.phone || '—'}</Row>
           {order.customer.channel && <Row label="Channel">{order.customer.channel}</Row>}
@@ -370,6 +398,7 @@ function OrderDetail({ id, onClose, onChanged }: { id: string; onClose: () => vo
                 discount: 'Add a discount',
                 cancel: 'Cancel this order',
                 refund: 'Request a refund',
+                return: 'Request a return',
                 quote: 'Set the quoted price',
                 '': '',
               }[panel]
@@ -380,7 +409,7 @@ function OrderDetail({ id, onClose, onChanged }: { id: string; onClose: () => vo
                 <NumberInput
                   value={amount}
                   onChange={setAmount}
-                  placeholder={`Amount (${cur})`}
+                  placeholder={panel === 'return' ? 'How many?' : `Amount (${cur})`}
                   step={0.01}
                   style={{ width: 150 }}
                 />
@@ -404,6 +433,8 @@ function OrderDetail({ id, onClose, onChanged }: { id: string; onClose: () => vo
                     if (panel === 'payment') return OrdersService.recordPayment(order.id, toMinor(amount), text, '');
                     if (panel === 'discount') return OrdersService.adjust(order.id, 'discount', toMinor(amount), text);
                     if (panel === 'refund') return OrdersService.refund(order.id, toMinor(amount), text);
+                    if (panel === 'return')
+                      return OrdersService.requestReturn(order.id, lineId, Math.max(1, Number(amount) || 1), text);
                     if (panel === 'quote')
                       return OrdersService.quote(order.id, lineId || quoteLine!.id, Number(amount));
                     return OrdersService.cancel(order.id, text);
@@ -466,6 +497,17 @@ function OrderDetail({ id, onClose, onChanged }: { id: string; onClose: () => vo
               Cancel order
             </Btn>
           )}
+          {order.lines.some((l) => l.fulfilment_status === 'fulfilled') && (
+            <Btn
+              kind="outline"
+              onClick={() => {
+                setLineId(order.lines.find((l) => l.fulfilment_status === 'fulfilled')!.id);
+                setPanel('return');
+              }}
+            >
+              Request a return
+            </Btn>
+          )}
           <Btn
             kind="ghost"
             onClick={() => {
@@ -475,6 +517,94 @@ function OrderDetail({ id, onClose, onChanged }: { id: string; onClose: () => vo
             Copy customer link
           </Btn>
         </div>
+
+        {!!order.refunds?.length && (
+          <Section title="Refunds">
+            {order.refunds.map((r) => (
+              <Row
+                key={r.id}
+                label={`${r.status === 'completed' ? 'Completed' : 'Requested'} · ${r.reason || 'no reason'}`}
+              >
+                {major(r.amount, cur)}
+                {r.status === 'requested' && (
+                  <Btn
+                    kind="outline"
+                    style={{ marginLeft: 8, height: 26 }}
+                    onClick={() => run(() => OrdersService.completeRefund(order.id, r.id, 'paid out by business'))}
+                  >
+                    I paid this out
+                  </Btn>
+                )}
+              </Row>
+            ))}
+          </Section>
+        )}
+
+        {!!returns.length && (
+          <Section title="Returns">
+            {returns.map((r) => {
+              const line = order.lines.find((l) => l.id === r.line_id);
+              return (
+                <div key={r.id} style={{ padding: '6px 0', borderBottom: '1px solid #F7F2F5' }}>
+                  <Row label={`${r.quantity} × ${line?.snapshot.name ?? 'item'} · ${r.status}`}>{r.reason}</Row>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {r.status === 'requested' && (
+                      <>
+                        <Btn
+                          style={{ height: 28 }}
+                          onClick={() => run(() => OrdersService.returnAction(r.id, 'approve'))}
+                        >
+                          Approve
+                        </Btn>
+                        <Btn
+                          kind="danger"
+                          style={{ height: 28 }}
+                          onClick={() => run(() => OrdersService.returnAction(r.id, 'reject'))}
+                        >
+                          Reject
+                        </Btn>
+                      </>
+                    )}
+                    {r.status === 'approved' && (
+                      <Btn
+                        style={{ height: 28 }}
+                        onClick={() => run(() => OrdersService.returnAction(r.id, 'receive'))}
+                      >
+                        Mark received
+                      </Btn>
+                    )}
+                    {r.status === 'received' &&
+                      (['restock', 'damaged', 'write_off'] as const).map((d) => (
+                        <Btn
+                          key={d}
+                          kind="outline"
+                          style={{ height: 28 }}
+                          onClick={() => run(() => OrdersService.returnAction(r.id, 'resolve', { disposition: d }))}
+                        >
+                          {{ restock: 'Resellable: back in stock', damaged: 'Damaged', write_off: 'Write off' }[d]}
+                        </Btn>
+                      ))}
+                    {r.status === 'resolved' && <Muted>Outcome: {r.disposition?.replace('_', ' ')}</Muted>}
+                  </div>
+                </div>
+              );
+            })}
+          </Section>
+        )}
+
+        {!!notes.length && (
+          <Section title="Messages to the customer">
+            {notes.map((n) => (
+              <Row key={n.id} label={n.text}>
+                {n.result === 'sent'
+                  ? `Sent on ${n.channel}`
+                  : n.result === 'no_channel'
+                    ? 'No chat on file'
+                    : "Couldn't send"}
+              </Row>
+            ))}
+          </Section>
+        )}
 
         <Section title="Timeline">
           {events.map((e) => (

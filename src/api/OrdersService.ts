@@ -10,7 +10,14 @@ export type OrderStatus =
   | 'completed'
   | 'cancelled'
   | 'expired';
-export type PaymentStatus = 'unpaid' | 'pending' | 'partially_paid' | 'paid' | 'failed';
+export type PaymentStatus =
+  | 'unpaid'
+  | 'pending'
+  | 'partially_paid'
+  | 'paid'
+  | 'failed'
+  | 'refunded'
+  | 'partially_refunded';
 export type FulfilmentStatus =
   | 'not_started'
   | 'queued'
@@ -82,7 +89,36 @@ export interface Order {
   line_count?: number;
   lines: OrderLine[];
   payments?: OrderPayment[];
+  refunds?: OrderRefund[];
+  refunded_amount?: number;
   revisions?: OrderRevision[];
+}
+
+export interface OrderRefund {
+  id: string;
+  amount: number;
+  reason: string;
+  status: 'requested' | 'completed';
+  created_at: string;
+}
+
+export interface OrderReturn {
+  id: string;
+  line_id: string;
+  quantity: number;
+  reason: string;
+  status: 'requested' | 'approved' | 'rejected' | 'received' | 'resolved';
+  disposition?: string;
+  created_at: string;
+}
+
+export interface OrderNotification {
+  id: string;
+  kind: string;
+  text: string;
+  channel: string;
+  result: string;
+  created_at: string;
 }
 
 export interface OrderEvent {
@@ -116,6 +152,10 @@ const create = async (body: NewOrder): Promise<Order> => (await http().post('/or
 const post = async (id: string, path: string, body: object = {}): Promise<Order> =>
   (await http().post(`/orders/${id}/${path}`, body)).data;
 const events = async (id: string): Promise<OrderEvent[]> => (await http().get(`/orders/${id}/events`)).data.events;
+const returnsOf = async (id: string): Promise<OrderReturn[]> =>
+  (await http().get(`/orders/${id}/returns`)).data.returns;
+const notificationsOf = async (id: string): Promise<OrderNotification[]> =>
+  (await http().get(`/orders/${id}/notifications`)).data.notifications;
 const exportCsv = async (): Promise<string> => (await http().get('/orders/export', { responseType: 'text' })).data;
 
 export const OrdersService = {
@@ -123,7 +163,15 @@ export const OrdersService = {
   get,
   create,
   events,
+  returnsOf,
+  notificationsOf,
   exportCsv,
+  requestReturn: async (id: string, lineId: string, quantity: number, reason: string) =>
+    (await http().post(`/orders/${id}/returns`, { line_id: lineId, quantity, reason })).data,
+  returnAction: async (returnId: string, action: 'approve' | 'reject' | 'receive' | 'resolve', body: object = {}) =>
+    (await http().post(`/orders/returns/${returnId}/${action}`, body)).data,
+  completeRefund: async (id: string, refundId: string, reference: string) =>
+    (await http().post(`/orders/${id}/refunds/${refundId}/complete`, { reference })).data,
   send: (id: string) => post(id, 'quote'),
   quote: (id: string, lineId: string, unitPrice: number) =>
     post(id, 'quote', { line_id: lineId, unit_price: unitPrice }),
