@@ -57,6 +57,11 @@ const FILTERS = [
 const major = (minor: number, currency: string) => money(minor / 100, currency);
 const toMinor = (value: string) => Math.round(Number(value) * 100);
 
+const statusTone = (o: { status: OrderStatus; payment_status: string }) =>
+  (o.status === 'confirmed' || o.status === 'in_progress') && o.payment_status === 'paid'
+    ? { label: 'Paid · to fulfil', tone: 'amber' as Tone }
+    : ORDER_TONE[o.status];
+
 function Tag({ tone }: { tone: { label: string; tone: Tone } }) {
   const t = TONE[tone.tone];
   return (
@@ -281,7 +286,7 @@ function OrderDetail({ id, onClose, onChanged }: { id: string; onClose: () => vo
     <Modal title={order.order_number} onClose={onClose} width={760}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Tag tone={ORDER_TONE[order.status]} />
+          <Tag tone={statusTone(order)} />
           <Tag tone={PAYMENT_TONE[order.payment_status]} />
           <Pill fg="#5C5460" bg="#F3F2EF">
             {FULFILMENT_LABEL[order.fulfilment_status] ?? order.fulfilment_status}
@@ -693,7 +698,7 @@ export default function OrdersPage({ isMobile }: { isMobile?: boolean }) {
                 </td>
                 <td style={cell}>{major(o.total, o.currency)}</td>
                 <td style={cell}>
-                  <Tag tone={ORDER_TONE[o.status]} />
+                  <Tag tone={statusTone(o)} />
                 </td>
                 <td style={cell}>
                   <Tag tone={PAYMENT_TONE[o.payment_status]} />
