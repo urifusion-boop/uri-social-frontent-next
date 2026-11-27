@@ -650,7 +650,7 @@ export default function OrdersPage({ isMobile }: { isMobile?: boolean }) {
   };
 
   return (
-    <Pane style={{ padding: isMobile ? 12 : 20, gap: 12 }}>
+    <Pane style={{ padding: isMobile ? 12 : 20, gap: 14, flexDirection: 'column', overflowY: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <Title sub="Every order from Jane and from you, with payment and fulfilment tracked separately.">Orders</Title>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -683,7 +683,7 @@ export default function OrdersPage({ isMobile }: { isMobile?: boolean }) {
           <Table head={['Order', 'Customer', 'Total', 'Status', 'Payment', 'Fulfilment', 'Created']}>
             {rows.map((o) => (
               <tr key={o.id} onClick={() => setOpenId(o.id)} style={{ cursor: 'pointer' }}>
-                <td style={cell}>
+                <td style={{ ...cell, whiteSpace: 'nowrap' }}>
                   <b>{o.order_number}</b>
                   {o.source === 'onebox' && <Muted>Jane</Muted>}
                 </td>
